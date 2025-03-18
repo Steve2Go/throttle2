@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23605" systemVersion="24D70" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
+    <entity name="ServerEntities" representedClassName="ServerEntities" syncable="YES" codeGenerationType="class">
+        <attribute name="fsBrowse" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="fsPath" optional="YES" attributeType="String"/>
+        <attribute name="fsThumb" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="httpBrowse" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="httpThumb" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="httpUser" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isDefault" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="name" optional="YES" attributeType="String"/>
+        <attribute name="pathFilesystem" optional="YES" attributeType="String"/>
+        <attribute name="pathHttp" optional="YES" attributeType="String"/>
+        <attribute name="pathServer" optional="YES" attributeType="String"/>
+        <attribute name="port" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="rpc" optional="YES" attributeType="String"/>
+        <attribute name="sftpBrowse" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="sftpHost" optional="YES" attributeType="String"/>
+        <attribute name="sftpPort" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="sftpUser" optional="YES" attributeType="String"/>
+        <attribute name="url" optional="YES" attributeType="String"/>
+        <attribute name="user" optional="YES" attributeType="String"/>
+    </entity>
+</model>
