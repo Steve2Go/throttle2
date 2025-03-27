@@ -23,13 +23,12 @@
 - Create torrents (Uses torrent-create, installed with transmission-cli)
 
 ## To Come
-- Better "Files to download" implimentation
 - Secure connections to transmission over SSH
 - Server Stats & Controls
 - Local Daemon (mac)
 - Better messaging on server actions (Success, fail etc)
 - Streaming files via HTTP over SSH for ios versions
-- ketfile support for ssh key file authentication.
+- keyfile support for ssh key file authentication.
 
 Based on lessons learned from Mission for Mac & Throttle 1 (a fork of mission)
 
