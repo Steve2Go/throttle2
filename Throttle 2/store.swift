@@ -7,13 +7,13 @@
 import Foundation
 import SwiftUI
 import CoreData
-
+import KeychainAccess
 
 
 //MARK: Data Stores
 class Presenting: ObservableObject {
     @Published var didStart: Bool = true
-    
+    @Published var activeSheet: String?
 }
 
 class TorrentFilters: NSObject, ObservableObject {
@@ -27,6 +27,7 @@ class Store: NSObject, ObservableObject {
     @Published var connectTransmission = ""
     @Published var connectHttp = ""
     @AppStorage("selectedServerId") private var selectedServerId: String?
+    
     @Published var selection: ServerEntity? {
         didSet {
             if let server = selection {
@@ -36,14 +37,53 @@ class Store: NSObject, ObservableObject {
             }
         }
     }
+    
+    //torrent creation
+    @Published var addPath = ""
+    
+    //detailssheet
+    @Published var showDetailSheet = false
+    //Opening external files
     @Published var magnetLink = ""
     @Published var selectedFile: URL?
     @Published var selectedTorrentId: Int?
-    @Published var sideBar = false
-    @Published var showToast = false
     
+    //Sidebar
+//    @AppStorage("sideBar") private var sideBar = false
+//    @AppStorage("detailView") private var detailView = false
     
+    //Browse folders in ios
+    @Published var FileBrowse = false
+    @Published var FileBrowseCover = false
+    @Published var fileURL:String?
+    @Published var fileBrowserName:String?
+    #if os(iOS)
+    @Published var ssh: SSHConnection?
+#endif
+#if os(iOS)
+    var currentSFTPViewModel: SFTPFileBrowserViewModel?
     
+    func handleVLCCallback(_ url: URL) {
+        let action = url.lastPathComponent
+        
+        if (action == "playbackDidFinish" || action == "playbackDidFinish/") &&
+           currentSFTPViewModel != nil && self.selection != nil {
+            print("🔄 Store handling VLC callback for action: \(action)")
+            // Call the handler with the stored references
+            DispatchQueue.main.async {
+                self.currentSFTPViewModel?.handleVLCCallback(server: self.selection!)
+            }
+        } else {
+            print("⚠️ Cannot handle VLC callback: missing view model or server")
+            if currentSFTPViewModel == nil {
+                print("  - currentSFTPViewModel is nil")
+            }
+            if self.selection == nil {
+                print("  - server.selection is nil")
+            }
+        }
+    }
+    #endif
     func restoreSelection() {
         guard let savedId = selectedServerId,
               let uuid = UUID(uuidString: savedId) else {
@@ -70,93 +110,50 @@ class Store: NSObject, ObservableObject {
 
 
 
-
-
-
-//final class DataManager {
-//    static let shared = DataManager()
-//    
-//    let persistentContainer: NSPersistentCloudKitContainer
-//    
-//    init() {
-//        persistentContainer = NSPersistentCloudKitContainer(name: "CoreData") // Use your new model name
-//        
-//        // Configure CloudKit
-//        if let description = persistentContainer.persistentStoreDescriptions.first {
-//            description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-//                containerIdentifier: "iCloud.Throttle"
-//            )
-//            
-//            // Enable history tracking for CloudKit
-//            description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-//        }
-//        
-//        persistentContainer.loadPersistentStores { description, error in
-//            if let error = error {
-//                fatalError("Failed to load Core Data stack: \(error)")
-//            }
-//        }
-//        
-//        // Configure the view context
-//        persistentContainer.viewContext.automaticallyMergesChangesFromParent = true
-//        persistentContainer.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-//    }
-//    
-//    var viewContext: NSManagedObjectContext {
-//        return persistentContainer.viewContext
-//    }
-//    
-//    func saveContext() {
-//        let context = viewContext
-//        if context.hasChanges {
-//            do {
-//                try context.save()
-//            } catch {
-//                print("Error saving context: \(error)")
-//            }
-//        }
-//    }
-//}
-
-
-final class DataManager {
-    static let shared = DataManager()
-    static var initCount = 0
+// Helper function to get key information
+func getKeyAndPassphrase(for server: ServerEntity) -> (keyPath: String, passphrase: String?)? {
+    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+    guard let storedPath = server.sshKeyFullPath,
+          let filename = server.sshKeyFilename else { return nil }
     
-    let persistentContainer: NSPersistentContainer
-    
-    private init() {
-        DataManager.initCount += 1
-        print("⚠️ DataManager initialized \(DataManager.initCount) times")
-        
-        // Initialize with NSPersistentContainer
-        persistentContainer = NSPersistentContainer(name: "CoreData")
-        
-        persistentContainer.loadPersistentStores { description, error in
-            if let error = error {
-                fatalError("Failed to load Core Data stack: \(error)")
-            }
-            print("Successfully loaded persistent store: \(description)")
-            print("Model URL: \(description.url?.absoluteString ?? "unknown")")
-        }
-        
-        // Configure the view context
-        persistentContainer.viewContext.automaticallyMergesChangesFromParent = true
-        persistentContainer.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+    // Verify the stored path exists
+    if FileManager.default.fileExists(atPath: storedPath) {
+        #if os(macOS)
+        let sshKeychain = Keychain(service: "com.apple.ssh.passphrases")
+        let passphrase = try? sshKeychain.get(storedPath)
+        #else
+        let passphrase = try? keychain.get("passphrase-$filename)")
+        #endif
+        return (storedPath, passphrase)
     }
     
-    var viewContext: NSManagedObjectContext {
-        return persistentContainer.viewContext
+    // If stored path doesn't exist, try alternate location
+    #if os(macOS)
+    let alternatePath = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".ssh")
+        .appendingPathComponent(filename)
+        .path
+    #else
+    let alternatePath = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        .first!
+        .appendingPathComponent("SSH")
+        .appendingPathComponent(filename)
+        .path
+    #endif
+    
+    if FileManager.default.fileExists(atPath: alternatePath) {
+        // Update stored path to match found location
+        server.sshKeyFullPath = alternatePath
+        
+        #if os(macOS)
+        let sshKeychain = Keychain(service: "com.apple.ssh.passphrases")
+        let passphrase = try? sshKeychain.get(alternatePath)
+        #else
+        let passphrase = try? keychain.get("passphrase-$filename)")
+        #endif
+        return (alternatePath, passphrase)
     }
     
-    func saveContext() {
-        let context = viewContext
-        if context.hasChanges {
-            do {
-                try context.save()
-            } catch {
-                print("Error saving context: \(error)")
-            }
-        }
-    }
+    return nil
 }
+

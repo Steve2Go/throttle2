@@ -4,7 +4,7 @@
 //
 //  Created by Stephen Grigg on 21/3/2025.
 //
-
+#if os(iOS)
 
 // VideoPlayerConfiguration.swift
 import Foundation
@@ -72,3 +72,4 @@ class videoViewController: UIViewController {
         }
     }
 }
+#endif

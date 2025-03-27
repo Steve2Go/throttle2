@@ -1,107 +1,164 @@
 import SwiftUI
+import CoreData
 
-struct ToolbarItems: ToolbarContent {
-    @ObservedObject var store: Store
-    let servers: FetchedResults<ServerEntity>
-    @Binding var sortOption: String
-    @ObservedObject var manager: TorrentManager
-    @Binding var rotation: Double
+// MARK: - Server Menu Item
+@ViewBuilder
+func serverMenuToolbarItem(
+    store: Store,
+    presenting: Presenting,
+    servers: FetchedResults<ServerEntity>
+) -> some View {
     
-    var body: some ToolbarContent {
-        if store.sideBar == false {
-            ToolbarItemGroup(placement: .automatic) {
-                Menu {
-                    ForEach(servers) { server in
-                        Button(action: {
-                            store.selection = server
-                        }, label: {
-                            if store.selection == server {
-                                Image(systemName: "checkmark.circle").padding(.leading, 6)
-                            } else {
-                                Image(systemName: "circle")
-                            }
-                            Text(server.isDefault ? (server.name ?? "") + " (Default)" : (server.name ?? ""))
-                        })
-                        .buttonStyle(.plain)
-                    }
-                } label: {
-                    Image(systemName: "rectangle.connected.to.line.below")
-                }
-            }
-        }
-        
-        #if os(iOS)
-        ToolbarItemGroup(placement: .navigationBarTrailing) {
-            Menu {
+        Button(action: {
+            presenting.activeSheet = "adding"
+        }, label: {
+            Image(systemName: "plus")
+            //Text("Add")
+        }).buttonStyle(.borderless)
+    if servers.count > 1 {
+        Menu {
+            ForEach(servers) { server in
                 Button(action: {
-                    store.activeSheet = .servers
+                    store.selection = server
                 }, label: {
-                    Image(systemName: "rectangle.connected.to.line.below").padding(.leading, 6)
-                    Text("Manage Servers")
+                    if store.selection == server {
+                        Image(systemName: "checkmark.circle").padding(.leading, 6)
+                    } else {
+                        Image(systemName: "circle")
+                    }
+                    Text(server.isDefault ? (server.name ?? "") + " (Default)" : (server.name ?? ""))
                 })
                 .buttonStyle(.plain)
-                
-                Button(action: {
-                    store.activeSheet = .settings
-                }, label: {
-                    Image(systemName: "gearshape").padding(.leading, 6)
-                    Text("Settings")
-                })
-                .buttonStyle(.plain)
-                
-            } label: {
-                Image(systemName: "gearshape")
             }
-        }
-        #endif
-        
-        #if os(macOS)
-        ToolbarItemGroup(placement: .automatic) {
-            Button(action: {
-                Task {
-                    try? await manager.fetchUpdates(fields: [
-                        "id", "name", "percentDone", "percentComplete", "status",
-                        "downloadedEver", "uploadedEver", "totalSize",
-                        "error", "errorString", "files", "labels"
-                    ], isFullRefresh: true)
-                }
-            }) {
-                if manager.isLoading {
-                    Image(systemName: "arrow.trianglehead.2.clockwise")
-                        .rotationEffect(.degrees(rotation))
-                        .onAppear {
-                            withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
-                                rotation = 360
-                            }
-                        }
-                } else {
-                    Image(systemName: "arrow.trianglehead.2.clockwise")
-                }
-            }
-            .disabled(manager.isLoading)
-        }
-        #endif
-        
-        ToolbarItemGroup(placement: .primaryAction) {
-            Menu {
-                ForEach(SortOption.allCases, id: \.self) { option in
-                    Button(action: {
-                        sortOption = option.rawValue
-                        SortOption.saveToDefaults(option)
-                    }) {
-                        HStack {
-                            Text(option.rawValue)
-                            if sortOption == option.rawValue {
-                                Image(systemName: "checkmark.circle")
-                            } else {
-                                Image(systemName: "circle")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: "arrow.up.and.down.text.horizontal")
-            }
+        } label: {
+            Image(systemName: "externaldrive.badge.wifi")
         }
     }
 }
+
+// MARK: - iOS Settings Menu
+#if os(iOS)
+@ViewBuilder
+func settingsMenuToolbarItem(presenting: Presenting) -> some View {
+    Menu {
+        Button(action: {
+            presenting.activeSheet = "servers"
+        }, label: {
+            Image(systemName: "externaldrive").padding(.leading, 6)
+            Text("Manage Servers")
+        })
+        .buttonStyle(.plain)
+        
+        Button(action: {
+            presenting.activeSheet = "settings"
+        }, label: {
+            Image(systemName: "gearshape").padding(.leading, 6)
+            Text("Settings")
+        })
+        .buttonStyle(.plain)
+    } label: {
+        Image(systemName: "gearshape")
+    }
+}
+#endif
+
+// MARK: - macOS Refresh Button
+#if os(macOS)
+@ViewBuilder
+func refreshButtonToolbarItem(
+    manager: TorrentManager,
+    rotation: Binding<Double>
+) -> some View {
+    Button(action: {
+        Task {
+            try? await manager.fetchUpdates()
+        }
+    }) {
+        if manager.isLoading {
+            Image(systemName: "arrow.trianglehead.2.clockwise")
+                .rotationEffect(.degrees(rotation.wrappedValue))
+                .onAppear {
+                    withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
+                        rotation.wrappedValue = 360
+                    }
+                }
+        } else {
+            Image(systemName: "arrow.trianglehead.2.clockwise")
+        }
+    }
+    //.disabled(manager.isLoading)
+}
+#endif
+
+// MARK: - Sort Menu
+@ViewBuilder
+func sortMenuToolbarItem(
+    sortOption: Binding<String>
+) -> some View {
+    Menu {
+        ForEach(SortOption.allCases, id: \.self) { option in
+            Button(action: {
+                sortOption.wrappedValue = option.rawValue
+                SortOption.saveToDefaults(option)
+            }) {
+                HStack {
+                    Text(option.rawValue)
+                    if sortOption.wrappedValue == option.rawValue {
+                        Image(systemName: "checkmark.circle")
+                    } else {
+                        Image(systemName: "circle")
+                    }
+                }
+            }
+        }
+    } label: {
+        Image(systemName: "arrow.up.and.down.text.horizontal")
+    }
+}
+
+// MARK: - Toolbar Items Extension
+extension View {
+    @ViewBuilder
+    func addTorrentListToolbarItems(
+        store: Store,
+        servers: FetchedResults<ServerEntity>,
+        manager: TorrentManager,
+        presenting: Presenting,
+        rotation: Binding<Double>
+    ) -> some View {
+        self.toolbar {
+            if UserDefaults.standard.bool(forKey: "sideBar") != true {
+            ToolbarItemGroup(placement: .automatic) {
+                FilterMenu(isSidebar: false)
+            }
+                    // Server selection menu (conditional)
+                    ToolbarItemGroup(placement: .automatic) {
+                        serverMenuToolbarItem(
+                            store: store,
+                            presenting: presenting,
+                            servers: servers
+                        )
+                    }
+                
+            }
+            
+            // iOS-specific settings menu
+            #if os(iOS)
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                settingsMenuToolbarItem(presenting: presenting)
+            }
+            #endif
+            
+            // macOS-specific refresh button
+            #if targetEnvironment(macCatalyst) || os(macOS)
+            ToolbarItemGroup(placement: .automatic) {
+                refreshButtonToolbarItem(
+                    manager: manager,
+                    rotation: rotation
+                )
+            }
+            #endif
+        }
+    }
+}
+

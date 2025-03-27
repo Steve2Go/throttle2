@@ -1,234 +1,324 @@
-//
-//  ContentView.swift
-//  Throttle 2
-//
-//  Created by Stephen Grigg on 17/2/2025.
-//
-
 import SwiftUI
 import CoreData
 import KeychainAccess
 
-enum ActiveSheet: Identifiable {
+// Keep only one enum for sheet types
+enum SheetType: String, Identifiable {
     case adding
     case servers
     case settings
     
-    var id: Self { self }  // Use the enum case itself as the identifier
+    // id property required by Identifiable
+    var id: String { self.rawValue }
 }
-
 
 struct ContentView: View {
     @Environment(\.managedObjectContext) var viewContext
     @FetchRequest(
-            sortDescriptors: [NSSortDescriptor(keyPath: \Servers.name, ascending: true)],
-            animation: .default)
-        var servers: FetchedResults<Servers>
+        sortDescriptors: [NSSortDescriptor(keyPath: \ServerEntity.name, ascending: true)],
+        animation: .default)
+    var servers: FetchedResults<ServerEntity>
     @ObservedObject var presenting: Presenting
-    @ObservedObject var manager = TorrentManager()
+    @ObservedObject var manager: TorrentManager
     @ObservedObject var filter: TorrentFilters
     @ObservedObject var store: Store
-    @Binding var activeSheet: ActiveSheet?
-    @State private var splitViewVisibility = NavigationSplitViewVisibility.all
+    @State private var splitViewVisibility = NavigationSplitViewVisibility.automatic
+//    @AppStorage("sideBar") var sideBar = false
+    @AppStorage("detailView") private var detailView = false
+    @AppStorage("firstRun") private var firstRun = true
+    @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = true
+    @State var isMounted = false
+    @State var isCreating = false
+#if os(iOS)
+    @State var currentSFTPViewModel: SFTPFileBrowserViewModel?
+    #endif
+    #if os(macOS)
+    var mountManager = MountManager()
+#endif
     
-    // @State private var selection: Servers?
+    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
     
     
     var body: some View {
-        Text("test")
-//
-//        NavigationSplitView(columnVisibility: $splitViewVisibility) {
-//            
-//            if servers.count > 0 {
-//                List (selection: $store.selection){
-//                    //servers shows for both OS
-//                    Section (servers.count > 1 ? "Servers" :"Server") {
-//                        ForEach(servers) { server in
-//                            NavigationLink(value: server) {
-//                                //
-//                                Image(systemName: "rectangle.connected.to.line.below").padding(.leading,6 )
-//                                Text(server.isDefault ? server.name + " *": server.name)
-//                                
-//                                    .padding(.leading, 0)
-//                                
-//                            }
-//                            .onAppear{
-//                                if  presenting.didStart && server.isDefault {
-//                                    store.selection = server
-//                                    presenting.didStart = false
-//                                }
-//                            }
-//                            .buttonStyle(.plain)
-//                        }
-//                        
-//                    }
-//                    
-//                    
-//                    
-//                    
-//#if os(iOS)
-//                    
-//                    Section("Settings"){
-//                        Button("Manage Servers", systemImage: "rectangle.connected.to.line.below"){
-//                            activeSheet = .servers
-//                        }.buttonStyle(.plain)
-//                        Button("App Settings", systemImage: "gearshape"){
-//                            activeSheet = .settings
-//                        }.buttonStyle(.plain)
-//                    }
-//                    //.padding(.leading, 0)}
-//                    
-//#endif
-//                    
-//                    
-//                    // on macos this holds the filters if sidebar is showing
-//#if os(macOS)
-//                    //Divider()
-//                    FilterMenu(filters: filter)
-//                    
-//#endif
+        let activeSheetBinding = createActiveSheetBinding(presenting)
+        ZStack{
+            #if os(macOS)
+            MacOSContentView( presenting: presenting,
+                              manager: manager,
+                              filter: filter,
+                              store: store,
+                              isMounted: isMounted
+                              )
+            
+            #else
+            if servers.count > 1 {
+                iOSContentView( presenting: presenting,
+                                manager: manager,
+                                filter: filter,
+                                store: store
+                )
+            } else{
+                AddFirstServer(presenting: presenting)
+            }
+            
+#endif
+        }
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    presenting.activeSheet = "adding"
+                } label: {
+                    Image(systemName: "plus")
+                    //Text("Add")
+                } //.buttonStyle(.borderless)
+            }
+           // }
+#if os(iOS)
+            if ((store.selection?.sftpBrowse) != nil){
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        
+                        store.fileURL = store.selection?.pathServer
+                        store.fileBrowserName = ""
+                        store.FileBrowse = true
+                        
+                        
+                    } label:{
+                        Image(systemName: "folder")
+                    }
+                    
+                }
+            }
+#endif
+#if os(macOS)
+            
+            ToolbarItem (placement: .automatic) {
+                    Button {
+                        isCreating = true
+                    } label: {
+                        Image(systemName: "document.badge.plus")
+                    }
+                }
+            
+            if ((store.selection?.sftpBrowse) == true){
+                ToolbarItem (placement: .automatic) {
+                    Button {
+                        
+                        let path = mountManager.getMountPath(for: store.selection!)
+                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path.absoluteString.replacingOccurrences(of: "file://", with: ""))
+                        //NSWorkspace.shared.activateFileViewerSelecting([path])
+                        
+                    } label:{
+                        
+                        Image(systemName: "folder")
+                    }
+                }
+            }
+#endif
+            if !isSidebarVisible {
+#if os(iOS)
+                ToolbarItem(placement: .topBarTrailing){
+                    Menu {
+                        ForEach(servers) { server in
+                            Button(action: {
+                                store.selection = server
+                            }, label: {
+                                if store.selection == server {
+                                    Image(systemName: "checkmark.circle").padding(.leading, 6)
+                                } else {
+                                    Image(systemName: "circle")
+                                }
+                                Text(server.isDefault ? (server.name ?? "") + " (Default)" : (server.name ?? ""))
+                            })
+                            .buttonStyle(.plain)
+                        }
+                    } label: {
+                        Image(systemName: "externaldrive.badge.wifi")
+                    }
+                }
+#else
+                ToolbarItem {
+                    Menu {
+                        ForEach(servers) { server in
+                            Button(action: {
+                                store.selection = server
+                            }, label: {
+                                if store.selection == server {
+                                    Image(systemName: "checkmark.circle").padding(.leading, 6)
+                                } else {
+                                    Image(systemName: "circle")
+                                }
+                                Text(server.isDefault ? (server.name ?? "") + " (Default)" : (server.name ?? ""))
+                            })
+                            .buttonStyle(.plain)
+                        }
+                    } label: {
+                        Image(systemName: "externaldrive.badge.wifi")
+                    }
+                }
+#endif
+#if os(iOS)
+                
+#endif
+            }
+        }
+        
+        .onAppear {
+            let serverArray = Array(servers)
+            #if os(macOS)
+            mountManager.mountFolders(servers: serverArray)
+            #endif
+            
+            if presenting.didStart {
+                store.selection = servers.first(where: { $0.isDefault }) ?? servers.first
+                presenting.didStart = false
+            }
+            
+            // Set appropriate visibility only for iPad - preserves state on macOS
+            #if os(iOS)
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                // Initialize iPad layout based on current orientation
+                setIpadSplitViewVisibility()
+            }
+            #endif
+        }
+        #if os(iOS)
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+            // Only respond to iPad orientation changes
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                setIpadSplitViewVisibility()
+            }
+        }
+        #endif
+        #if os(macOS)
+        .sheet( isPresented: $isCreating) {
+            CreateTorrent(store: store, presenting: presenting)
+                .frame(width: 400, height: 500)
+                .padding(20)
+        }
+        #endif
+        .sheet(item: activeSheetBinding) { sheetType in
+            switch sheetType {
+            case .settings:
+                SettingsView(presenting: presenting)
+            case .servers:
+                ServersListView(presenting: presenting, store: store)
+                    #if targetEnvironment(macCatalyst) || os(macOS)
+                    .frame(width: 600, height: 600)
+                    #endif
+            case .adding:
+                AddTorrentView(store: store, manager: manager, presenting: presenting)
+                    #if os(iOS)
+                    .presentationDetents([.medium])
+                    #endif
+            }
+        }
+        
+        .onOpenURL { url in
+            // Check if it's a VLC callback
+#if os(iOS)
+            if url.scheme == "throttle" && url.host == "x-callback-url" {
+                // Let the store handle it
+                //removed for now, internal player used
+//                if UserDefaults.standard.bool(forKey: "usePlaylist") {
+//                    store.handleVLCCallback(url)
 //                }
-//                .navigationTitle("Throttle")
-//            } else {
-//#if os(macOS)
-//                let word = "Click"
-//#else
-//                let word = "Tap"
-//                #endif
-//                ContentUnavailableView("Add a server to Begin",
-//                    systemImage: "server.rack",
-//                    description: Text("\(word) here to get started.")
-//
-//                ).onTapGesture {
-//                    activeSheet = .servers
-//                }
-//            }
-//
-//            
-//            
-//            
-//            //Text("Select an item")
-//        }
-//        
-//        content: {
-//            //ListView(presenting: presenting, server: selection)
-//            if store.connectTransmission != "" {
-//                //TorrentListView(baseURL: URL(string: store.connectTransmission)!)
-//                
-//                if let server = store.selection{
-//                    // Each time server changes, SwiftUI creates a new TorrentListView
-//                    // with a fresh TorrentManager
-//                    TorrentListView(manager: manager, baseURL: URL( string: store.connectTransmission)!, activeSheet: $activeSheet, store: store)
-//                        
-//                    //manager.updateBaseURL(URL( string: store.connectTransmission)!)
-//                    
-//                        .toolbar {
-//                            ToolbarItem(placement: .automatic, content: {
-//                                Button(action: {
-//                                    
-//                                    store.selection = nil
-//                                }) {
-//                                    Label("Filters", systemImage: "line.3.horizontal.decrease")
-//                                }
-//                            })
-//                            ToolbarItem(placement: .automatic) {
-//                                Button(action: {
-//                                    activeSheet = .adding
-//                                }) {
-//                                    Label("Add", systemImage: "plus")
-//                                }
-//                            }
-//                            
-//                        }.navigationBarBackButtonHidden(true)
-//                        .navigationSplitViewColumnWidth(min: 320, ideal: 400, max: 600)
-//                }
-//            } else {
-//                ContentUnavailableView("Select a Server",
-//                                       systemImage: "server.rack",
-//                                       description: Text("Choose a server from the list or add a new one")
-//                )
-//            }
-//        } detail: {
-//            
-//            DetailsView( store: store , manager: manager)
-//            
-//        }
-//        .sheet(item: $activeSheet, onDismiss: {
-//            store.selectedFile = nil
-//            store.magnetLink = ""
-//        }) { sheet in
-//            switch sheet {
-//            case .adding:
-//                if let selectedServer = store.selection {
-//                    AddTorrentView(store: store,
-//                                   manager: manager,
-//                                   currentServer: selectedServer,
-//                                   presenting: presenting,
-//                                   activeSheet: $activeSheet)
-//                    .presentationDetents([.medium])
-//#if os(macOS)
-//                    .frame(width: 600, height: 210)
-//#endif
-//                }
-//            case .servers:
-//                ServersListView(presenting: presenting,
-//                                activeSheet: $activeSheet, store: store)
-//                .presentationDetents([.large])
-//#if os(macOS)
-//                .frame(width: 500, height: 500)
-//#endif
-//            case .settings:
-//                SettingsView(presenting: presenting,
-//                             activeSheet: $activeSheet)
-//                
-//                
-//#if os(macOS)
-//                .frame(width: 600, height: 550)
-//                #else
-//                .presentationDetents([.large])
-//#endif
-//            }
-//               
-//        } .onOpenURL { (url) in
-//            if url.isFileURL{
+                
+                return
+            }
+            #endif
+            if url.isFileURL {
+                store.selectedFile = url
+                store.selectedFile!.startAccessingSecurityScopedResource()
+                Task {
+                    try await Task.sleep(for: .milliseconds(500))
+                    presenting.activeSheet = "adding"
+                }
+            }
+            else if url.absoluteString.lowercased().hasPrefix("magnet:") {
+                store.magnetLink = url.absoluteString
+                Task {
+                    try await Task.sleep(for: .milliseconds(500))
+                    presenting.activeSheet = "adding"
+                }
+            }
+            else {
+                print("URL ignored: Not a file or magnet link")
+            }
+        }
+
+//        .onOpenURL { url in
+//            // Check if it's a file URL
+//            if url.isFileURL {
 //                store.selectedFile = url
 //                store.selectedFile!.startAccessingSecurityScopedResource()
-//            } else{
+//                Task {
+//                    try await Task.sleep(for: .milliseconds(500))
+//                    presenting.activeSheet = "adding"
+//                }
+//            }
+//            // Check if it's a magnet link
+//            else if url.absoluteString.lowercased().hasPrefix("magnet:") {
 //                store.magnetLink = url.absoluteString
+//                Task {
+//                    try await Task.sleep(for: .milliseconds(500))
+//                    presenting.activeSheet = "adding"
+//                }
 //            }
-//            Task{
-//                try await Task.sleep(for: .milliseconds(500))
-//                activeSheet = .adding
+//            // Ignore all other URL types
+//            else {
+//                print("URL ignored: Not a file or magnet link")
 //            }
-//            
-          }
-        
-//#if os(macOS)
-//.onChange(of: splitViewVisibility, perform: { newValue in
-//    print("Raw splitViewVisibility change: \(newValue)")
-//    
-//    if newValue == .all || newValue == .all {
-//        store.sideBar = true
-//        print("Sidebar is open")
-//    } else {
-//        store.sideBar = false
-//        print("Sidebar is closed")
-//    }
-//})
-//#endif
-//      
-//    }
-//    func dismissSheet() {
-//        activeSheet = nil
-//    }
-//    
+//        }
+    }
+    
+    private func createActiveSheetBinding(_ presenting: Presenting) -> Binding<SheetType?> {
+        return Binding<SheetType?>(
+            get: {
+                if let sheetString = presenting.activeSheet {
+                    return SheetType(rawValue: sheetString)
+                }
+                return nil
+            },
+            set: { presenting.activeSheet = $0?.rawValue }
+        )
+    }
+#if os(iOS)
+// Helper function to set iPad-specific split view visibility
+func setIpadSplitViewVisibility() {
+    // Only apply to iPad
+    if UIDevice.current.userInterfaceIdiom == .pad {
+        // In portrait: show content view (torrent list)
+        if UIDevice.current.orientation.isPortrait || UIDevice.current.orientation.isFlat {
+            splitViewVisibility = .doubleColumn
+        } else {
+            // In landscape: show all columns
+            splitViewVisibility = .all
+        }
+    }
+}
+#endif
 }
 
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
-}()
-
-
+    func isRemoteMounted(byName remoteName: String) -> Bool {
+        // 1. Determine the expected mount point path
+        
+        ///private/tmp/com.srgim.Throttle-2.sftp/Backup
+        let mountsDirectory = "private/tmp/com.srgim.Throttle-2.sftp" // Standard location for macOS mounts
+        let mountPath = "\(mountsDirectory)/\(remoteName)"
+        
+        // 2. Check if the mount exists and is accessible
+        let fileManager = FileManager.default
+        let isDirectory = UnsafeMutablePointer<ObjCBool>.allocate(capacity: 1)
+        defer { isDirectory.deallocate() }
+        
+        // Check if path exists and is a directory
+        let exists = fileManager.fileExists(atPath: mountPath, isDirectory: isDirectory)
+        
+        // 3. Optional: Check if directory has content (additional validation)
+        let hasContent = exists && isDirectory.pointee.boolValue &&
+                       ((try? fileManager.contentsOfDirectory(atPath: mountPath).isEmpty) == false) ?? false
+        
+        return exists && isDirectory.pointee.boolValue
+        // Or use the stricter check: return hasContent
+    }

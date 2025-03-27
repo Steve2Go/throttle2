@@ -1,8 +1,16 @@
+//
+//  ServerManager.swift
+//  Throttle 2
+//
+//  Created by Stephen Grigg on 7/3/2025.
+//
+
+#if os(macOS)
 import Foundation
 import CoreData
 import Combine
 
-class ServerManager: ObservableObject {
+class ServerMountManager: ObservableObject {
     private let dataManager = DataManager.shared
     private let mountManager = MountManager()
     private var cancellables = Set<AnyCancellable>()
@@ -53,3 +61,4 @@ class ServerManager: ObservableObject {
         return mountManager.mountErrors[server.name ?? ""]
     }
 }
+#endif

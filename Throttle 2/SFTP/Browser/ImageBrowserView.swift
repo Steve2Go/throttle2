@@ -4,7 +4,8 @@
 //
 //  Created by Stephen Grigg on 21/3/2025.
 //
-
+#if os(iOS)
+import SwiftUI
 
 // MARK: - Image Browser View
 struct ImageBrowserView: View {
@@ -394,8 +395,8 @@ struct AsyncSFTPImageView: View {
                 }
             }
         }
-        .onChange(of: shouldStartLoading) { newValue in
-            if newValue && image == nil && !isLoading {
+        .onChange(of: shouldStartLoading) { 
+            if shouldStartLoading && image == nil && !isLoading {
                 loadImage()
             }
         }
@@ -531,3 +532,4 @@ struct PinchToZoom: ViewModifier {
     }
     #endif
 }
+#endif

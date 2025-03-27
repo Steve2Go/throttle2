@@ -7,11 +7,11 @@ import KeychainAccess
 @MainActor
 class ServerManager: ObservableObject {
     static let shared = ServerManager()
-    @Published var selectedServer: Servers?
+    @Published var selectedServer: ServerEntity?
     
     private init() {}
     
-    func setServer(_ server: Servers) {
+    func setServer(_ server: ServerEntity) {
         selectedServer = server
         UserDefaults.standard.set(server.id?.uuidString, forKey: "selectedServer")
     }
@@ -29,7 +29,7 @@ func serverPath_to_url(_ path: String) -> String {
         return "" // fallback URL if server info missing
     }
     print("commence pass revial for server " + (server?.name ?? "Missing server name"))
-    let keychain = Keychain(service: "srgim.throttle2")
+    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
     let password = keychain["httpPassword" + (server!.name ?? "")]
     print("pass retreived for server " + (server?.name ?? "Missing"))
     //handle password construction
@@ -64,7 +64,7 @@ func url_to_url(_ path: String) -> String {
           !urlPath.isEmpty else {
         return "" // fallback URL if server info missing
     }
-    let keychain = Keychain(service: "srgim.throttle2")
+    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
     let password = keychain["httpPassword" + (server.name ?? "")]
     
     //handle password construction
@@ -162,4 +162,10 @@ func local_to_serverPath(_ localPath: String) -> String {
     //let fullPath = serverBasePath + relativePath
     
     return relativePath
+}
+
+func isWindowsFilePath(_ path: String) -> Bool {
+    // This regex checks for a drive letter (A-Z or a-z) followed by a colon and a slash/backslash.
+    let pattern = "^[A-Za-z]:[\\\\/].*"
+    return path.range(of: pattern, options: .regularExpression) != nil
 }

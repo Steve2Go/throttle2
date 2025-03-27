@@ -17,17 +17,17 @@ extension TorrentManager {
         }
     }
     
-    func getLabels(for torrentId: Int) -> [String] {
-        return torrentCache[torrentId]?["labels"]?.value as? [String] ?? []
+    func getLabels(_ torrent : Torrent) -> [String] {
+        return torrent.dynamicFields["labels"]?.value as? [String] ?? []
     }
     
-    func isStarred(_ torrentId: Int) -> Bool {
-        let labels = getLabels(for: torrentId)
+    func isStarred(_ torrent: Torrent) -> Bool {
+        let labels = getLabels( torrent)
         return labels.contains("starred")
     }
     
-    func toggleStar(for torrentId: Int) async throws {
-        var currentLabels = getLabels(for: torrentId)
+    func toggleStar(for torrent: Torrent) async throws {
+        var currentLabels = getLabels(torrent)
         let isCurrentlyStarred = currentLabels.contains("starred")
         
         // Prepare new labels array
@@ -44,7 +44,7 @@ extension TorrentManager {
             urlRequest.setValue(sessionId, forHTTPHeaderField: "X-Transmission-Session-Id")
         }
         
-        let request = LabelRequest(arguments: .init(ids: [torrentId], labels: currentLabels))
+        let request = LabelRequest(arguments: .init(ids: [torrent.id], labels: currentLabels))
         let encoder = JSONEncoder()
         let requestData = try encoder.encode(request)
         urlRequest.httpBody = requestData
@@ -55,7 +55,7 @@ extension TorrentManager {
             if httpResponse.statusCode == 409 {
                 if let newSessionId = httpResponse.allHeaderFields["X-Transmission-Session-Id"] as? String {
                     sessionId = newSessionId
-                    return try await toggleStar(for: torrentId)
+                    return try await toggleStar(for: torrent)
                 }
                 throw TorrentOperationError.serverError("Session ID not found in 409 response")
             }
@@ -66,15 +66,8 @@ extension TorrentManager {
         }
         
         let response = try JSONDecoder().decode(Response.self, from: data)
-        if response.result == "success" {
+        if response.result != "success" {
             // Update the local cache immediately
-            await MainActor.run {
-                if var fields = torrentCache[torrentId] {
-                    fields["labels"] = AnyCodable(currentLabels)
-                    torrentCache[torrentId] = fields
-                }
-            }
-        } else {
             throw TorrentOperationError.serverError("Failed to update labels")
         }
     }

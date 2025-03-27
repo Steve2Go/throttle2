@@ -1,0 +1,16 @@
+current directory: /Users/stephengrigg/Documents/Throttle 2 copy/Throttle 2/nclude-dependencies/gems/nkf-0.2.0/ext/nkf
+/System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/bin/ruby -I /System/Library/Frameworks/Ruby.framework/Versions/2.6/usr/lib/ruby/2.6.0 -r ./siteconf20250305-53392-1y1i1lp.rb extconf.rb
+creating Makefile
+
+current directory: /Users/stephengrigg/Documents/Throttle 2 copy/Throttle 2/nclude-dependencies/gems/nkf-0.2.0/ext/nkf
+make "DESTDIR=" clean
+
+current directory: /Users/stephengrigg/Documents/Throttle 2 copy/Throttle 2/nclude-dependencies/gems/nkf-0.2.0/ext/nkf
+make "DESTDIR="
+compiling nkf.c
+linking shared-object nkf.bundle
+ld: warning: search path '/AppleInternal/Library/BuildRoots/d187755d-b9a3-11ef-83e5-aabfac210453/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.3.Internal.sdk/usr/local/lib' not found
+
+current directory: /Users/stephengrigg/Documents/Throttle 2 copy/Throttle 2/nclude-dependencies/gems/nkf-0.2.0/ext/nkf
+make "DESTDIR=" install
+/usr/bin/install -c -m 0755 nkf.bundle ./.gem.20250305-53392-konge1

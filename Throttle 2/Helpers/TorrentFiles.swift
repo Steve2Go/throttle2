@@ -72,30 +72,10 @@ extension TorrentManager {
                 print("   Files count: \(files.count)")
             }
         }
-        
-//        await MainActor.run {
-//            // Update the cache with the new data
-//            if let torrent = response.arguments.torrents.first {
-//                print("🔄 Updating cache for torrent \(id)")
-//                let oldFileCount = torrent.dynamicFields["files"]?.value as? [[String: Any]]
-//                print("   Old files in cache: \(oldFileCount?.count ?? 0)")
-//                
-////                // Update cache
-////                for (key, value) in torrent.dynamicFields {
-////                    torrent.dynamicFields[key] = value
-////                }
-//                
-//                let newFileCount = torrent.dynamicFields["files"]?.value as? [[String: Any]]
-//                //print("   New files in cache: \(newFileCount?.count ?? 0)")
-//                
-//                // Update torrents array
-//                if let index = torrents.firstIndex(where: { $0.id == id }) {
-//                    //print("   Updating torrent at index \(index)")
-////                    var updatedTorrent = torrents[index]
-////                    updatedTorrent.dynamicFields = torrentCache[id] ?? [:]
-////                    torrents[index] = updatedTorrent
-//                }
-//            }
-//        }
     }
+    
+    
+    
 }
+
+

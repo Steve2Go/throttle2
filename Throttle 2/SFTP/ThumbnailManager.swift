@@ -1,72 +1,612 @@
-class ThumbnailManager {
-    private var cache = NSCache<NSString, ThumbnailContainer>()
-    private let queue = DispatchQueue(label: "com.throttle.thumbnails", qos: .utility)
-    private let mediaPlayer = VLCMediaPlayer()
+#if os(iOS)
+import SwiftUI
+import KeychainAccess
+import UIKit
+import mft
+import NIOSSH
+import AVFoundation
+import MobileVLCKit
+
+public class ThumbnailManager: NSObject {
+    public static let shared = ThumbnailManager()
+    private let fileManager = FileManager.default
+    private let thumbnailQueue = DispatchQueue(label: "com.throttle.thumbnailQueue", qos: .utility)
+    private var inProgressPaths = Set<String>()
+    private let inProgressLock = NSLock()
     
-    struct ThumbnailContainer {
-        let image: Image
-        let timestamp: Date
+    // Cache directory for saved thumbnails
+    private var cacheDirectory: URL? {
+        fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
+            .first?.appendingPathComponent("thumbnailCache")
     }
     
-    func getThumbnail(for path: String, server: ServerEntity) async throws -> Image? {
+    override init() {
+        super.init()
+        createCacheDirectoryIfNeeded()
+    }
+    
+    private func createCacheDirectoryIfNeeded() {
+        if let cacheDir = cacheDirectory, !fileManager.fileExists(atPath: cacheDir.path) {
+            try? fileManager.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        }
+    }
+    
+    // Semaphore dictionary to limit connections per server
+    private var serverSemaphores = [String: DispatchSemaphore]()
+    private let semaphoreAccess = NSLock()
+    
+    private func getSemaphore(for server: ServerEntity) -> DispatchSemaphore {
+        let key = server.name ?? server.sftpHost ?? "default"
+        
+        semaphoreAccess.lock()
+        defer { semaphoreAccess.unlock() }
+        
+        if let semaphore = serverSemaphores[key] {
+            return semaphore
+        } else {
+            // Create a new semaphore with the server's max connections value
+            let maxConnections = max(1, Int(server.thumbMax)) // Ensure at least 1
+            let semaphore = DispatchSemaphore(value: maxConnections)
+            serverSemaphores[key] = semaphore
+            return semaphore
+        }
+    }
+    
+    /// Main entry point – returns a SwiftUI Image thumbnail for a given SFTP path.
+    public func getThumbnail(for path: String, server: ServerEntity) async throws -> Image {
         // Check cache first
-        if let cached = cache.object(forKey: path as NSString) {
-            // Only use cache if less than 1 hour old
-            if Date().timeIntervalSince(cached.timestamp) < 3600 {
-                return cached.image
-            }
+        if let cached = try? await loadFromCache(for: path) {
+            return cached
         }
         
-        // Generate thumbnail
-        return try await withCheckedThrowingContinuation { continuation in
-            queue.async {
+        // Mark as in progress to prevent duplicate requests
+        let alreadyInProgress = markInProgress(path: path)
+        if alreadyInProgress {
+            return defaultThumbnail(for: path)
+        }
+        
+        defer {
+            clearInProgress(path: path)
+        }
+        
+        // Get semaphore for this server
+        let semaphore = getSemaphore(for: server)
+        
+        // Use async/await with semaphore for connection limiting
+        return await withCheckedContinuation { continuation in
+            Task {
+                // Wait for a semaphore slot (respecting server.thumbMax)
+                await withUnsafeContinuation { innerContinuation in
+                    DispatchQueue.global().async {
+                        semaphore.wait()
+                        innerContinuation.resume()
+                    }
+                }
+                
+                // Once we have a slot, generate the thumbnail
+                defer {
+                    // Always release the semaphore when done
+                    semaphore.signal()
+                }
+                
                 do {
-                    // Setup SFTP URL
-                    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-                    guard let username = server.sftpUser,
-                          let password = keychain["sftpPassword" + (server.name ?? "")],
-                          let hostname = server.sftpHost else {
-                        continuation.resume(returning: nil)
-                        return
-                    }
+                    let fileType = FileType.determine(from: URL(fileURLWithPath: path))
                     
-                    let port = server.sftpPort
-                    let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
-                    let sftpURLString = "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)"
-                    
-                    guard let sftpURL = URL(string: sftpURLString) else {
-                        continuation.resume(returning: nil)
-                        return
-                    }
-                    
-                    let media = VLCMedia(url: sftpURL)
-                    self.mediaPlayer.media = media
-                    
-                    // For video files, take snapshot at 1 second
-                    self.mediaPlayer.time = VLCTime(int: 1000)
-                    if let snapshot = self.mediaPlayer.snapshots?.first {
-                        #if os(iOS)
-                        let image = Image(uiImage: snapshot)
-                        #else
-                        let image = Image(nsImage: snapshot)
-                        #endif
-                        
-                        // Cache the result
-                        let container = ThumbnailContainer(image: image, timestamp: Date())
-                        self.cache.setObject(container, forKey: path as NSString)
-                        
-                        continuation.resume(returning: image)
+                    let thumbnail: Image
+                    if fileType == .image {
+                        thumbnail = try await generateImageThumbnail(for: path, server: server)
+                    } else if fileType == .video {
+                        if server.ffThumb {
+                            // Use server-side FFmpeg thumbnailing if enabled
+                            do {
+                                thumbnail = try await generateFFmpegThumbnail(for: path, server: server)
+                            } catch {
+                                print("FFmpeg thumbnail failed, trying VLC: \(error.localizedDescription)")
+                                // Try to use VLC as fallback
+                                do {
+                                    thumbnail = try await generateVideoThumbnail(for: path, server: server)
+                                } catch let vlcError {
+                                    print("VLC thumbnail also failed: \(vlcError.localizedDescription)")
+                                    thumbnail = defaultThumbnail(for: path)
+                                }
+                            }
+                        } else {
+                            // Use VLC directly for videos when server-side FFmpeg is not enabled
+                            do {
+                                thumbnail = try await generateVideoThumbnail(for: path, server: server)
+                            } catch let error {
+                                print("VLC thumbnail failed, using placeholder: \(error.localizedDescription)")
+                                thumbnail = defaultThumbnail(for: path)
+                            }
+                        }
                     } else {
-                        continuation.resume(returning: nil)
+                        thumbnail = defaultThumbnail(for: path)
                     }
+                    
+                    continuation.resume(returning: thumbnail)
                 } catch {
-                    continuation.resume(throwing: error)
+                    // Always return a default thumbnail on any error
+                    print("Thumbnail generation failed with error: \(error.localizedDescription)")
+                    continuation.resume(returning: defaultThumbnail(for: path))
                 }
             }
         }
     }
     
-    func clearCache() {
-        cache.removeAllObjects()
+    private func markInProgress(path: String) -> Bool {
+        inProgressLock.lock()
+        defer { inProgressLock.unlock() }
+        
+        if inProgressPaths.contains(path) {
+            return true // Already in progress
+        }
+        
+        inProgressPaths.insert(path)
+        return false // Not previously in progress
+    }
+    
+    private func clearInProgress(path: String) {
+        inProgressLock.lock()
+        defer { inProgressLock.unlock() }
+        inProgressPaths.remove(path)
+    }
+    
+    // MARK: - Image Thumbnail Generation
+    
+    private func generateImageThumbnail(for path: String, server: ServerEntity) async throws -> Image {
+        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        guard let username = server.sftpUser,
+              let password = keychain["sftpPassword" + (server.name ?? "")],
+              let hostname = server.sftpHost else {
+            throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing SFTP credentials"])
+        }
+        
+        let connection = MFTSftpConnection(
+            hostname: hostname,
+            port: Int(server.sftpPort),
+            username: username,
+            password: password
+        )
+        try connection.connect()
+        try connection.authenticate()
+        
+        let tempURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(URL(fileURLWithPath: path).pathExtension)
+        
+        let stream = OutputStream(toFileAtPath: tempURL.path, append: false)!
+        stream.open()
+        defer {
+            stream.close()
+            try? fileManager.removeItem(at: tempURL)
+        }
+        
+        try connection.contents(atPath: path, toStream: stream, fromPosition: 0) { _, _ in true }
+        
+        guard let imageData = try? Data(contentsOf: tempURL),
+              let uiImage = UIImage(data: imageData) else {
+            throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to load image data"])
+        }
+        
+        let thumb = processThumbnail(uiImage: uiImage, isVideo: false)
+        try? saveToCache(image: uiImage, for: path)
+        return thumb
+    }
+    
+    // MARK: - Video thumbs via FFmpeg (server-side)
+    
+    private func generateFFmpegThumbnail(for path: String, server: ServerEntity) async throws -> Image {
+        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        guard let username = server.sftpUser,
+              let password = keychain["sftpPassword" + (server.name ?? "")],
+              let hostname = server.sftpHost else {
+            throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing credentials"])
+        }
+        
+        // Create SSH connection
+        let ssh = SSHConnection(
+            host: hostname,
+            port: Int(server.sftpPort),
+            username: username,
+            password: password
+        )
+        
+        try await ssh.connect()
+        defer {
+            try? ssh.disconnect()
+        }
+        
+        // Generate a unique temp filename
+        let tempThumbPath = "/tmp/thumb_\(UUID().uuidString).jpg"
+        
+        // Escape single quotes in paths
+        let escapedPath = "'\(path.replacingOccurrences(of: "'", with: "'\\''"))'"
+        let escapedThumbPath = "'\(tempThumbPath.replacingOccurrences(of: "'", with: "'\\''"))'"
+        
+        // Execute ffmpeg command - use 3 seconds timestamp as requested
+        let ffmpegCmd = "ffmpeg -y -i \(escapedPath) -ss 00:00:03.000 -vframes 1 \(escapedThumbPath)"
+        let result = try await ssh.executeCommand(ffmpegCmd)
+        
+        if result.status != 0 {
+            // Try one more time with a different timestamp if first attempt fails
+            let retryCmd = "ffmpeg -y -i \(escapedPath) -ss 00:00:00.000 -vframes 1 \(escapedThumbPath)"
+            let retryResult = try await ssh.executeCommand(retryCmd)
+            
+            if retryResult.status != 0 {
+                throw NSError(domain: "ThumbnailManager", code: -3, userInfo: [
+                    NSLocalizedDescriptionKey: "FFmpeg failed to generate thumbnail"
+                ])
+            }
+        }
+        
+        // Download the generated thumbnail
+        let tempURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("jpg")
+        
+        do {
+            let connection = MFTSftpConnection(
+                hostname: hostname,
+                port: Int(server.sftpPort),
+                username: username,
+                password: password
+            )
+            try connection.connect()
+            try connection.authenticate()
+            
+            let stream = OutputStream(toFileAtPath: tempURL.path, append: false)!
+            stream.open()
+            defer {
+                stream.close()
+            }
+            
+            try connection.contents(atPath: tempThumbPath, toStream: stream, fromPosition: 0) { _, _ in true }
+            
+            // Delete remote thumbnail
+            _ = try await ssh.executeCommand("rm -f \(escapedThumbPath)")
+            
+            guard let imageData = try? Data(contentsOf: tempURL),
+                  let uiImage = UIImage(data: imageData) else {
+                throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to load thumbnail"])
+            }
+            
+            let thumb = processThumbnail(uiImage: uiImage, isVideo: true)
+            try? saveToCache(image: uiImage, for: path)
+            
+            try? fileManager.removeItem(at: tempURL)
+            return thumb
+            
+        } catch {
+            try? fileManager.removeItem(at: tempURL)
+            // Delete remote thumbnail in case of error
+            try? await ssh.executeCommand("rm -f \(escapedThumbPath)")
+            throw error
+        }
+    }
+    
+    // MARK: - Video Thumbnail Generation via VLC
+    
+    private func generateVideoThumbnail(for path: String, server: ServerEntity) async throws -> Image {
+        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        guard let username = server.sftpUser,
+              let password = keychain["sftpPassword" + (server.name ?? "")],
+              let hostname = server.sftpHost else {
+            throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing SFTP credentials"])
+        }
+        
+        // Properly escape credentials for URL
+        let escapedUsername = username.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? username
+        let escapedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? password
+        let port = server.sftpPort
+        
+        // Create SFTP URL
+        let sftpURLString = "sftp://\(escapedUsername):\(escapedPassword)@\(hostname):\(port)\(path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!)"
+        guard let sftpURL = URL(string: sftpURLString) else {
+            throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid SFTP URL"])
+        }
+        
+        print("Using VLC with direct SFTP URL for video thumbnail: \(path)")
+        
+        // Create media directly from SFTP URL
+        let media = VLCMedia(url: sftpURL)
+        
+        // Create player
+        let mediaPlayer = VLCMediaPlayer()
+        mediaPlayer.media = media
+        mediaPlayer.audio.isMuted = true
+        
+        // Create a view for rendering
+        let videoView = await UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 240))
+        videoView.backgroundColor = .black
+        mediaPlayer.drawable = videoView
+        
+        var thumbnailImage: UIImage?
+        let timeoutDuration: UInt64 = 20_000_000_000 // 20 seconds timeout for SFTP streaming
+        
+        // Create a task for the thumbnail generation with timeout
+        return try await withTimeout(seconds: 30) {
+            // Start playback
+            mediaPlayer.play()
+            
+            // Wait longer for SFTP streaming to buffer
+            //try await Task.sleep(nanoseconds: 3_000_000_000) // 4 seconds initial wait
+            
+            // Try at 3 seconds position
+            //mediaPlayer.position = 0.0 // Try to get to approximately 30% in (usually past intro/black frames)
+            
+            // Wait for seek to complete
+            try await Task.sleep(nanoseconds: 5_000_000_000) // 1 second
+            
+            // Capture the frame
+            thumbnailImage = await withCheckedContinuation { continuation in
+                DispatchQueue.main.async {
+                    UIGraphicsBeginImageContextWithOptions(videoView.bounds.size, false, 0.0)
+                    videoView.drawHierarchy(in: videoView.bounds, afterScreenUpdates: true)
+                    let image = UIGraphicsGetImageFromCurrentImageContext()
+                    UIGraphicsEndImageContext()
+                    continuation.resume(returning: image)
+                }
+            }
+
+            // If first attempt failed, wait more
+            if thumbnailImage == nil || self.isEmptyImage(thumbnailImage!) {
+                print("First frame capture was empty, waiting 3s")
+                
+                //mediaPlayer.position = 0.0
+                try await Task.sleep(nanoseconds: 3_000_000_000) // 1 second
+                
+                thumbnailImage = await withCheckedContinuation { continuation in
+                    DispatchQueue.main.async {
+                        UIGraphicsBeginImageContextWithOptions(videoView.bounds.size, false, 0.0)
+                        videoView.drawHierarchy(in: videoView.bounds, afterScreenUpdates: true)
+                        let image = UIGraphicsGetImageFromCurrentImageContext()
+                        UIGraphicsEndImageContext()
+                        continuation.resume(returning: image)
+                    }
+                }
+            }
+            
+            // If second attempt failed, wait agan for ages
+            if thumbnailImage == nil || self.isEmptyImage(thumbnailImage!) {
+                print("Second frame capture was empty, waiting 5s")
+                
+                //mediaPlayer.position = 0.1
+                try await Task.sleep(nanoseconds: 10_000_000_000) // 1 second
+                
+                thumbnailImage = await withCheckedContinuation { continuation in
+                    DispatchQueue.main.async {
+                        UIGraphicsBeginImageContextWithOptions(videoView.bounds.size, false, 0.0)
+                        videoView.drawHierarchy(in: videoView.bounds, afterScreenUpdates: true)
+                        let image = UIGraphicsGetImageFromCurrentImageContext()
+                        UIGraphicsEndImageContext()
+                        continuation.resume(returning: image)
+                    }
+                }
+            }
+            
+            // Stop playback
+            mediaPlayer.stop()
+            
+            // Check if we got a valid image
+            guard let image = thumbnailImage, !self.isEmptyImage(image) else {
+                throw NSError(domain: "ThumbnailManager", code: -4, userInfo: [NSLocalizedDescriptionKey: "Failed to generate valid thumbnail"])
+            }
+            
+            // Process and cache the thumbnail
+            let thumb = self.processThumbnail(uiImage: image, isVideo: true)
+            try? self.saveToCache(image: image, for: path)
+            return thumb
+        }
+    }
+
+    // Helper function to check if image is empty (solid color)
+    private func isEmptyImage(_ image: UIImage) -> Bool {
+        // Quick check - if image size is invalid, consider it empty
+        guard let cgImage = image.cgImage,
+              cgImage.width > 1 && cgImage.height > 1 else {
+            return true
+        }
+        
+        // Create a small bitmap context and draw the image
+        let width = min(cgImage.width, 20)  // Sample at most 20x20 pixels
+        let height = min(cgImage.height, 20)
+        let bytesPerRow = width * 4
+        let bitmapData = UnsafeMutablePointer<UInt8>.allocate(capacity: width * height * 4)
+        defer { bitmapData.deallocate() }
+        
+        guard let context = CGContext(
+            data: bitmapData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return true
+        }
+        
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        
+        // Check for pixel variation
+        var firstPixel: (r: UInt8, g: UInt8, b: UInt8) = (0, 0, 0)
+        var hasInitialPixel = false
+        var hasVariation = false
+        
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = (y * bytesPerRow) + (x * 4)
+                let r = bitmapData[offset]
+                let g = bitmapData[offset + 1]
+                let b = bitmapData[offset + 2]
+                
+                // Save first pixel
+                if !hasInitialPixel {
+                    firstPixel = (r, g, b)
+                    hasInitialPixel = true
+                    continue
+                }
+                
+                // Check for meaningful variation
+                let rDiff = abs(Int(r) - Int(firstPixel.r))
+                let gDiff = abs(Int(g) - Int(firstPixel.g))
+                let bDiff = abs(Int(b) - Int(firstPixel.b))
+                
+                if rDiff > 5 || gDiff > 5 || bDiff > 5 {
+                    hasVariation = true
+                    break
+                }
+            }
+            if hasVariation {
+                break
+            }
+        }
+        
+        return !hasVariation
+    }
+
+    // Helper function for task timeout
+    private func withTimeout<T>(seconds: Double, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            // Add the operation task
+            group.addTask {
+                try await operation()
+            }
+            
+            // Add a timeout task
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw NSError(domain: "ThumbnailManager", code: -100,
+                             userInfo: [NSLocalizedDescriptionKey: "Operation timed out"])
+            }
+            
+            // Return the first completed result, which will either be the operation or the timeout
+            let result = try await group.next()!
+            
+            // Cancel any remaining tasks
+            group.cancelAll()
+            
+            return result
+        }
+    }
+    
+    
+    // MARK: - Thumbnail Processing & Caching
+    
+    private func processThumbnail(uiImage: UIImage, isVideo: Bool) -> Image {
+        let size = CGSize(width: 60, height: 60)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let thumbnailImage = renderer.image { context in
+            let scale = max(size.width / uiImage.size.width, size.height / uiImage.size.height)
+            let scaledSize = CGSize(width: uiImage.size.width * scale, height: uiImage.size.height * scale)
+            let origin = CGPoint(x: (size.width - scaledSize.width) / 2,
+                                 y: (size.height - scaledSize.height) / 2)
+            uiImage.draw(in: CGRect(origin: origin, size: scaledSize))
+            
+            if isVideo {
+                let badgeSize = size.width * 0.3
+                let badgeRect = CGRect(x: size.width - badgeSize - 2,
+                                       y: size.height - badgeSize - 2,
+                                       width: badgeSize,
+                                       height: badgeSize)
+                context.cgContext.setFillColor(UIColor.black.withAlphaComponent(0.6).cgColor)
+                context.cgContext.fillEllipse(in: badgeRect)
+                if let badge = UIImage(systemName: "play.fill") {
+                    let badgeTintColor = UIColor.white
+                    badge.withTintColor(badgeTintColor).draw(in: badgeRect)
+                }
+            }
+        }
+        return Image(uiImage: thumbnailImage)
+    }
+    
+    private func defaultThumbnail(for path: String) -> Image {
+        let fileType = FileType.determine(from: URL(fileURLWithPath: path))
+        switch fileType {
+        case .video:
+            return Image("video")
+        case .image:
+            return Image("image")
+        default:
+            return Image("item")
+        }
+    }
+    
+    
+    
+    // MARK: - Cache methods
+    
+    private func cacheFileURL(for path: String) -> URL? {
+        guard let cacheDir = cacheDirectory else { return nil }
+        let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
+        let filename = encoded.replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "%", with: "_")
+        return cacheDir.appendingPathComponent(filename + ".thumb")
+    }
+    
+    private func saveToCache(image: UIImage, for path: String) throws {
+        guard let cacheURL = cacheFileURL(for: path),
+              let jpegData = image.jpegData(compressionQuality: 0.8) else { return }
+        try jpegData.write(to: cacheURL)
+    }
+    
+    private func loadFromCache(for path: String) async throws -> Image? {
+        guard let cacheURL = cacheFileURL(for: path),
+              fileManager.fileExists(atPath: cacheURL.path),
+              let data = try? Data(contentsOf: cacheURL),
+              let uiImage = UIImage(data: data) else { return nil }
+        
+        // Determine if it's a video for proper badge display
+        let fileType = FileType.determine(from: URL(fileURLWithPath: path))
+        return processThumbnail(uiImage: uiImage, isVideo: fileType == .video)
+    }
+    
+    // MARK: - Public methods
+    
+    public func clearCache() {
+        if let cacheURL = cacheDirectory {
+            do {
+                // Get all files in the cache directory
+                let fileURLs = try fileManager.contentsOfDirectory(at: cacheURL, includingPropertiesForKeys: nil)
+                
+                // Remove each file individually
+                for fileURL in fileURLs {
+                    try fileManager.removeItem(at: fileURL)
+                }
+                
+                print("Successfully cleared \(fileURLs.count) thumbnails from cache")
+            } catch {
+                // If we can't get directory contents or there's another error, try removing the entire directory
+                try? fileManager.removeItem(at: cacheURL)
+                print("Removed entire cache directory due to error: \(error.localizedDescription)")
+                createCacheDirectoryIfNeeded()
+            }
+        }
+    }
+    
+    public func cancelThumbnail(for path: String) {
+        clearInProgress(path: path)
+    }
+    
+    // MARK: - clear the queue
+    public func clearAllConnections() {
+        // Clear all in-progress paths
+        inProgressLock.lock()
+        inProgressPaths.removeAll()
+        inProgressLock.unlock()
+        
+        // Clear semaphores to reset connection limits
+        semaphoreAccess.lock()
+        serverSemaphores.removeAll()
+        semaphoreAccess.unlock()
+        
+        // Log the cleanup action
+        print("All thumbnail operations canceled and connections reset")
     }
 }
+
+// Global access function that can be called from anywhere in the app
+public func clearThumbnailOperations() {
+    ThumbnailManager.shared.clearAllConnections()
+}
+#endif

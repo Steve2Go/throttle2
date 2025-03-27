@@ -71,6 +71,7 @@ extension Torrent {
 
 struct Torrent: Codable, Identifiable, Observable {
     var dynamicFields: [String: AnyCodable]
+    var hashString: String? { dynamicFields["hashString"]?.value as? String }
     
     var id: Int {
         dynamicFields["id"]?.value as? Int ?? 0
@@ -78,7 +79,7 @@ struct Torrent: Codable, Identifiable, Observable {
     var trackerStats: [[String: Any]]? {
             guard let anyCodable = dynamicFields["trackerStats"],
                   let array = anyCodable.value as? [[String: Any]] else {
-                print("⚠️ trackerStats not found or incorrect format")
+                //print("⚠️ trackerStats not found or incorrect format")
                 
                 return nil
             }
@@ -243,116 +244,192 @@ struct AnyCodable: Codable {
 }
 
 // MARK: - Store
+@MainActor
 class TorrentManager: ObservableObject {
-    @Published  var torrents: [Torrent] = []
-    @Published  var isLoading = false
+    @Published var torrents: [Torrent] = []
+    private var fileCache: [String: [[String: Any]]] = [:]
+    private var downloadingCount: Int = 0
+    @Published var isLoading = false
+    private var nextFull = 0
     
-     var fetchTimer: Timer?
-     var baseURL: URL?
-     var sessionId: String?
-     var torrentCache: [Int: [String: AnyCodable]] = [:] // Cache for maintaining complete torrent data
+    var baseURL: URL?
+    var sessionId: String?
+    private var fetchTimer: Timer?
+    @AppStorage("refreshRate") var refreshRate = 6
     
-//    init(baseURL: URL) {
-//        self.baseURL = baseURL
-//    }
+    private let standardFields = [
+        "id", "name", "percentDone", "percentComplete", "status", "addedDate",
+        "downloadedEver", "uploadedEver", "totalSize", "activityDate",
+        "error", "errorString", "labels", "downloadDir","hashString"
+    ]
     
-    func sortBy (field: String){
-        
-    }
+    private let fileFields = ["files", "fileStats"]
     
-    func reset() {
-        torrents = []
-        torrentCache = [:]
-        sessionId = nil
-    }
+//    private let detailFields = [
+//        "files",
+//        "fileStats",
+//        "uploadRatio",
+//        "trackerStats",
+//        "addedDate",
+//    ]
     
     func updateBaseURL(_ url: URL) {
+        print("Base Changed")
         baseURL = url
         reset()
     }
+
+    func reset() {
+        print("manger reset")
+        torrents = []
+        fileCache = [:]
+        sessionId = nil
+    }
     
-    func updateTorrentsFromResponse(_ response: TorrentResponse, requestedFields: [String]) {
-        //print("🔄 Updating torrents with fields: \(requestedFields)")
+    
+    
+    func getTorrentFiles(forHash hash: String) -> [TorrentFile] {
+        guard let filesData = fileCache[hash] else { return [] }
         
-        // Get set of current torrent IDs from response
-        let responseIds = Set(response.arguments.torrents.map { $0.id })
-        
-        // Find IDs that are in our cache but not in the response
-        let removedIds = Set(torrentCache.keys).subtracting(responseIds)
-        if !removedIds.isEmpty {
-            print("🗑️ Removing torrents not in response: \(removedIds)")
-            for id in removedIds {
-                torrentCache.removeValue(forKey: id)
+        return filesData.compactMap { dict -> TorrentFile? in
+            guard let name = dict["name"] as? String,
+                  let length = (dict["length"] as? Int64) ?? (dict["length"] as? Int).map(Int64.init),
+                  let bytesCompleted = (dict["bytesCompleted"] as? Int64) ?? (dict["bytesCompleted"] as? Int).map(Int64.init)
+            else {
+                print("Failed to parse file: \(dict)")
+                return nil
             }
-        }
-        
-        // Handle explicit removals if present
-        if let removed = response.arguments.removed {
-            print("🗑️ Removing explicitly removed torrents: \(removed)")
-            for id in removed {
-                torrentCache.removeValue(forKey: id)
-            }
-        }
-        
-        // Keep track of new torrents that need full details
-        var newTorrentIds: [Int] = []
-        
-        // Update cache with new data
-        for torrent in response.arguments.torrents {
-            //print("Processing torrent ID: \(torrent.id)")
-           // print("🚀 Full Torrent dynamicFields: \(torrent.dynamicFields)")
-            if torrentCache[torrent.id] == nil {
-                // New torrent - store current fields and mark for full fetch
-                print("New torrent detected - storing current fields and queuing full fetch")
-                torrentCache[torrent.id] = torrent.dynamicFields
-                newTorrentIds.append(torrent.id)
-            } else {
-                // Existing torrent - update only requested fields
-                for field in requestedFields {
-                    if let value = torrent.dynamicFields[field] {
-                        //print("Updating field: \(field)")
-                        torrentCache[torrent.id]?[field] = value
-                    }
-                }
-            }
-        }
-        
-        // Rebuild torrents array from cache
-        torrents = torrentCache.map { (id, fields) in
-            var torrent = Torrent(from: fields)
-            torrent.dynamicFields = fields
-            return torrent
-        }.sorted { ($0.name ?? "") < ($1.name ?? "") }
-        
-        // If we found any new torrents, fetch their full details
-        if !newTorrentIds.isEmpty {
-            print("🔄 Fetching full details for new torrents: \(newTorrentIds)")
-            Task {
-                try? await fetchUpdates(fields: [
-                    "id", "name", "percentDone", "status",
-                    "downloadedEver", "uploadedEver", "totalSize",
-                    "error", "errorString", "files", "activityDate", "addedDate"
-                ])
-            }
+            return TorrentFile(name: name, length: length, bytesCompleted: bytesCompleted)
         }
     }
     
     
-    func fetchUpdates(ids: [Int]? = nil, fields: [String], isFullRefresh: Bool = false) async throws {
-        if baseURL == nil { return }
-        await MainActor.run { isLoading = true }
-        defer { Task { @MainActor in isLoading = false } }
+
+    
+    func addTorrent(fileURL: URL? = nil, magnetLink: String? = nil, downloadDir: String? = nil) async throws -> (result: String, id: Int?) {
+           var arguments: [String: Any] = [:]
+           
+           if let downloadDir = downloadDir {
+               arguments["download-dir"] = downloadDir
+           }
+           
+           if let magnetLink = magnetLink {
+               arguments["filename"] = magnetLink
+           }
+           
+           if let fileURL = fileURL {
+               arguments["metainfo"] = try Data(contentsOf: fileURL).base64EncodedString()
+           }
+           
+           let (success, responseArgs) = try await makeRequest("torrent-add", arguments: arguments)
+           
+           if success {
+               let addedTorrent = (responseArgs?["torrent-added"] as? [String: Any]) ??
+                                 (responseArgs?["torrent-duplicate"] as? [String: Any])
+               
+               if let id = addedTorrent?["id"] as? Int {
+                   return ("success", id)
+               }
+           }
+           
+           return ("failed", nil)
+       }
+    
+    func fetchTorrentDetails(id: Int) async throws -> Torrent? {
+        let detailFields = standardFields + [
+            "files",
+            "fileStats",
+            "uploadRatio",
+            "trackerStats",
+            "addedDate",
+            "activityDate",
+            "downloadedEver",
+            "uploadedEver",
+            "totalSize",
+            "magnetLink",
+            "torrentFile"
+        ]
         
-        print("🔄 Starting fetch with fields:", fields, "isFullRefresh:", isFullRefresh)
+
+        let (success, responseArgs) = try await makeRequest(
+            "torrent-get",
+            arguments: [
+                "fields": detailFields,
+                "ids": [id]
+            ]
+        )
         
-        // If it's a full refresh, clear the cache first
-        if isFullRefresh {
-            torrentCache.removeAll()
+        if success,
+           let torrentData = (responseArgs?["torrents"] as? [[String: Any]])?.first {
+            let decoder = JSONDecoder()
+            let data = try JSONSerialization.data(withJSONObject: torrentData)
+            return try decoder.decode(Torrent.self, from: data)
         }
         
-        let request = TorrentRequest(fields: fields, ids: ids)
+        return nil
+    }
+    
+    func makeRequest(_ method: String, arguments: [String: Any]) async throws -> (Bool, [String: Any]?) {
+            guard let baseURL = baseURL else { return (false, nil) }
+            
+            var urlRequest = URLRequest(url: baseURL)
+            urlRequest.httpMethod = "POST"
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let sessionId = sessionId {
+                urlRequest.setValue(sessionId, forHTTPHeaderField: "X-Transmission-Session-Id")
+            }
+            
+            let requestDict: [String: Any] = ["method": method, "arguments": arguments]
+            let requestData = try JSONSerialization.data(withJSONObject: requestDict)
+            urlRequest.httpBody = requestData
+            
+            let (data, response) = try await URLSession.shared.data(for: urlRequest)
+            
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 409,
+               let newSessionId = httpResponse.allHeaderFields["X-Transmission-Session-Id"] as? String {
+                sessionId = newSessionId
+                return try await makeRequest(method, arguments: arguments)
+            }
+            
+            let responseDict = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let success = responseDict?["result"] as? String == "success"
+            let responseArgs = responseDict?["arguments"] as? [String: Any]
+            
+            return (success, responseArgs)
+        }
+    
+    func fetchUpdates(selectedId: Int? = nil) async throws {
+        guard let baseURL = baseURL else { return }
+        isLoading = true
+        defer { isLoading = false }
         
-        var urlRequest = URLRequest(url: baseURL!)
+        var fieldsToFetch: [String] = []
+        let firstFetch = fileCache.isEmpty
+        
+        
+        
+        //do a full fecth every 15.
+//        //TODO: Do this only if there is a download
+//        if firstFetch {
+//            nextFull = 15
+//        }else{
+//            if nextFull == 0{
+//                nextFull = 15
+//                firstFetch = true
+//                fileCache = [:]
+//            }else {
+//                nextFull = nextFull - 1
+//            }
+//        }
+        
+            
+            fieldsToFetch = firstFetch ? standardFields + ["files"] : standardFields
+     
+        
+        
+        // Make base request
+        let request = TorrentRequest(fields: fieldsToFetch)
+        var urlRequest = URLRequest(url: baseURL)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let sessionId = sessionId {
@@ -363,195 +440,88 @@ class TorrentManager: ObservableObject {
         let requestData = try encoder.encode(request)
         urlRequest.httpBody = requestData
         
-        let (data, httpResponse) = try await URLSession.shared.data(for: urlRequest)
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
         
-        if let httpResponse = httpResponse as? HTTPURLResponse {
-            if httpResponse.statusCode == 409 {
-                if let newSessionId = httpResponse.allHeaderFields["X-Transmission-Session-Id"] as? String {
-                    sessionId = newSessionId
-                    return try await fetchUpdates(ids: ids, fields: fields, isFullRefresh: isFullRefresh)
-                }
-                
-                if let responseText = String(data: data, encoding: .utf8),
-                   let range = responseText.range(of: "X-Transmission-Session-Id: "),
-                   let endRange = responseText[range.upperBound...].range(of: "</code>") {
-                    let newSessionId = String(responseText[range.upperBound..<endRange.lowerBound])
-                    sessionId = newSessionId
-                    return try await fetchUpdates(ids: ids, fields: fields, isFullRefresh: isFullRefresh)
-                }
-                
-                throw NSError(domain: "TransmissionClient", code: 409, userInfo: [
-                    NSLocalizedDescriptionKey: "Could not find session ID in 409 response"
-                ])
-            }
-            
-            if let sessionId = httpResponse.allHeaderFields["X-Transmission-Session-Id"] as? String {
-                self.sessionId = sessionId
+        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 409 {
+            if let responseText = String(data: data, encoding: .utf8),
+               let range = responseText.range(of: "X-Transmission-Session-Id: "),
+               let endRange = responseText[range.upperBound...].range(of: "</code>") {
+                let newSessionId = String(responseText[range.upperBound..<endRange.lowerBound])
+                sessionId = newSessionId
+                return try await fetchUpdates(selectedId: selectedId)
             }
         }
         
         let decodedResponse = try JSONDecoder().decode(TorrentResponse.self, from: data)
         
-        await MainActor.run {
-            updateTorrentsFromResponse(decodedResponse, requestedFields: fields)
+        // Handle file caching
+        if firstFetch && selectedId == nil {
+            
+            print("First fetch - caching files")
+            print("Number of torrents: \(decodedResponse.arguments.torrents.count)")
+            for torrent in decodedResponse.arguments.torrents {
+                if let hash = torrent.hashString {
+                    print("Got hash: \(hash)")
+                    print("Files data type: \(type(of: torrent.dynamicFields["files"]?.value ?? "none"))")
+                    if let filesData = torrent.dynamicFields["files"]?.value as? [[String: Any]] {
+                        print("Cast succeeded: \(filesData.count) files")
+                        fileCache[hash] = filesData
+                    } else {
+                        print("Cast failed")
+                    }
+                }
+            }
         }
+        
+        
+        
+        
+        
+        let torrentsToUpdate = decodedResponse.arguments.torrents
+        
+        
+        //how many downloads?
+        let thisDownloadingCount = torrentsToUpdate.filter({$0.percentComplete != 1}).count
+        //print("Download Count: \(thisDownloadingCount)")
+        
+        if thisDownloadingCount < downloadingCount {
+            fileCache = [:]
+        }
+        
+        downloadingCount = thisDownloadingCount
+        
+        
+        torrents = torrentsToUpdate
     }
-    
-    func startPeriodicUpdates(interval: TimeInterval = 5.0) {
-        fetchTimer?.invalidate()
-        
-        // Initial fetch with all fields
+
+
+    func startPeriodicUpdates( selectedId: Int? = nil) {
         Task {
-            try? await fetchUpdates(fields: [
-                "id", "name", "percentDone", "status",
-                "downloadedEver", "uploadedEver", "totalSize",
-                "error", "errorString", "files", "addedDate" , "activityDate", "fileStats", "trackerStats"
-            ], isFullRefresh: true)
+            try? await fetchUpdates()
         }
         
-        // Periodic updates with essential fields including files
-        fetchTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        fetchTimer = Timer.scheduledTimer(withTimeInterval: Double(refreshRate), repeats: true) { [weak self] _ in
             Task {
-                try? await self?.fetchUpdates(fields: [
-                    "id", "percentDone", "percentComplete", "status",
-                    "downloadedEver", "uploadedEver",
-                    "error", "errorString","activityDate"
-                ])
+                if selectedId != nil {
+                    try? await self?.fetchUpdates(selectedId: selectedId)
+                } else {
+                    try? await self?.fetchUpdates()
+                }
             }
         }
     }
-    
+
     func stopPeriodicUpdates() {
         fetchTimer?.invalidate()
         fetchTimer = nil
     }
-    
-    // Add these to TorrentManager class:
-    struct TorrentAddRequest: Codable {
-        var method = "torrent-add"
-        let arguments: Arguments
-        
-        struct Arguments: Codable {
-            let filename: String?
-            let metainfo: String?
-            let downloadDir: String?
-            
-            enum CodingKeys: String, CodingKey {
-                case filename
-                case metainfo
-                case downloadDir = "download-dir"
-            }
-        }
-    }
-
-    struct TorrentAddResponse: Codable {
-        let arguments: Arguments
-        let result: String
-        
-        struct Arguments: Codable {
-            let torrentAdded: TorrentAdded?
-            let torrentDuplicate: TorrentAdded?
-            
-            enum CodingKeys: String, CodingKey {
-                case torrentAdded = "torrent-added"
-                case torrentDuplicate = "torrent-duplicate"
-            }
-        }
-        
-        struct TorrentAdded: Codable {
-            let id: Int
-            let name: String
-            let hashString: String
-        }
-    }
-
-    func addTorrent(fileURL: URL? = nil, magnetLink: String? = nil, downloadDir: String? = nil) async throws -> TorrentAddResponse {
-        var urlRequest = URLRequest(url: baseURL!)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let sessionId = sessionId {
-            urlRequest.setValue(sessionId, forHTTPHeaderField: "X-Transmission-Session-Id")
-        }
-        
-        let arguments: TorrentAddRequest.Arguments
-        
-        if let fileURL = fileURL {
-            // Handle torrent file
-            let data = try Data(contentsOf: fileURL)
-            let base64String = data.base64EncodedString()
-            arguments = .init(filename: nil, metainfo: base64String, downloadDir: downloadDir)
-        } else if let magnetLink = magnetLink {
-            // Handle magnet link
-            arguments = .init(filename: magnetLink, metainfo: nil, downloadDir: downloadDir)
-        } else {
-            throw NSError(domain: "TorrentManager", code: 400, userInfo: [
-                NSLocalizedDescriptionKey: "Either file URL or magnet link must be provided"
-            ])
-        }
-        
-        let request = TorrentAddRequest(arguments: arguments)
-        
-        let encoder = JSONEncoder()
-        let requestData = try encoder.encode(request)
-        urlRequest.httpBody = requestData
-        
-        let (data, httpResponse) = try await URLSession.shared.data(for: urlRequest)
-        
-        if let httpResponse = httpResponse as? HTTPURLResponse {
-            if httpResponse.statusCode == 409 {
-                if let newSessionId = httpResponse.allHeaderFields["X-Transmission-Session-Id"] as? String {
-                    sessionId = newSessionId
-                    return try await addTorrent(fileURL: fileURL, magnetLink: magnetLink, downloadDir: downloadDir)
-                }
-                throw NSError(domain: "TransmissionClient", code: 409)
-            }
-        }
-        
-        let response = try JSONDecoder().decode(TorrentAddResponse.self, from: data)
-        
-        // If successful, trigger a refresh
-        if response.result == "success" {
-            Task {
-                try? await self.fetchUpdates(fields: [
-                    "id", "name", "percentDone", "status",
-                    "downloadedEver", "uploadedEver", "totalSize",
-                    "error", "errorString", "files", "fileStats", "trackerStats"
-                ], isFullRefresh: true)
-            }
-        }
-        
-        return response
-    }
 }
+
 
 // Extension to create Torrent from cached fields
 extension Torrent {
     init(from fields: [String: AnyCodable]) {
         self.dynamicFields = fields
-    }
-}
-
-enum SortOption: String, CaseIterable {
-    case name = "Name"
-    case dateAdded = "Date Added"
-    case activity = "Last Active"
-}
-
-extension SortOption {
-    static let defaultSort: SortOption = .dateAdded
-    
-    static let userDefaultsKey = "TorrentListSortOption"
-    
-    static func saveToDefaults(_ option: SortOption) {
-        UserDefaults.standard.set(option.rawValue, forKey: userDefaultsKey)
-    }
-    
-    static func loadFromDefaults() -> SortOption {
-        guard let savedValue = UserDefaults.standard.string(forKey: userDefaultsKey),
-              let savedOption = SortOption(rawValue: savedValue) else {
-            return defaultSort
-        }
-        return savedOption
     }
 }
 
@@ -567,7 +537,7 @@ extension TorrentManager {
         }
         
         // Fetch the updates from server
-        try await fetchUpdates(fields: requestFields)
+        try await fetchUpdates()
         
         // Create result dictionary
         var result: [Int: [String: Any]] = [:]
@@ -605,6 +575,10 @@ extension TorrentManager {
         return typedResults
     }
     
+    func getFiles(forHash hash: String) -> [[String: Any]]? {
+        return fileCache[hash]
+    }
+    
     /// Fetches specific fields from the server for specific torrents
     /// - Parameters:
     ///   - fields: Array of field names to fetch
@@ -618,7 +592,7 @@ extension TorrentManager {
         }
         
         // Fetch updates for specific torrents
-        try await fetchUpdates(ids: ids, fields: requestFields)
+        try await fetchUpdates()
         
         // Filter results for requested torrents only
         var result: [Int: [String: Any]] = [:]
@@ -637,20 +611,6 @@ extension TorrentManager {
         return result
     }
 }
-
-//let results = try await torrentManager.getFields(["name", "percentDone", "totalSize"])
-//for (id, fields) in results {
-//    print("Torrent \(id):")
-//    print("- Name: \(fields["name"] as? String ?? "")")
-//    print("- Progress: \(fields["percentDone"] as? Double ?? 0)")
-//}
-//let names = try await torrentManager.getField<String>("name")
-//for (id, name) in names {
-//    print("Torrent \(id): \(name)")
-//}
-
-//let specificTorrents = try await torrentManager.getFields(["name", "percentDone"], forIds: [1, 2, 3])
-
 
 
 
@@ -812,28 +772,5 @@ extension TorrentManager {
     }
 }
 
-//let allSessionInfo = try await torrentManager.getSession()
-//print("All settings:", allSessionInfo)
-
-//let fields = ["download-dir", "peer-port", "encryption"]
-//let specificInfo = try await torrentManager.getSession(fields: fields)
-//print("Specific settings:", specificInfo)
-
-
-//// Get download directory
-//if let downloadDir = try await torrentManager.getDownloadDirectory() {
-//    print("Downloads go to:", downloadDir)
-//}
-//
-//// Get speed limits
-//let speedLimits = try await torrentManager.getSpeedLimits()
-//print("Upload limit: \(speedLimits.up ?? 0) KB/s (enabled: \(speedLimits.upEnabled ?? false))")
-//print("Download limit: \(speedLimits.down ?? 0) KB/s (enabled: \(speedLimits.downEnabled ?? false))")
-//
-//// Get units configuration
-//if let units = try await torrentManager.getUnits() {
-//    print("Speed units:", units.speedUnits)
-//    print("Size units:", units.sizeUnits)
-//}
 
 

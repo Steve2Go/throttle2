@@ -1,3 +1,11 @@
+//
+//  InstallerView.swift
+//  Throttle 2
+//
+//  Created by Stephen Grigg on 20/3/2025.
+//
+
+#if os(macOS)
 import SwiftUI
 
 struct InstallerView: View {
@@ -65,6 +73,8 @@ struct InstallerView: View {
                                outputContains("already exists in hosts") ? .complete :
                                outputContains("Checking hosts") ? .inProgress : .pending
                     )
+                    Text("Reccomended for thumbnails on more video types (Not installed automatically):")
+                    Text("https://github.com/Marginal/QLVideo/releases/latest")
                     
                     // Log output
                     if !installationOutput.isEmpty {
@@ -77,7 +87,7 @@ struct InstallerView: View {
                                 .font(.system(.caption, design: .monospaced))
                                 .padding(8)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(.systemGray6))
+                                .background(Color(.secondarySystemFill))
                                 .cornerRadius(4)
                         }
                     }
@@ -142,7 +152,7 @@ struct InstallerView: View {
             }
         }
         .padding(10)
-        .background(Color(.systemGray6).opacity(0.5))
+        .background(Color(.secondarySystemFill).opacity(0.5))
         .cornerRadius(8)
     }
     
@@ -278,16 +288,5 @@ struct InstallerView: View {
     }
 }
 
-// Example of how to use this in your main app
-struct ContentView: View {
-    @State private var showingInstaller = false
-    
-    var body: some View {
-        Button("Show Installer") {
-            showingInstaller = true
-        }
-        .sheet(isPresented: $showingInstaller) {
-            InstallerView()
-        }
-    }
-}
+
+#endif

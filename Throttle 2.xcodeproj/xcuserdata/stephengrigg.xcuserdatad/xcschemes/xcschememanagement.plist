@@ -4,10 +4,43 @@
 <dict>
 	<key>SchemeUserState</key>
 	<dict>
+		<key>SFTPConnector.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
+			<integer>3</integer>
+		</dict>
 		<key>Throttle 2.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
 			<integer>0</integer>
+		</dict>
+	</dict>
+	<key>SuppressBuildableAutocreation</key>
+	<dict>
+		<key>E7150E162D631D08009C4217</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>E7150E2D2D631D0A009C4217</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>E7150E372D631D0A009C4217</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>E7BEDF5E2D6EF03300E72E6F</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>E7FBEAD02D72B96800D0A365</key>
+		<dict>
+			<key>primary</key>
+			<true/>
 		</dict>
 	</dict>
 </dict>

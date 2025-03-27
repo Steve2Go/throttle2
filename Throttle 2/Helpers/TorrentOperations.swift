@@ -68,7 +68,7 @@ extension TorrentManager {
         
         if success {
             // Trigger a refresh to update the torrents list
-            try? await fetchUpdates(fields: ["id"], isFullRefresh: true)
+            try? await fetchUpdates()
         }
         
         return success
@@ -82,7 +82,7 @@ extension TorrentManager {
     /// - Returns: True if move was successful
     func moveTorrents(ids: [Int], to location: String, move: Bool = true) async throws -> Bool {
         struct MoveRequest: Codable {
-            let method = "torrent-set-location"
+            var method = "torrent-set-location"
             let arguments: Arguments
             
             struct Arguments: Codable {
@@ -124,6 +124,8 @@ extension TorrentManager {
         return response.result == "success"
     }
     
+    
+    
     /// Renames a path within a torrent
     /// - Parameters:
     ///   - ids: Single torrent ID (array must contain exactly one ID)
@@ -137,7 +139,7 @@ extension TorrentManager {
         }
         
         struct RenameRequest: Codable {
-            let method = "torrent-rename-path"
+            var method = "torrent-rename-path"
             let arguments: Arguments
             
             struct Arguments: Codable {
@@ -186,7 +188,7 @@ extension TorrentManager {
         
         if response.result == "success" {
             // Refresh torrent data to update files and name
-            try? await fetchUpdates(ids: ids, fields: ["id", "files", "name"])
+            try? await fetchUpdates()
             return (response.arguments.path, response.arguments.name, response.arguments.id)
         } else {
             throw TorrentOperationError.invalidResponse
@@ -242,7 +244,7 @@ extension TorrentManager {
                 sessionId = newSessionId
                 return try await stopTorrents(ids: ids)
             }
-            throw TorrentOperationError.serverError("Session ID not found in 409 response")
+            throw TorrentOperationError.serverError("Session ID not found")
         }
         
         struct Response: Codable {
@@ -251,7 +253,7 @@ extension TorrentManager {
         let response = try JSONDecoder().decode(Response.self, from: data)
         
         if response.result == "success" {
-            try? await fetchUpdates(fields: ["id"], isFullRefresh: true)
+            try? await fetchUpdates()
         }
         
         return response.result == "success"
@@ -297,7 +299,7 @@ extension TorrentManager {
         let response = try JSONDecoder().decode(Response.self, from: data)
         
         if response.result == "success" {
-            try? await fetchUpdates(fields: ["id"], isFullRefresh: true)
+            try? await fetchUpdates()
         }
         
         return response.result == "success"
@@ -343,7 +345,7 @@ extension TorrentManager {
         let response = try JSONDecoder().decode(Response.self, from: data)
         
         if response.result == "success" {
-            try? await fetchUpdates(fields: ["id"], isFullRefresh: true)
+            try? await fetchUpdates()
         }
         
         return response.result == "success"
@@ -389,7 +391,7 @@ extension TorrentManager {
         let response = try JSONDecoder().decode(Response.self, from: data)
         
         if response.result == "success" {
-            try? await fetchUpdates(fields: ["id"], isFullRefresh: true)
+            try? await fetchUpdates()
         }
         
         return response.result == "success"

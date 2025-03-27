@@ -1,33 +1,58 @@
+////
+////  Keychain.swift
+////  Throttle 2
+////
+////  Created by Stephen Grigg on 17/2/2025.
+////
 //
-//  Keychain.swift
-//  Throttle 2
+//import KeychainAccess
 //
-//  Created by Stephen Grigg on 17/2/2025.
+//import SwiftUI
+//import KeychainAccess
 //
+//@propertyWrapper
+//struct KeychainStorage: DynamicProperty {
+//    // MARK: - Properties
+//    let keychainManager = Keychain()
+//    let key: String
+//    var wrappedValue: String {
+//        didSet {
+//            keychainManager[key] = wrappedValue
+//        }
+//    }
+//    // MARK: - Init
+//    init(wrappedValue: String = "", _ key: String) {
+//        self.key = key
+//        let initialValue = (keychainManager[key] ?? wrappedValue)
+//        self.wrappedValue = initialValue
+//    }
+//}
+//
+//
+////usage:
+//// @KeychainStorage("password") var password
 
-import KeychainAccess
+
 
 import SwiftUI
 import KeychainAccess
 
 @propertyWrapper
 struct KeychainStorage: DynamicProperty {
-    // MARK: - Properties
-    let keychainManager = Keychain()
+    let keychainManager: Keychain
     let key: String
     var wrappedValue: String {
         didSet {
             keychainManager[key] = wrappedValue
         }
     }
-    // MARK: - Init
+    
     init(wrappedValue: String = "", _ key: String) {
         self.key = key
-        let initialValue = (keychainManager[key] ?? wrappedValue)
+        // Initialize the Keychain with the shared access group.
+        keychainManager = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+            .synchronizable(true)
+        let initialValue = keychainManager[key] ?? wrappedValue
         self.wrappedValue = initialValue
     }
 }
-
-
-//usage:
-// @KeychainStorage("password") var password

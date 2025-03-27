@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>UIFileSharingEnabled</key>
+    <true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
     <key>UTExportedTypeDeclarations</key>
     <array>
         <dict>
@@ -45,6 +49,7 @@
             <key>CFBundleURLSchemes</key>
             <array>
                 <string>magnet</string>
+                <string>throttle</string>
             </array>
         </dict>
     </array>
@@ -77,10 +82,10 @@
         <string>fetch</string>
         <string>processing</string>
     </array>
-    <key>UIFileSharingEnabled</key>
-    <true/>
-    <key>LSSupportsOpeningDocumentsInPlace</key>
-    <true/>
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>vlc</string>
+    </array>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>This app requires access to the photo library to select files.</string>
     <key>NSDocumentsFolderUsageDescription</key>

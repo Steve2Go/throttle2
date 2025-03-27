@@ -4,11 +4,11 @@
 //
 //  Created by Stephen Grigg on 21/3/2025.
 //
-
+#if os(iOS)
 import SwiftUI
 
 struct NextVideo: View {
-    @State var viewModel: VideoViewModel!
+    @StateObject var viewModel: SFTPFileBrowserViewModel
     var body: some View {
         ZStack {
                             // Black background that fills the entire screen
@@ -63,3 +63,4 @@ struct NextVideo: View {
 
     }
 }
+#endif

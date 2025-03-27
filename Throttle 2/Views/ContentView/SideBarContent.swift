@@ -7,7 +7,6 @@
 import SwiftUI
 import CoreData
 
-
 struct ServerListContent: View {
     var servers: FetchedResults<ServerEntity>
     @ObservedObject var presenting: Presenting
@@ -22,13 +21,14 @@ struct ServerListContent: View {
                         ServerRow(server: server, presenting: presenting, store: store)
                     }
                 }
-            }
-        } else {
-            #if os(iOS)
-            AddFirstServer()
-            #else
-            Rectangle().foregroundColor(.clear)
+
+                FilterMenu(isSidebar: true)
+
+#if os(iOS)
+                iOSSidebarSettings(store:store, presenting: presenting)
 #endif
+            }
+            
         }
     }
 }
@@ -41,18 +41,18 @@ struct ServerRow: View {
     var body: some View {
         NavigationLink(value: server) {
             HStack {
-                Image(systemName: "rectangle.connected.to.line.below")
+                Image(systemName: "externaldrive")
                     .padding(.leading, 6)
                 Text(server.isDefault ? "\(server.name ?? "") *" : server.name ?? "")
                     .padding(.leading, 0)
             }
         }
-        .onAppear {
-            if presenting.didStart && server.isDefault {
-                store.selection = server
-                presenting.didStart = false
-            }
-        }
-        .buttonStyle(.plain)
+//        .onAppear {
+//            if presenting.didStart && server.isDefault {
+//                store.selection = server
+//                presenting.didStart = false
+//            }
+//        }
+//        .buttonStyle(.plain)
     }
 }

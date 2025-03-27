@@ -4,7 +4,8 @@
 //
 //  Created by Stephen Grigg on 21/3/2025.
 //
-
+#if os(iOS)
+import SwiftUI
 
 // MARK: - File Browser View Model Extension
 extension SFTPFileBrowserViewModel {
@@ -18,12 +19,12 @@ extension SFTPFileBrowserViewModel {
             
             switch fileType {
             case .video:
-               // @AppStorage("preferVLC") var preferVLC: Bool = false
-             //if preferVLC && isVLCInstalled() {
+                @AppStorage("preferVLC") var preferVLC: Bool = false
+             if preferVLC && isVLCInstalled() {
                    openVideoInVLC(item: item, server: server)
-             // } else {
-                  
-              // }
+              } else {
+                  openVideo(item: item, server: server)
+               }
             case .image:
                 openImageBrowser(item)
             case .other:
@@ -31,3 +32,4 @@ extension SFTPFileBrowserViewModel {
             }
         }
 }
+#endif

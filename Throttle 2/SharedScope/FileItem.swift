@@ -1,3 +1,11 @@
+//
+//  FileItem.swift
+//  Throttle 2
+//
+//  Created by Stephen Grigg on 4/3/2025.
+//
+
+import Foundation
 // MARK: - Model
 struct FileItem: Identifiable, Equatable {
     let id = UUID()

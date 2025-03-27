@@ -1,0 +1,33 @@
+{
+  "originHash" : "03b9aa188961c69274022ae403b361a40eaedab22a9eed2b1775a3f2199b99c3",
+  "pins" : [
+    {
+      "identity" : "filepicker",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/markrenaud/FilePicker",
+      "state" : {
+        "revision" : "720f8cb5ca0c0efc982ed381afc84ba3e8b3214e",
+        "version" : "1.0.1"
+      }
+    },
+    {
+      "identity" : "keychainaccess",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kishikawakatsumi/KeychainAccess",
+      "state" : {
+        "branch" : "master",
+        "revision" : "e0c7eebc5a4465a3c4680764f26b7a61f567cdaf"
+      }
+    },
+    {
+      "identity" : "simpletoast",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sanzaru/SimpleToast.git",
+      "state" : {
+        "revision" : "99330cceeea6a9068d40ccbe27efb75d240098ef",
+        "version" : "0.10.1"
+      }
+    }
+  ],
+  "version" : 3
+}

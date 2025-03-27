@@ -1,0 +1,10 @@
+Target dependency graph (5 targets)
+Target 'Throttle 2' in project 'Throttle 2'
+➜ Explicit dependency on target 'KeychainAccess' in project 'KeychainAccess'
+➜ Explicit dependency on target 'SimpleToast' in project 'SimpleToast'
+Target 'SimpleToast' in project 'SimpleToast'
+➜ Explicit dependency on target 'SimpleToast' in project 'SimpleToast'
+Target 'SimpleToast' in project 'SimpleToast' (no dependencies)
+Target 'KeychainAccess' in project 'KeychainAccess'
+➜ Explicit dependency on target 'KeychainAccess' in project 'KeychainAccess'
+Target 'KeychainAccess' in project 'KeychainAccess' (no dependencies)

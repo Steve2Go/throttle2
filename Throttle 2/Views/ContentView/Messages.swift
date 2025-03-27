@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct AddFirstServer: View {
+    @ObservedObject var presenting : Presenting
+    
     var body: some View {
 #if os(macOS)
                             let word = "Click"
@@ -19,7 +21,7 @@ struct AddFirstServer: View {
                                 description: Text("\(word) here to get started.")
 
                             ).onTapGesture {
-                                //activeSheet = .servers
+                                presenting.activeSheet = "servers"
                             }
     }
 }
