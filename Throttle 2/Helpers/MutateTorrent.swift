@@ -2,7 +2,7 @@ import SwiftUI
 #if os(macOS)
 import AppKit
     #endif
-
+import FilePicker
 import SwiftUI
 #if os(macOS)
 import AppKit
@@ -15,7 +15,7 @@ struct MutateTorrentView: View {
     @Binding var showRenameAlert: Bool
     @State private var moveLocation = ""
     @State private var showFileBrowser = false
-    @State var server: Servers?
+    @State var server: ServerEntity?
 
     var content: some View {
         #if os(iOS)
@@ -27,8 +27,8 @@ struct MutateTorrentView: View {
                             .textContentType(.URL)
                             .autocapitalization(.none)
                             .autocorrectionDisabled()
-
-                        if ServerManager.shared.selectedServer?.fsBrowse == true {
+                        
+                        if ServerManager.shared.selectedServer?.sftpBrowse == true {
                             Button {
                                 showFileBrowser = true
                             } label: {
@@ -76,10 +76,56 @@ struct MutateTorrentView: View {
                         .textFieldStyle(.roundedBorder)
                     
                     if ServerManager.shared.selectedServer?.fsBrowse == true {
-                        Button { openFilePicker() } label: {
-                            Image(systemName: "folder")
-                        }
-                    } else if ServerManager.shared.selectedServer?.httpBrowse == true {
+                        
+                        Button("", systemImage: "folder") {
+                            let panel = NSOpenPanel()
+                            panel.allowsMultipleSelection = false
+                            panel.allowsOtherFileTypes = false
+                            panel.canChooseDirectories = true
+                            
+                            // Set initial directory to current moveLocation
+                            if !moveLocation.isEmpty,
+                               let serverPath = ServerManager.shared.selectedServer?.pathServer,
+                               let filesystemPath = ServerManager.shared.selectedServer?.pathFilesystem {
+                                
+                                // Convert server path to filesystem path for the panel
+                                let localPath = moveLocation.replacingOccurrences(of: serverPath, with: filesystemPath)
+                                
+                                // Create URL with file:// prefix if needed
+                                let directoryURLString = localPath.hasPrefix("file://") ?
+                                    localPath :
+                                    "file://" + localPath
+                                    
+                                if let directoryURL = URL(string: directoryURLString) {
+                                    panel.directoryURL = directoryURL
+                                }
+                            }
+                            
+                            if panel.runModal() == .OK,
+                               let fpath = panel.url,
+                               let filesystemPath = ServerManager.shared.selectedServer?.pathFilesystem,
+                               let serverPath = ServerManager.shared.selectedServer?.pathServer {
+                                
+                                // Convert from filesystem path to server path
+                                let movepath = fpath.absoluteString.replacingOccurrences(
+                                    of: "file://" + filesystemPath,
+                                    with: serverPath
+                                )
+                                
+                                moveLocation = movepath
+                            }
+                        }.labelsHidden()
+//                        FilePicker(types: [.item], allowMultiple: false) { urls in
+//                                        print("selected \(urls.count) files")
+//                            if urls.count > 0{
+//                                moveLocation = urls.first?.absoluteString ?? moveLocation
+//                            }
+//                                    } label: {
+//                                        HStack {
+//                                            Image(systemName: "folder")
+//                                        }
+//                                    }
+                    } else if ServerManager.shared.selectedServer?.sftpBrowse == true {
                         Button { showFileBrowser = true } label: {
                             Image(systemName: "folder")
                         }
@@ -116,35 +162,54 @@ struct MutateTorrentView: View {
         #endif
     }
 
-    #if os(macOS)
-    func openFilePicker() {
-        let openPanel = NSOpenPanel()
-        openPanel.directoryURL = URL(string: "files://" + serverPath_to_local(moveLocation))
-        openPanel.allowsMultipleSelection = false
-        openPanel.canChooseDirectories = true
-        openPanel.canChooseFiles = false
-
-        if openPanel.runModal() == .OK, let selectedURL = openPanel.url {
-            moveLocation = local_to_serverPath(selectedURL.absoluteString.removingPercentEncoding ?? "")
-        }
-    }
-    #endif
+//    #if os(macOS)
+//    func openFilePicker() {
+//        let openPanel = NSOpenPanel()
+//        openPanel.directoryURL = URL(string: "files://" + serverPath_to_local(moveLocation))
+//        openPanel.allowsMultipleSelection = false
+//        openPanel.canChooseDirectories = true
+//        openPanel.canChooseFiles = false
+//
+//        if openPanel.runModal() == .OK, let selectedURL = openPanel.url {
+//            moveLocation = local_to_serverPath(selectedURL.absoluteString.removingPercentEncoding ?? "")
+//        }
+//    }
+//    #endif
 
     var body: some View {
         content
             .sheet(isPresented: $showFileBrowser) {
-                NavigationView {
-                    let server = ServerManager.shared.selectedServer
-                    FileBrowserView(
-                        currentPath: moveLocation,
-                        basePath: server?.pathFilesystem ?? "",
-                        server: server,
-                        onFolderSelected: { folder in
-                            moveLocation = folder
-                            showFileBrowser = false
-                        }
-                    )
+#if os(iOS)
+NavigationView {
+    FileBrowserView(
+        currentPath: moveLocation,
+        basePath: ServerManager.shared.selectedServer?.pathFilesystem ?? "",
+        server: ServerManager.shared.selectedServer,
+        onFolderSelected: { folderPath in
+            moveLocation = folderPath
+            showFileBrowser = false
+        }
+    ).navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Cancel") {
+                    showFileBrowser = false
                 }
+            }
+        }
+}
+.presentationDetents([.large])
+#else
+FileBrowserView(
+    currentPath: moveLocation,
+    basePath: ServerManager.shared.selectedServer?.pathFilesystem ?? "",
+    server: ServerManager.shared.selectedServer,
+    onFolderSelected: { folderPath in
+        moveLocation = folderPath
+        showFileBrowser = false
+    }
+).frame(width: 600, height: 600)
+#endif
             }
             .onAppear {
                 Task {
@@ -163,7 +228,7 @@ struct MutateTorrent {
     @Binding var showMoveSheet: Bool
     @Binding var showRenameAlert: Bool
     @State var newPath = ""
-    var server: Servers?
+    var server: ServerEntity?
     
     func move() {
         showMoveSheet = true

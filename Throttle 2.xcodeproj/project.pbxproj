@@ -6,6 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = E7150E522D631F8B009C4217 /* KeychainAccess */; };
+		E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */ = {isa = PBXBuildFile; productRef = E76AA8B52D8423E00009CA6F /* SimpleToast */; };
+		E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */ = {isa = PBXBuildFile; productRef = E7F5F3EF2D718B2700079054 /* FilePicker */; };
+		E7F968992D884B5C00A19857 /* mft.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E742621A2D6EFB9A00E4D181 /* mft.xcframework */; };
+		E7F9689A2D884B5C00A19857 /* mft.xcframework in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E742621A2D6EFB9A00E4D181 /* mft.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E7F968DB2D88752B00A19857 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = E7F968DA2D88752B00A19857 /* NIOCore */; };
+		E7F968DE2D88754500A19857 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = E7F968DD2D88754500A19857 /* NIOSSH */; };
+		E7F968E82D89307700A19857 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = E7F968E72D89307700A19857 /* README.md */; };
+		E7F96D552D8D473000A19857 /* MobileVLCKit.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E7150E2F2D631D0A009C4217 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -23,39 +35,162 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		E7BEDF6F2D6EF03300E72E6F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 12;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				E7F9689A2D884B5C00A19857 /* mft.xcframework in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E7DA65E02D77E3CC0012ED73 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 8;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				E7F96D552D8D473000A19857 /* MobileVLCKit.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		E7F96D9C2D8F611800A19857 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		17C17A00A8B09928D8A5B2E3 /* Pods-Throttle 2.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Throttle 2.release.xcconfig"; path = "Target Support Files/Pods-Throttle 2/Pods-Throttle 2.release.xcconfig"; sourceTree = "<group>"; };
+		2DA01AB29F5FBAAE606649AE /* Pods_Throttle_2.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Throttle_2.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		4089B1EAD08868009A787F14 /* Pods-Throttle 2.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Throttle 2.debug.xcconfig"; path = "Target Support Files/Pods-Throttle 2/Pods-Throttle 2.debug.xcconfig"; sourceTree = "<group>"; };
 		E7150E172D631D08009C4217 /* Throttle 2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Throttle 2.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E7150E2E2D631D0A009C4217 /* Throttle 2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Throttle 2Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E7150E382D631D0A009C4217 /* Throttle 2UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Throttle 2UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = MobileVLCKit.xcframework; path = Pods/MobileVLCKit/MobileVLCKit.xcframework; sourceTree = "<group>"; };
+		E742621A2D6EFB9A00E4D181 /* mft.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = mft.xcframework; sourceTree = "<group>"; };
+		E742621B2D6EFB9A00E4D181 /* mft_ios.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_ios.xcarchive; sourceTree = "<group>"; };
+		E742621C2D6EFB9A00E4D181 /* mft_macos.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_macos.xcarchive; sourceTree = "<group>"; };
+		E742621D2D6EFB9A00E4D181 /* mft_sim.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_sim.xcarchive; sourceTree = "<group>"; };
+		E74262462D6F521600E4D181 /* mft.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = mft.xcframework; sourceTree = "<group>"; };
+		E74262472D6F521600E4D181 /* mft_ios.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_ios.xcarchive; sourceTree = "<group>"; };
+		E74262482D6F521600E4D181 /* mft_macos.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_macos.xcarchive; sourceTree = "<group>"; };
+		E74262492D6F521600E4D181 /* mft_sim.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_sim.xcarchive; sourceTree = "<group>"; };
+		E7BEDF612D6EF03300E72E6F /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
+		E7F968E72D89307700A19857 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		E7F96B932D8C049B00A19857 /* libaom.3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libaom.3.dylib; sourceTree = "<group>"; };
+		E7F96B942D8C049B00A19857 /* libavcodec.61.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libavcodec.61.dylib; sourceTree = "<group>"; };
+		E7F96B952D8C049B00A19857 /* libavfilter.10.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libavfilter.10.dylib; sourceTree = "<group>"; };
+		E7F96B962D8C049B00A19857 /* libavformat.61.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libavformat.61.dylib; sourceTree = "<group>"; };
+		E7F96B972D8C049B00A19857 /* libavutil.59.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libavutil.59.dylib; sourceTree = "<group>"; };
+		E7F96B982D8C049B00A19857 /* libpostproc.58.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libpostproc.58.dylib; sourceTree = "<group>"; };
+		E7F96B992D8C049B00A19857 /* libswresample.5.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libswresample.5.dylib; sourceTree = "<group>"; };
+		E7F96B9A2D8C049B00A19857 /* libswscale.8.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; path = libswscale.8.dylib; sourceTree = "<group>"; };
+		E7F96D8C2D8F611800A19857 /* QuickLookThumbnailing.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuickLookThumbnailing.framework; path = System/Library/Frameworks/QuickLookThumbnailing.framework; sourceTree = SDKROOT; };
+		E7F96D8E2D8F611800A19857 /* Quartz.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quartz.framework; path = System/Library/Frameworks/Quartz.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		E7150E402D631D0A009C4217 /* Exceptions for "Throttle 2" folder in "Throttle 2" target */ = {
+		E77CF6482D704F40002705A5 /* Exceptions for "Throttle 2" folder in "Throttle 2" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				"Preview Content/Preview Assets.xcassets",
+				"transmission/transmission-cli",
+				"transmission/transmission-create",
+				"transmission/transmission-daemon",
+				"transmission/transmission-edit",
+				"transmission/transmission-remote",
+				"transmission/transmission-show",
 			);
+			platformFiltersByRelativePath = {
+				SFTP/Browser/SFTPBrowser.swift = (ios, );
+				SFTP/MountManager.swift = (macos, );
+				SFTP/ServerManager.swift = (macos, );
+				SFTP/ThumbnailManager.swift = (ios, );
+				ffmpeg/ffmpegkit.xcframework = (macos, );
+				ffmpeg/libavcodec.xcframework = (macos, );
+				ffmpeg/libavdevice.xcframework = (macos, );
+				ffmpeg/libavfilter.xcframework = (macos, );
+				ffmpeg/libavformat.xcframework = (macos, );
+				ffmpeg/libavutil.xcframework = (macos, );
+				ffmpeg/libswresample.xcframework = (macos, );
+				ffmpeg/libswscale.xcframework = (macos, );
+			};
+			target = E7150E162D631D08009C4217 /* Throttle 2 */;
+		};
+		E7F96B862D8BF87300A19857 /* Exceptions for "Installers" folder in "Throttle 2" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			platformFiltersByRelativePath = {
+				"fuse-t-macos-installer-1.0.44.pkg" = (macos, );
+			};
 			target = E7150E162D631D08009C4217 /* Throttle 2 */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		E771E1D92D90B9CA002F803B /* Exceptions for "Throttle 2" folder in "Embed Foundation Extensions" phase from "Throttle 2" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			attributesByRelativePath = {
+				ffmpeg/ffmpegkit.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libavcodec.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libavdevice.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libavfilter.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libavformat.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libavutil.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libswresample.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libswscale.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+			};
+			buildPhase = E7BEDF6F2D6EF03300E72E6F /* Embed Foundation Extensions */;
+			membershipExceptions = (
+				ffmpeg/ffmpegkit.xcframework,
+				ffmpeg/libavcodec.xcframework,
+				ffmpeg/libavdevice.xcframework,
+				ffmpeg/libavfilter.xcframework,
+				ffmpeg/libavformat.xcframework,
+				ffmpeg/libavutil.xcframework,
+				ffmpeg/libswresample.xcframework,
+				ffmpeg/libswscale.xcframework,
+			);
+			platformFiltersByRelativePath = {
+				ffmpeg/ffmpegkit.xcframework = (macos, );
+				ffmpeg/libavcodec.xcframework = (macos, );
+				ffmpeg/libavdevice.xcframework = (macos, );
+				ffmpeg/libavfilter.xcframework = (macos, );
+				ffmpeg/libavformat.xcframework = (macos, );
+				ffmpeg/libavutil.xcframework = (macos, );
+				ffmpeg/libswresample.xcframework = (macos, );
+				ffmpeg/libswscale.xcframework = (macos, );
+			};
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		E7150E192D631D08009C4217 /* Throttle 2 */ = {
+		E77CF62C2D704F40002705A5 /* Throttle 2 */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				E7150E402D631D0A009C4217 /* Exceptions for "Throttle 2" folder in "Throttle 2" target */,
+				E77CF6482D704F40002705A5 /* Exceptions for "Throttle 2" folder in "Throttle 2" target */,
+				E771E1D92D90B9CA002F803B /* Exceptions for "Throttle 2" folder in "Embed Foundation Extensions" phase from "Throttle 2" target */,
 			);
 			path = "Throttle 2";
 			sourceTree = "<group>";
 		};
-		E7150E312D631D0A009C4217 /* Throttle 2Tests */ = {
+		E7F96B7A2D8BC88600A19857 /* Installers */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Throttle 2Tests";
-			sourceTree = "<group>";
-		};
-		E7150E3B2D631D0A009C4217 /* Throttle 2UITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Throttle 2UITests";
+			exceptions = (
+				E7F96B862D8BF87300A19857 /* Exceptions for "Installers" folder in "Throttle 2" target */,
+			);
+			path = Installers;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -65,6 +200,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E7F968DB2D88752B00A19857 /* NIOCore in Frameworks */,
+				E7F968992D884B5C00A19857 /* mft.xcframework in Frameworks */,
+				E7F968DE2D88754500A19857 /* NIOSSH in Frameworks */,
+				E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */,
+				E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */,
+				E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,13 +226,24 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		99841CBE5E3296343172B3CA /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				4089B1EAD08868009A787F14 /* Pods-Throttle 2.debug.xcconfig */,
+				17C17A00A8B09928D8A5B2E3 /* Pods-Throttle 2.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
 		E7150E0E2D631D08009C4217 = {
 			isa = PBXGroup;
 			children = (
-				E7150E192D631D08009C4217 /* Throttle 2 */,
-				E7150E312D631D0A009C4217 /* Throttle 2Tests */,
-				E7150E3B2D631D0A009C4217 /* Throttle 2UITests */,
+				E7F96B7A2D8BC88600A19857 /* Installers */,
+				E77CF62C2D704F40002705A5 /* Throttle 2 */,
+				E7BEDF602D6EF03300E72E6F /* Frameworks */,
 				E7150E182D631D08009C4217 /* Products */,
+				E7F968E72D89307700A19857 /* README.md */,
+				99841CBE5E3296343172B3CA /* Pods */,
 			);
 			sourceTree = "<group>";
 		};
@@ -105,6 +257,52 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		E742621E2D6EFB9A00E4D181 /* mft 2025-02-26 17-26-39 */ = {
+			isa = PBXGroup;
+			children = (
+				E742621A2D6EFB9A00E4D181 /* mft.xcframework */,
+				E742621B2D6EFB9A00E4D181 /* mft_ios.xcarchive */,
+				E742621C2D6EFB9A00E4D181 /* mft_macos.xcarchive */,
+				E742621D2D6EFB9A00E4D181 /* mft_sim.xcarchive */,
+			);
+			name = "mft 2025-02-26 17-26-39";
+			path = "../mft 2025-02-26 17-26-39";
+			sourceTree = "<group>";
+		};
+		E742624A2D6F521600E4D181 /* mft 2025-02-26 17-26-39 */ = {
+			isa = PBXGroup;
+			children = (
+				E74262462D6F521600E4D181 /* mft.xcframework */,
+				E74262472D6F521600E4D181 /* mft_ios.xcarchive */,
+				E74262482D6F521600E4D181 /* mft_macos.xcarchive */,
+				E74262492D6F521600E4D181 /* mft_sim.xcarchive */,
+			);
+			name = "mft 2025-02-26 17-26-39";
+			path = "../mft 2025-02-26 17-26-39";
+			sourceTree = "<group>";
+		};
+		E7BEDF602D6EF03300E72E6F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */,
+				E742621E2D6EFB9A00E4D181 /* mft 2025-02-26 17-26-39 */,
+				E742624A2D6F521600E4D181 /* mft 2025-02-26 17-26-39 */,
+				E7BEDF612D6EF03300E72E6F /* UniformTypeIdentifiers.framework */,
+				E7F96B932D8C049B00A19857 /* libaom.3.dylib */,
+				E7F96B942D8C049B00A19857 /* libavcodec.61.dylib */,
+				E7F96B952D8C049B00A19857 /* libavfilter.10.dylib */,
+				E7F96B962D8C049B00A19857 /* libavformat.61.dylib */,
+				E7F96B972D8C049B00A19857 /* libavutil.59.dylib */,
+				E7F96B982D8C049B00A19857 /* libpostproc.58.dylib */,
+				E7F96B992D8C049B00A19857 /* libswresample.5.dylib */,
+				E7F96B9A2D8C049B00A19857 /* libswscale.8.dylib */,
+				2DA01AB29F5FBAAE606649AE /* Pods_Throttle_2.framework */,
+				E7F96D8C2D8F611800A19857 /* QuickLookThumbnailing.framework */,
+				E7F96D8E2D8F611800A19857 /* Quartz.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -112,19 +310,30 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = E7150E412D631D0A009C4217 /* Build configuration list for PBXNativeTarget "Throttle 2" */;
 			buildPhases = (
+				72DB4D18C20425C268DA293D /* [CP] Check Pods Manifest.lock */,
 				E7150E132D631D08009C4217 /* Sources */,
 				E7150E142D631D08009C4217 /* Frameworks */,
 				E7150E152D631D08009C4217 /* Resources */,
+				E7BEDF6F2D6EF03300E72E6F /* Embed Foundation Extensions */,
+				E7DA65E02D77E3CC0012ED73 /* Embed Frameworks */,
+				742215A652E9693CCC6C8667 /* [CP] Embed Pods Frameworks */,
+				E7F96D9C2D8F611800A19857 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				E7150E192D631D08009C4217 /* Throttle 2 */,
+				E77CF62C2D704F40002705A5 /* Throttle 2 */,
+				E7F96B7A2D8BC88600A19857 /* Installers */,
 			);
 			name = "Throttle 2";
 			packageProductDependencies = (
+				E7150E522D631F8B009C4217 /* KeychainAccess */,
+				E7F5F3EF2D718B2700079054 /* FilePicker */,
+				E76AA8B52D8423E00009CA6F /* SimpleToast */,
+				E7F968DA2D88752B00A19857 /* NIOCore */,
+				E7F968DD2D88754500A19857 /* NIOSSH */,
 			);
 			productName = "Throttle 2";
 			productReference = E7150E172D631D08009C4217 /* Throttle 2.app */;
@@ -143,12 +352,7 @@
 			dependencies = (
 				E7150E302D631D0A009C4217 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				E7150E312D631D0A009C4217 /* Throttle 2Tests */,
-			);
 			name = "Throttle 2Tests";
-			packageProductDependencies = (
-			);
 			productName = "Throttle 2Tests";
 			productReference = E7150E2E2D631D0A009C4217 /* Throttle 2Tests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -166,12 +370,7 @@
 			dependencies = (
 				E7150E3A2D631D0A009C4217 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				E7150E3B2D631D0A009C4217 /* Throttle 2UITests */,
-			);
 			name = "Throttle 2UITests";
-			packageProductDependencies = (
-			);
 			productName = "Throttle 2UITests";
 			productReference = E7150E382D631D0A009C4217 /* Throttle 2UITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -208,6 +407,13 @@
 			);
 			mainGroup = E7150E0E2D631D08009C4217;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E7150E512D631F8B009C4217 /* XCRemoteSwiftPackageReference "KeychainAccess" */,
+				E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */,
+				E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */,
+				E7F968D92D88752B00A19857 /* XCRemoteSwiftPackageReference "swift-nio" */,
+				E7F968DC2D88754500A19857 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E7150E182D631D08009C4217 /* Products */;
 			projectDirPath = "";
@@ -225,6 +431,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E7F968E82D89307700A19857 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -243,6 +450,48 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		72DB4D18C20425C268DA293D /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-Throttle 2-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		742215A652E9693CCC6C8667 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Throttle 2/Pods-Throttle 2-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Throttle 2/Pods-Throttle 2-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [[ \"$PLATFORM_NAME\" == \"iphoneos\" || \"$PLATFORM_NAME\" == \"iphonesimulator\" ]]; then\n  \"${PODS_ROOT}/Target Support Files/Pods-Throttle 2/Pods-Throttle 2-frameworks.sh\"\nfi\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		E7150E132D631D08009C4217 /* Sources */ = {
@@ -284,16 +533,23 @@
 /* Begin XCBuildConfiguration section */
 		E7150E422D631D0A009C4217 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4089B1EAD08868009A787F14 /* Pods-Throttle 2.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]" = "AppIcon macOS";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "Throttle 2/Throttle_2.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Throttle 2/Preview Content\"";
 				DEVELOPMENT_TEAM = 93C9M7982M;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/FFMpeg/iOS";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Throttle 2/Info.plist";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -306,34 +562,110 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/Frameworks",
+					"$(inherited)",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"@executable_path/../Frameworks",
+					"$(inherited)",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "";
+				"OTHER_LDFLAGS[sdk=iphone*]" = (
+					"$(inherited)",
+					"-l\"bz2\"",
+					"-l\"c++\"",
+					"-l\"iconv\"",
+					"-l\"xml2\"",
+					"-l\"z\"",
+					"-framework",
+					"\"AVFoundation\"",
+					"-framework",
+					"\"AudioToolbox\"",
+					"-framework",
+					"\"CFNetwork\"",
+					"-framework",
+					"\"CoreGraphics\"",
+					"-framework",
+					"\"CoreMedia\"",
+					"-framework",
+					"\"CoreText\"",
+					"-framework",
+					"\"OpenGLES\"",
+					"-framework",
+					"\"QuartzCore\"",
+					"-framework",
+					"\"Security\"",
+					"-framework",
+					"\"VideoToolbox\"",
+				);
+				"OTHER_LDFLAGS[sdk=macosx*]" = (
+					"$(inherited)",
+					"-l\"bz2\"",
+					"-l\"c++\"",
+					"-l\"iconv\"",
+					"-l\"xml2\"",
+					"-l\"z\"",
+					"-framework",
+					"\"AVFoundation\"",
+					"-framework",
+					"\"AudioToolbox\"",
+					"-framework",
+					"\"CFNetwork\"",
+					"-framework",
+					"\"CoreGraphics\"",
+					"-framework",
+					"\"CoreMedia\"",
+					"-framework",
+					"\"CoreText\"",
+					"-framework",
+					"\"QuartzCore\"",
+					"-framework",
+					"\"Security\"",
+					"-framework",
+					"\"VideoToolbox\"",
+				);
+				OTHER_MODULE_VERIFIER_FLAGS = "$(inherited) \"[sdk=iphoneos*]\\\"-Fbuild/Debug/MobileVLCKit\\\" [sdk=iphonesimulator*]\\\"-Fbuild/Debug/MobileVLCKit\\\"\"";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.srgim.Throttle-2";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = NO;
 				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				XROS_DEPLOYMENT_TARGET = 2.2;
 			};
 			name = Debug;
 		};
 		E7150E432D631D0A009C4217 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 17C17A00A8B09928D8A5B2E3 /* Pods-Throttle 2.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = AppIcon;
+				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]" = "AppIcon macOS";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "Throttle 2/Throttle_2.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Throttle 2/Preview Content\"";
 				DEVELOPMENT_TEAM = 93C9M7982M;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/FFMpeg/iOS";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Throttle 2/Info.plist";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -346,18 +678,87 @@
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 15.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/Frameworks",
+					"$(inherited)",
+				);
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = (
+					"@executable_path/../Frameworks",
+					"$(inherited)",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "";
+				"OTHER_LDFLAGS[sdk=iphone*]" = (
+					"$(inherited)",
+					"-l\"bz2\"",
+					"-l\"c++\"",
+					"-l\"iconv\"",
+					"-l\"xml2\"",
+					"-l\"z\"",
+					"-framework",
+					"\"AVFoundation\"",
+					"-framework",
+					"\"AudioToolbox\"",
+					"-framework",
+					"\"CFNetwork\"",
+					"-framework",
+					"\"CoreGraphics\"",
+					"-framework",
+					"\"CoreMedia\"",
+					"-framework",
+					"\"CoreText\"",
+					"-framework",
+					"\"OpenGLES\"",
+					"-framework",
+					"\"QuartzCore\"",
+					"-framework",
+					"\"Security\"",
+					"-framework",
+					"\"VideoToolbox\"",
+				);
+				"OTHER_LDFLAGS[sdk=macosx*]" = (
+					"$(inherited)",
+					"-l\"bz2\"",
+					"-l\"c++\"",
+					"-l\"iconv\"",
+					"-l\"xml2\"",
+					"-l\"z\"",
+					"-framework",
+					"\"AVFoundation\"",
+					"-framework",
+					"\"AudioToolbox\"",
+					"-framework",
+					"\"CFNetwork\"",
+					"-framework",
+					"\"CoreGraphics\"",
+					"-framework",
+					"\"CoreMedia\"",
+					"-framework",
+					"\"CoreText\"",
+					"-framework",
+					"\"QuartzCore\"",
+					"-framework",
+					"\"Security\"",
+					"-framework",
+					"\"VideoToolbox\"",
+				);
+				OTHER_MODULE_VERIFIER_FLAGS = "$(inherited) \"[sdk=iphoneos*]\\\"-Fbuild/Debug/MobileVLCKit\\\" [sdk=iphonesimulator*]\\\"-Fbuild/Debug/MobileVLCKit\\\"\"";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.srgim.Throttle-2";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = NO;
 				SDKROOT = auto;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2,7";
+				TARGETED_DEVICE_FAMILY = "1,2";
 				XROS_DEPLOYMENT_TARGET = 2.2;
 			};
 			name = Release;
@@ -396,6 +797,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -457,6 +859,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -482,6 +885,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 93C9M7982M;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
@@ -505,6 +909,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 93C9M7982M;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
@@ -527,6 +932,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 93C9M7982M;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
@@ -549,6 +955,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 93C9M7982M;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
@@ -606,6 +1013,77 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E7150E512D631F8B009C4217 /* XCRemoteSwiftPackageReference "KeychainAccess" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kishikawakatsumi/KeychainAccess";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+		E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sanzaru/SimpleToast.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.10.1;
+			};
+		};
+		E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/markrenaud/FilePicker";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.1;
+			};
+		};
+		E7F968D92D88752B00A19857 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.81.0;
+			};
+		};
+		E7F968DC2D88754500A19857 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio-ssh";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E7150E522D631F8B009C4217 /* KeychainAccess */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E7150E512D631F8B009C4217 /* XCRemoteSwiftPackageReference "KeychainAccess" */;
+			productName = KeychainAccess;
+		};
+		E76AA8B52D8423E00009CA6F /* SimpleToast */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */;
+			productName = SimpleToast;
+		};
+		E7F5F3EF2D718B2700079054 /* FilePicker */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */;
+			productName = FilePicker;
+		};
+		E7F968DA2D88752B00A19857 /* NIOCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E7F968D92D88752B00A19857 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOCore;
+		};
+		E7F968DD2D88754500A19857 /* NIOSSH */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E7F968DC2D88754500A19857 /* XCRemoteSwiftPackageReference "swift-nio-ssh" */;
+			productName = NIOSSH;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E7150E0F2D631D08009C4217 /* Project object */;
 }

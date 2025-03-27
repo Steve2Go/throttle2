@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import Combine
 import mft
@@ -24,23 +25,27 @@ struct SFTPFileBrowserView: View {
     @State private var newItemName = ""
     @State private var showDeleteConfirmation = false
     @State private var itemToDelete: FileItem?
-    //@EnvironmentObject private var appDelegate: Throttle_2App
+    @State private var showUploadView = false
     
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    
+        @State private var videoPlayerConfiguration: VideoPlayerConfiguration?
+        @State private var showingVideoPlayer = false
     
     //vlc playback
     @AppStorage("pendingVideoFiles") private var pendingVideoFiles: Data = Data()
     private var nextVideoTimer: Timer?
     
+    private var uploadManager: SFTPUploadManager {
+            SFTPUploadManager(uploadHandler: viewModel)
+        }
     
     init(currentPath: String, basePath: String, server: ServerEntity?, store: Store) {
-        self.server = server!
-        self.currentPath = currentPath
-        self.store = store
-        _viewModel = StateObject(wrappedValue: SFTPFileBrowserViewModel(currentPath: currentPath, basePath: basePath, server: server))
-    }
+            self.server = server!
+            self.currentPath = currentPath
+            self.store = store
+            _viewModel = StateObject(wrappedValue: SFTPFileBrowserViewModel(currentPath: currentPath, basePath: basePath, server: server))
+        }
     
     var body: some View {
         VStack {
@@ -60,12 +65,6 @@ struct SFTPFileBrowserView: View {
                 .onDisappear {
                     searchQuery = ""
                 }
-                //player
-                .fullScreenCover(isPresented: $viewModel.showVideoPlayer) {
-                    if let fileItem = viewModel.selectedFile {
-                        //VideoPlayerView(fileItem: fileItem, server: store.selection!, ssh: store.ssh)
-                    }
-                }
 //                //tools
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
@@ -81,29 +80,41 @@ struct SFTPFileBrowserView: View {
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
-                            
-                            Button("New Folder", systemImage: "folder.badge.plus"){
-                                showNewFolderPrompt.toggle()
-                            }
-                            Divider()
-                            Button("Name", systemImage: sftpSortOrder == "name" ? "chevron.down.circle" : "circle"){
-                                sftpSortOrder = "name"
-                                viewModel.fetchItems()
-                            }
-                            Button("Date" , systemImage: sftpSortOrder == "date" ? "chevron.down.circle" : "circle"){
-                                sftpSortOrder = "date"
-                                viewModel.fetchItems()
-                            }
-                            Divider()
                             Button(action: {
                                 viewMode = viewMode == "list" ? "grid" : "list"
                             }) {
                                 Text(viewMode == "list" ? "Show as Grid" : "Show as List")
                                 Image(systemName: viewMode == "list" ? "square.grid.2x2" : "list.bullet")
                             }
+                            Button {
+                                sftpSortOrder = "name"
+                                viewModel.fetchItems()
+                            } label:{
+                                Text("Name")
+                                if sftpSortOrder == "name" {
+                                    Image(systemName: "chevron.down")
+                                }
+                            }
+                            Button {
+                                sftpSortOrder = "date"
+                                viewModel.fetchItems()
+                            } label:{
+                                Text("Date")
+                                if sftpSortOrder == "date" {
+                                    Image(systemName: "chevron.down")
+                                }
+                            }
+                            Divider()
                             Button("Folders First",  systemImage: sftpFoldersFirst  ? "checkmark.circle" : "circle"){
                                 sftpFoldersFirst.toggle()
                                 viewModel.fetchItems()
+                            }
+                            Divider()
+                            Button(action: { showUploadView = true }) {
+                                                    Label("Upload", systemImage: "arrow.up.doc")
+                                                }
+                            Button("New Folder", systemImage: "folder.badge.plus"){
+                                showNewFolderPrompt.toggle()
                             }
                             
                         } label:{
@@ -119,16 +130,17 @@ struct SFTPFileBrowserView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "chevron.backward")
-                                    Text("Back")
+                                    //Text("Back")
+                                    Text(viewModel.upOne == "/" ? "Top Level" : viewModel.upOne.capitalized)
                                 }
                             }
                         }
                     }
-                }
+                }.navigationTitle(NSString( string: viewModel.currentPath ).lastPathComponent.capitalized).navigationBarTitleDisplayMode(.inline)
             }
-            .navigationTitle(viewModel.isInitialPathAFile ?
-                             viewModel.initialFileItem?.name ?? "File" :
-                                viewModel.currentPath)
+//            .navigationTitle(viewModel.isInitialPathAFile ?
+//                             viewModel.initialFileItem?.name ?? "File" :
+//                                viewModel.currentPath)
             .onAppear {
                 store.currentSFTPViewModel = viewModel
             }
@@ -138,17 +150,12 @@ struct SFTPFileBrowserView: View {
                     store.currentSFTPViewModel = nil
                 }
             }
-////            .fullScreenCover(isPresented: Binding(
-////                get: { viewModel.showingNextVideoAlert },
-////                set: { viewModel.showingNextVideoAlert = $0 }
-////            )) {
-////                NextVideo(viewModel: viewModel)
-////                // Tap gesture applied to the entire ZStack for easy tapping
-////                .onTapGesture {
-////                    viewModel.playNextVideo(server: server)
-////                }
-////                .foregroundColor(.white)
-////            }
+            .fullScreenCover(isPresented: $viewModel.showingVideoPlayer) {
+                        if let config = viewModel.videoPlayerConfiguration {
+                            VideoPlayerContainerView(configuration: config)
+                                .ignoresSafeArea(edges: .all)
+                        }
+                    }
             .alert("New Folder", isPresented: $showNewFolderPrompt) {
                 TextField("Folder Name", text: $newFolderName)
                 Button("Cancel", role: .cancel) { showNewFolderPrompt = false }
@@ -162,6 +169,10 @@ struct SFTPFileBrowserView: View {
             } message: {
                 Text("Enter the name for the new folder.")
             }
+            .sheet(isPresented: $showUploadView) {
+                        SFTPUploadView(uploadManager: uploadManager)
+                    .presentationDetents([.medium])
+                    }
 //            // Rename Alert
             .alert("Rename Item", isPresented: $showRenamePrompt) {
                 TextField("New Name", text: $newItemName)
@@ -206,7 +217,10 @@ struct SFTPFileBrowserView: View {
                     }
                     showDeleteConfirmation = false
                     itemToDelete = nil
-                    viewModel.fetchItems()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        viewModel.fetchItems()
+                    }
+                    
                 }
             } message: {
                 if let item = itemToDelete {
@@ -249,8 +263,9 @@ struct SFTPFileBrowserView: View {
                     }
                     
                     if fileType == .video {
+                        Button("Play") { self.viewModel.openFile(item: item, server: server)}
                         Button("Play in VLC") { viewModel.openVideoInVLC(item: item, server: server) }
-                        //Button("Internal Player") { viewModel.openVideoInPlayer(item, server: server)}
+                        
                     }
                     
                     
@@ -261,6 +276,7 @@ struct SFTPFileBrowserView: View {
             }
         }
     }
+    
     
     // List View Implementation
     private var listView: some View {
@@ -391,17 +407,15 @@ struct SFTPFileBrowserView: View {
         .frame(height: 140)
         .padding(8)
         .onTapGesture {
-            if fileType == .video {
-                viewModel.openVideoInVLC(item: item, server: server)
-            } else if fileType == .image {
+            if fileType == .video || fileType == .image {
                 viewModel.openFile(item: item, server: server)
-            } else {
+            }  else {
                 selectedItem = item
                 showActionSheet = true
             }
         }
         .contextMenu {
-            if fileType == .image {
+            if fileType == .image || fileType == .video {
                 Button(action: {
                     viewModel.openFile(item: item, server: server)
                 }) {
@@ -451,9 +465,7 @@ struct SFTPFileBrowserView: View {
                         .foregroundColor(.secondary)
                 }
             }.onTapGesture {
-                if fileType == .video {
-                    viewModel.openVideoInVLC(item: item, server: server)
-                } else if  fileType == .image {
+                if  fileType == .image || fileType == .video {
                     viewModel.openFile(item: item, server: server)
                 } else {
                     selectedItem = item
@@ -549,3 +561,17 @@ struct SFTPFileBrowserView: View {
 }
 
 
+
+
+struct VideoPlayerContainerView: UIViewControllerRepresentable {
+    let configuration: VideoPlayerConfiguration
+    
+    func makeUIViewController(context: Context) -> videoViewController {
+        return videoViewController(configuration: configuration)
+    }
+    
+    func updateUIViewController(_ uiViewController: videoViewController, context: Context) {
+        // No updates needed
+    }
+}
+#endif

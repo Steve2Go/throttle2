@@ -4,7 +4,10 @@
 //
 //  Created by Stephen Grigg on 21/3/2025.
 //
-
+#if os(iOS)
+import SwiftUI
+import mft
+import KeychainAccess
 
 // MARK: - ViewModel
 class SFTPFileBrowserViewModel: ObservableObject {
@@ -22,6 +25,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
        @Published var initialFileItem: FileItem?
        @Published var showVideoPlayer = false
        @Published var selectedFile: FileItem?
+    @Published var upOne = ""
 
     @AppStorage("sftpSortOrder") var sftpSortOrder: String = "date"
     @AppStorage("sftpFoldersFirst") var sftpFoldersFirst: Bool = true
@@ -45,6 +49,13 @@ class SFTPFileBrowserViewModel: ObservableObject {
     let initialPath: String
     var sftpConnection: MFTSftpConnection!
     var downloadTask: Task<Void, Error>?
+    weak var delegate: SFTPFileBrowserViewModelDelegate?
+    @Published var videoPlayerConfiguration: VideoPlayerConfiguration?
+    @Published var showingVideoPlayer = false
+    
+    protocol SFTPFileBrowserViewModelDelegate: AnyObject {
+        func viewModel(_ viewModel: SFTPFileBrowserViewModel, didRequestVideoPlayback configuration: VideoPlayerConfiguration)
+    }
     
     // Delete a file or directory
         func deleteItem(_ item: FileItem) {
@@ -53,7 +64,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     if item.isDirectory {
-                        try self.sftpConnection.removeDirectory(atPath: item.url.path)
+                        try self.recursiveDelete(atPath: item.url.path)
                     } else {
                         try self.sftpConnection.removeFile(atPath: item.url.path)
                     }
@@ -61,6 +72,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
                     DispatchQueue.main.async {
                         self.isLoading = false
                         self.fetchItems() // Refresh the directory after deletion
+                        
                     }
                 } catch {
                     DispatchQueue.main.async {
@@ -70,6 +82,67 @@ class SFTPFileBrowserViewModel: ObservableObject {
                 }
             }
         }
+    
+    private func recursiveDelete(atPath path: String) throws {
+        // Collect all files and directories under the given path
+        var allPaths: [(path: String, isDirectory: Bool)] = []
+        
+        func collectPaths(currentPath: String) throws {
+            let entries = try sftpConnection.contentsOfDirectory(atPath: currentPath, maxItems: 0)
+            for entry in entries {
+                // Skip special entries
+                if entry.filename == "." || entry.filename == ".." { continue }
+                let entryPath = "\(currentPath)/\(entry.filename)".replacingOccurrences(of: "//", with: "/")
+                allPaths.append((path: entryPath, isDirectory: entry.isDirectory))
+                if entry.isDirectory {
+                    try collectPaths(currentPath: entryPath)
+                }
+            }
+        }
+        
+        try collectPaths(currentPath: path)
+        
+        // Sort paths by depth (deepest paths first)
+        allPaths.sort { (first, second) -> Bool in
+            return first.path.components(separatedBy: "/").count > second.path.components(separatedBy: "/").count
+        }
+        
+        // Delete all collected entries: files first, then directories
+        for (entryPath, isDirectory) in allPaths {
+            if isDirectory {
+                do {
+                    try sftpConnection.removeDirectory(atPath: entryPath)
+                } catch let error as NSError {
+                    if error.domain == "sftp" && error.code == 2 {
+                        // Ignore error if file/directory doesn't exist
+                    } else {
+                        throw error
+                    }
+                }
+            } else {
+                do {
+                    try sftpConnection.removeFile(atPath: entryPath)
+                } catch let error as NSError {
+                    if error.domain == "sftp" && error.code == 2 {
+                        // Ignore error if file doesn't exist
+                    } else {
+                        throw error
+                    }
+                }
+            }
+        }
+        
+        // Finally, remove the root directory
+        do {
+            try sftpConnection.removeDirectory(atPath: path)
+        } catch let error as NSError {
+            if error.domain == "sftp" && error.code == 2 {
+                // Ignore error if the directory doesn't exist
+            } else {
+                throw error
+            }
+        }
+    }
         
         // Rename a file or directory
         func renameItem(_ item: FileItem, to newName: String) {
@@ -194,7 +267,9 @@ class SFTPFileBrowserViewModel: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let entries = try self.sftpConnection.contentsOfDirectory(atPath: self.currentPath, maxItems: 0)
-
+                DispatchQueue.main.async {
+                    self.upOne = NSString( string:  NSString( string: self.currentPath ).deletingLastPathComponent ).lastPathComponent
+                }
                 let fileItems = entries.map { entry -> FileItem in
                     let isDir = entry.isDirectory
                     let url = URL(fileURLWithPath: self.currentPath).appendingPathComponent(entry.filename)
@@ -438,7 +513,57 @@ class SFTPFileBrowserViewModel: ObservableObject {
             }
         }
     }
-
+    
+    func openVideo(item: FileItem, server: ServerEntity) {
+        // Get all video files from current directory
+        let videoItems = items.filter { item in
+            !item.isDirectory && FileType.determine(from: item.url) == .video
+        }
+        
+        if videoItems.isEmpty {
+            print("❌ No video files found in the current directory")
+            return
+        }
+        
+        // Find the selected video's index
+        guard let selectedIndex = videoItems.firstIndex(where: { $0.url.path == item.url.path }) else {
+            print("❌ Selected video not found in filtered list")
+            return
+        }
+        
+        // Get credentials
+        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        guard let username = server.sftpUser,
+              let password = keychain["sftpPassword" + (server.name ?? "")],
+              let hostname = server.sftpHost else {
+            print("❌ Missing server credentials")
+            return
+        }
+        
+        let port = server.sftpPort
+        let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
+        
+        if videoItems.count == 1 {
+            let path = item.url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
+            print("Found Video \(path)")
+            let vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
+            
+            // Create and set the configuration
+            self.videoPlayerConfiguration = VideoPlayerConfiguration(singleItem: vlcUrl)
+            self.showingVideoPlayer = true
+        } else {
+            var playlist: [URL] = []
+            for item in videoItems {
+                let path = item.url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
+                print("Found Video \(path)")
+                playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!)
+            }
+            
+            // Create and set the configuration
+            self.videoPlayerConfiguration = VideoPlayerConfiguration(playlist: playlist, startIndex: selectedIndex)
+            self.showingVideoPlayer = true
+        }
+    }
     
     func handleVLCCallback(server: ServerEntity) {
         print("📲 Received VLC callback with server: \(server.name ?? "unknown")")
@@ -577,26 +702,26 @@ class SFTPFileBrowserViewModel: ObservableObject {
 //            showVLCDownload.toggle()
 //            return
 //        }
-//        
+//
 //        // Get all video files from current directory
 //        let videoItems = items.filter { item in
 //            !item.isDirectory && FileType.determine(from: item.url) == .video
 //        }
-//        
+//
 //        if videoItems.isEmpty {
 //            print("❌ No video files found in the current directory")
 //            return
 //        }
-//        
+//
 //        // Find the selected video's index
 //        guard let selectedIndex = videoItems.firstIndex(where: { $0.url.path == item.url.path }) else {
 //            print("❌ Selected video not found in filtered list")
 //            return
 //        }
-//        
+//
 //        // Save remaining videos to AppStorage
 //        let remainingVideos = Array(videoItems[(selectedIndex + 1)...] + videoItems[..<selectedIndex])
-//        
+//
 //        do {
 //            // Create a simple array of file paths
 //            let videoPaths = remainingVideos.map { $0.url.path }
@@ -608,7 +733,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
 //        } catch {
 //            print("❌ Failed to encode video list: \(error)")
 //        }
-//        
+//
 //        // Open the selected video in VLC
 //        sendToVLC(item: item, server: server)
 //    }
@@ -887,3 +1012,4 @@ class SFTPFileBrowserViewModel: ObservableObject {
         #endif
     }
 }
+#endif
