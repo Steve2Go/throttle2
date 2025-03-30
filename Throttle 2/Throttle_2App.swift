@@ -55,24 +55,7 @@ struct Throttle_2App: App {
                     }
                 }
                 .onChange(of: store.selection) { oldValue, newValue in
-//                    if store.selection != nil {
-//                        ServerManager.shared.setServer(store.selection!)
-//                    }
-//                    if let selection = newValue,
-//                       let user = selection.user,
-//                       !user.isEmpty {
-//                        
-//                        if let password = keychain["password" + selection.name!], !password.isEmpty {
-//                            store.connectTransmission = selection.url!.replacingOccurrences(
-//                                of: "://",
-//                                with: "://" + user + ":" + password + "@"
-//                            ) + (store.selection?.rpc ?? "")
-//                        } else {
-//                            store.connectTransmission = selection.url!
-//                        }
                     setupServer(store: store, torrentManager: manager)
-                        
-                        //print(store.connectTransmission)
                     }
                    
                // }
@@ -119,27 +102,7 @@ struct Throttle_2App: App {
                 }
                 .onChange(of: store.selection) { oldValue, newValue in
                     if store.selection != nil {
-//                        let forwarder = SSHReverseForward()
-//                        try forwarder.connect(host: "srg.im", port: 22, username: "steve", password: "Indigo1928!")
-//                        try forwarder.startReverseForward(remotePort: 9092, localPort: 9091)
-//                        //ServerManager.shared.setServer(store.selection!)
-//                    }
-//                    if let selection = newValue,
-//                       let user = selection.user,
-//                       !user.isEmpty {
-//                        
-//                        if let password = keychain["password" + selection.name!], !password.isEmpty {
-//                            store.connectTransmission = selection.url!.replacingOccurrences(
-//                                of: "://",
-//                                with: "://" + user + ":" + password + "@"
-//                            ) + ":" + String(selection.port) + (store.selection?.rpc ?? "")
-//                        } else {
-//                            store.connectTransmission = selection.url!
-//                        }
-//                        manager.updateBaseURL(URL( string: store.connectTransmission)!)
-//                        manager.startPeriodicUpdates()
                         setupServer(store: store, torrentManager: manager)
-                        //print(store.connectTransmission)
                     }
                    
                 }
