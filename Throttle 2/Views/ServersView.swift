@@ -170,9 +170,11 @@ struct ServerEditView: View {
     @State private var sftpUser: String
     @State private var sftpPassword: String
     @State private var sftpBrowse: Bool
+    @State private var sftpRpc: Bool
     @State private var pathServer: String
     @State private var pathFilesystem: String
     @State private var fsBrowse: Bool
+    @State private var protHttps: Bool
     @State private var fsPath: String = ""
     @State private var fsThumb: Bool
     @State private var ffThumb: Bool
@@ -202,6 +204,7 @@ struct ServerEditView: View {
         _password = State(initialValue: keychain["password" + (server?.name ?? "")] ?? "")
         
         _sftpBrowse = State(initialValue: server?.sftpBrowse ?? false)
+        _sftpRpc = State(initialValue: server?.sftpRpc ?? false)
         _sftpHost = State(initialValue: server?.sftpHost ?? "")
         _sftpPort = State(initialValue: String(server?.sftpPort ?? 22))
         _sftpUser = State(initialValue: server?.sftpUser ?? "")
@@ -211,6 +214,7 @@ struct ServerEditView: View {
         _fsPath = State(initialValue: server?.fsPath ?? "")
         _fsThumb = State(initialValue: server?.fsThumb ?? false)
         _fsBrowse = State(initialValue: server?.fsBrowse ?? false)
+        _protHttps = State(initialValue: server?.protoHttps ?? false)
         _ffThumb = State(initialValue: server?.ffThumb ?? false)
         // Initialize SFTP authentication states
         _sftpUsesKey = State(initialValue: server?.sftpUsesKey ?? false)
@@ -223,15 +227,30 @@ struct ServerEditView: View {
                 // **Torrent**
                 Section(header: Text("Torrent Server")) {
                     TextField("Name", text: $name)
-                    TextField("URL", text: $url)
-                    TextField("Port", text: $port)
+                    Toggle("RPC Over SSH Tunnel", isOn: $sftpRpc)
+                        .onChange(of: sftpRpc){
+                            if sftpRpc {
+                                sftpBrowse = true
+                            }
+                        }
+                    if !sftpRpc {
+                        Toggle("Server Uses SSL (https)", isOn: $protHttps)
+                        TextField("Server", text: $url)
+                    }else{
+                        Text("SSL not available when tunneling, tunnel should be direct to the Transmission server").font(.caption)
+                    }
+                    TextField("RPC Port", text: $port)
                     TextField("RPC Path", text: $rpc)
                     Toggle("Default Server", isOn: $isDefault)
                     TextField("Username", text: $user)
                     SecureField("Password", text: $password)
+                    
                 }
+                #if os(macOS)
+                Divider()
+#endif
                 // **SFTP Authentication & Path Mapping**
-                Section(header: Text("Path Mapping")) {
+                Section(header: Text("SSH & SFTP")) {
                     
 #if os(macOS)
                     let fileManager = FileManager.default
@@ -252,9 +271,11 @@ struct ServerEditView: View {
 //                    }
                     #else
                     Toggle("SFTP Path Mapping", isOn: $sftpBrowse)
+                        
                     
 #endif
-                    if sftpBrowse {
+                    
+                    if sftpBrowse || sftpRpc {
                         TextField("SFTP Host", text: $sftpHost)
                         TextField("SFTP Port", text: $sftpPort)
                         TextField("Server Path", text: $pathServer)
@@ -283,6 +304,7 @@ Toggle("Server Side Thumbnails with FFMpeg", isOn: $ffThumb)
                 }
                 #if os(macOS)
                 if sftpBrowse == false {
+                    Divider()
                     Section(header: Text("Traditional Path Mapping")) {
                         Toggle("Local Mapping", isOn: $fsBrowse)
                         if fsBrowse {
@@ -461,6 +483,7 @@ func saveServer() {
             existingServer.user = user
             existingServer.isDefault = isDefault
             existingServer.sftpBrowse = sftpBrowse
+            existingServer.sftpRpc = sftpRpc
             existingServer.sftpHost = sftpHost
             existingServer.sftpPort = Int32(Int(sftpPort) ?? 22)
             existingServer.sftpUser = sftpUser
@@ -471,6 +494,7 @@ func saveServer() {
             existingServer.ffThumb = ffThumb
             existingServer.fsBrowse = fsBrowse
             existingServer.sftpUsesKey = sftpUsesKey
+            existingServer.protoHttps = protHttps
             existingServer.thumbMax = Int32(thumbMax) ?? 9
             store.selection = nil
             store.selection = existingServer
@@ -486,7 +510,9 @@ func saveServer() {
             newServer.port = Int32(Int(port) ?? 443)
             newServer.rpc = rpc
             newServer.user = user
+            newServer.sftpRpc = sftpRpc
             newServer.sftpBrowse = sftpBrowse
+            newServer.protoHttps = protHttps
             newServer.sftpHost = sftpHost
             newServer.sftpPort = Int32(Int(sftpPort) ?? 22)
             newServer.sftpUser = sftpUser
@@ -558,9 +584,10 @@ private func deleteServer(_ server: ServerEntity) {
             print("Failed to delete server: $error)")
         }
         
-        if store.selection == server {
+        //if store.selection == server {
             store.selection = nil
-        }
+        store.selection = server
+        //}
         DispatchQueue.main.async {
             dismiss()
         }

@@ -279,7 +279,9 @@ extension FileBrowserViewModel: SFTPUploadHandler {
     }
     
     func refreshItems() {
-        self.fetchItems()
+        Task{
+            await self.fetchItems()
+        }
     }
 }
 

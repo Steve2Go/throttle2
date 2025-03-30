@@ -1,18 +1,16 @@
 //
-//  ImageBrowserView.swift
+//  WebViewImageBrowser.swift
 //  Throttle 2
-//
-//  Created by Stephen Grigg on 21/3/2025.
 //
 #if os(iOS)
 import SwiftUI
+import WebKit
 
 // MARK: - Image Browser View
 struct ImageBrowserView: View {
     let imageUrls: [URL]
     @State private var currentIndex: Int
     @State private var isAnimating: Bool = false
-    @State private var loadedImageIndices = Set<Int>()
     let sftpConnection: SFTPFileBrowserViewModel
     @Environment(\.dismiss) private var dismiss
     
@@ -29,43 +27,48 @@ struct ImageBrowserView: View {
             Color.black.ignoresSafeArea()
             
             VStack {
+                HStack {
+                    Spacer()
+                    
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .resizable()
+                            .frame(width: 20, height: 20)
+                            .foregroundColor(.white)
+                            .padding(12)
+                            .clipShape(Circle())
+                    }
+                    .padding([.trailing], 5)
+                }
+                
+                Spacer()
+            }
+            .zIndex(2) // Ensure this stays on top
+            
+            VStack {
                 TabView(selection: $currentIndex) {
                     ForEach(0..<imageUrls.count, id: \.self) { index in
-                        AsyncSFTPImageView(
+                        WebViewImageViewer(
                             url: imageUrls[index],
-                            sftpConnection: sftpConnection,
-                            isPreloaded: loadedImageIndices.contains(index),
-                            delayLoad: isAnimating
+                            sftpConnection: sftpConnection
                         )
                         .tag(index)
                     }
                 }
                 .tabViewStyle(.page)
                 .background(Color.black)
-                .onChange(of: currentIndex) { newIndex in
+                .onChange(of: currentIndex) {
                     // Mark that we're animating
                     isAnimating = true
                     
-                    // Once animation completes, preload adjacent images
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    // Once animation completes, clear animation flag
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                         isAnimating = false
-                        preloadAdjacentImages(around: newIndex)
                     }
-                }
-                .onAppear {
-                    // Initially preload the current image and adjacent ones
-                    preloadAdjacentImages(around: currentIndex)
                 }
                 
                 // Bottom toolbar
                 HStack {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .resizable()
-                            .frame(width: 24, height: 24)
-                            .foregroundColor(.white)
-                    }
-                    
                     Spacer()
                     
                     Text("\(currentIndex + 1) of \(imageUrls.count)")
@@ -90,284 +93,33 @@ struct ImageBrowserView: View {
             }
         }
         .statusBar(hidden: true)
-        #else
-        // macOS implementation
-        VStack {
-            HStack {
-                Button(action: {
-                    currentIndex = max(0, currentIndex - 1)
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(.title)
-                }
-                .disabled(currentIndex <= 0)
-                
-                Spacer()
-                
-                Text("\(currentIndex + 1) of \(imageUrls.count)")
-                
-                Spacer()
-                
-                Button(action: {
-                    currentIndex = min(imageUrls.count - 1, currentIndex + 1)
-                }) {
-                    Image(systemName: "chevron.right")
-                        .font(.title)
-                }
-                .disabled(currentIndex >= imageUrls.count - 1)
-            }
-            .padding()
-            
-            AsyncSFTPImageView(
-                url: imageUrls[currentIndex],
-                sftpConnection: sftpConnection,
-                isPreloaded: loadedImageIndices.contains(currentIndex),
-                delayLoad: false
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onChange(of: currentIndex) { newIndex in
-                preloadAdjacentImages(around: newIndex)
-            }
-            .onAppear {
-                preloadAdjacentImages(around: currentIndex)
-            }
-            
-            HStack {
-                Button(action: { dismiss() }) {
-                    Text("Close")
-                }
-                
-                Spacer()
-                
-                Button(action: {
-                    if let currentItem = sftpConnection.items.first(where: { $0.url == imageUrls[currentIndex] }) {
-                        sftpConnection.downloadFile(currentItem)
-                    }
-                }) {
-                    Text("Download")
-                }
-            }
-            .padding()
-        }
-        .frame(minWidth: 800, minHeight: 600)
         #endif
     }
-    
-    private func preloadAdjacentImages(around index: Int) {
-        // Add current index to loaded set
-        loadedImageIndices.insert(index)
-        
-        // Preload one image ahead and one behind for smoother swiping
-        
-        // works smother without
-//        if index > 0 {
-//            loadedImageIndices.insert(index - 1)
-//        }
-//
-//        if index < imageUrls.count - 1 {
-//            loadedImageIndices.insert(index + 1)
-//        }
-    }
 }
 
-
-struct ZoomableImageView: View {
+// MARK: - WebView Image Viewer
+struct WebViewImageViewer: View {
     let url: URL
     let sftpConnection: SFTPFileBrowserViewModel
-    @State private var image: Image?
     @State private var isLoading = true
-    @State private var scale: CGFloat = 1.0
-    @State private var lastScale: CGFloat = 1.0
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
-    
-    var body: some View {
-        ZStack {
-            if let image = image {
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .scaleEffect(scale)
-                    .offset(offset)
-                    .gesture(
-                        // Only enable dragging when zoomed in
-                        DragGesture()
-                            .onChanged { value in
-                                // Only allow dragging when zoomed in
-                                if scale > 1.0 {
-                                    offset = CGSize(
-                                        width: lastOffset.width + value.translation.width,
-                                        height: lastOffset.height + value.translation.height
-                                    )
-                                }
-                            }
-                            .onEnded { _ in
-                                lastOffset = offset
-                                if scale < 1.1 {
-                                    withAnimation {
-                                        offset = .zero
-                                        lastOffset = .zero
-                                    }
-                                }
-                            }
-                    )
-                    .gesture(
-                        MagnificationGesture()
-                            .onChanged { value in
-                                let delta = value / lastScale
-                                lastScale = value
-                                scale = min(max(scale * delta, 1.0), 5.0) // Limit scale between 1.0 and 5.0
-                            }
-                            .onEnded { _ in
-                                lastScale = 1.0
-                                if scale < 1.0 {
-                                    withAnimation {
-                                        scale = 1.0
-                                    }
-                                } else if scale > 5.0 {
-                                    withAnimation {
-                                        scale = 5.0
-                                    }
-                                }
-                            }
-                    )
-                    .onTapGesture(count: 2) {
-                        withAnimation {
-                            if scale > 1.0 {
-                                scale = 1.0
-                                offset = .zero
-                                lastOffset = .zero
-                            } else {
-                                scale = 2.0
-                            }
-                        }
-                    }
-                // Disable swiping between images when zoomed in
-                    .allowsHitTesting(scale <= 1.0)
-            } else if isLoading {
-                ProgressView()
-            } else {
-                Text("Failed to load image")
-                    .foregroundColor(.gray)
-            }
-        }
-        .onAppear {
-            loadImage()
-        }
-        
-    }
-    private func loadImage() {
-        isLoading = true
-        
-        Task {
-            do {
-                // Use caches directory for temporary image files
-                let cachesDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-                let localURL = cachesDirectory.appendingPathComponent(url.lastPathComponent)
-                
-                // Remove any existing file
-                try? FileManager.default.removeItem(at: localURL)
-                
-                print("Downloading image from: \(url.path)")
-                
-                // Create a stream to the file
-                guard let outputStream = OutputStream(url: localURL, append: false) else {
-                    throw NSError(domain: "Image", code: -1,
-                                 userInfo: [NSLocalizedDescriptionKey: "Failed to create output stream"])
-                }
-                
-                // Progress adapter for image download
-                let progressAdapter: ((UInt64, UInt64) -> Bool) = { bytesReceived, totalBytes in
-                    // Just continue the download
-                    return !Task.isCancelled
-                }
-                
-                // Download the file using the contents method
-                try sftpConnection.sftpConnection.contents(
-                    atPath: url.path,
-                    toStream: outputStream,
-                    fromPosition: 0,
-                    progress: progressAdapter
-                )
-                
-                // Load the image
-                #if os(iOS)
-                if let uiImage = UIImage(contentsOfFile: localURL.path) {
-                    print("✅ Successfully loaded UIImage")
-                    let finalImage = Image(uiImage: uiImage)
-                    await MainActor.run {
-                        self.image = finalImage
-                        self.isLoading = false
-                    }
-                } else {
-                    print("❌ Failed to create UIImage from file")
-                    await MainActor.run {
-                        self.isLoading = false
-                    }
-                }
-                #else
-                if let nsImage = NSImage(contentsOfFile: localURL.path) {
-                    print("✅ Successfully loaded NSImage")
-                    let finalImage = Image(nsImage: nsImage)
-                    await MainActor.run {
-                        self.image = finalImage
-                        self.isLoading = false
-                    }
-                } else {
-                    print("❌ Failed to create NSImage from file")
-                    await MainActor.run {
-                        self.isLoading = false
-                    }
-                }
-                #endif
-                
-                // Clean up after loading
-                try? FileManager.default.removeItem(at: localURL)
-                
-            } catch {
-                print("❌ Failed to load image: \(error)")
-                await MainActor.run {
-                    self.isLoading = false
-                }
-            }
-        }
-    }
-}
-
-// MARK: - AsyncSFTPImageView
-struct AsyncSFTPImageView: View {
-    let url: URL
-    let sftpConnection: SFTPFileBrowserViewModel
-    let isPreloaded: Bool
-    let delayLoad: Bool
-    
-    @State private var image: Image?
-    @State private var isLoading = false
+    @State private var loadedImageURL: URL?
     @State private var errorMessage: String?
-    @State private var shouldStartLoading = false
-    
-    init(url: URL, sftpConnection: SFTPFileBrowserViewModel, isPreloaded: Bool = false, delayLoad: Bool = false) {
-        self.url = url
-        self.sftpConnection = sftpConnection
-        self.isPreloaded = isPreloaded
-        self.delayLoad = delayLoad
-    }
+    @State private var imageData: Data?
     
     var body: some View {
         ZStack {
-            if let image = image {
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .modifier(PinchToZoom())
+            if let imageData = imageData {
+                ImageWebView(imageData: imageData)
             } else if isLoading {
                 VStack {
                     ProgressView()
+                        .foregroundColor(.white)
                     Text("Loading image...")
                         .padding(.top, 8)
                         .font(.caption)
+                        .foregroundColor(.white)
                 }
-            } else if let errorMessage = errorMessage {
+            } else if let error = errorMessage {
                 VStack {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.largeTitle)
@@ -375,65 +127,36 @@ struct AsyncSFTPImageView: View {
                         .padding()
                     Text("Failed to load image")
                         .font(.headline)
-                    Text(errorMessage)
+                        .foregroundColor(.white)
+                    Text(error)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.gray)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
-            } else {
-                Color.black // Empty placeholder
             }
         }
+        .background(Color.black)
         .onAppear {
-            if !delayLoad {
-                initializeLoading()
-            } else {
-                // If we're in a swipe animation, delay loading
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    initializeLoading()
-                }
-            }
+            loadImage()
         }
-        .onChange(of: shouldStartLoading) { 
-            if shouldStartLoading && image == nil && !isLoading {
-                loadImage()
-            }
-        }
-    }
-    
-    private func initializeLoading() {
-        // If the image is already loaded or loading, do nothing
-        if image != nil || isLoading {
-            return
-        }
-        
-        // Start loading
-        shouldStartLoading = true
     }
     
     private func loadImage() {
-        // If image is already loaded or loading, don't start again
-        guard image == nil && !isLoading else { return }
-        
         isLoading = true
+        errorMessage = nil
         
         Task {
             do {
-                // Use caches directory for temporary image files
-                let cachesDirectory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-                let localURL = cachesDirectory.appendingPathComponent(url.lastPathComponent)
-                
-                // Remove any existing file
-                try? FileManager.default.removeItem(at: localURL)
-                
+                // Use memory instead of file system
                 print("Downloading image from: \(url.path)")
                 
-                // Create a stream to the file
-                guard let outputStream = OutputStream(url: localURL, append: false) else {
-                    throw NSError(domain: "Image", code: -1,
-                                  userInfo: [NSLocalizedDescriptionKey: "Failed to create output stream"])
-                }
+                // Create a memory buffer to hold the image data
+                let imageBuffer = NSMutableData()
+                
+                // Create a custom output stream that writes to our buffer
+                let outputStream = OutputStream(toMemory: ())
+                outputStream.open()
                 
                 // Progress adapter for image download
                 let progressAdapter: ((UInt64, UInt64) -> Bool) = { bytesReceived, totalBytes in
@@ -449,42 +172,19 @@ struct AsyncSFTPImageView: View {
                     progress: progressAdapter
                 )
                 
-                // Load the image
-                #if os(iOS)
-                if let uiImage = UIImage(contentsOfFile: localURL.path) {
-                    print("✅ Successfully loaded UIImage for \(url.lastPathComponent)")
-                    let finalImage = Image(uiImage: uiImage)
-                    await MainActor.run {
-                        self.image = finalImage
-                        self.isLoading = false
-                    }
-                } else {
-                    print("❌ Failed to create UIImage from file")
-                    await MainActor.run {
-                        self.isLoading = false
-                        self.errorMessage = "Could not create image from downloaded file"
-                    }
-                }
-                #else
-                if let nsImage = NSImage(contentsOfFile: localURL.path) {
-                    print("✅ Successfully loaded NSImage for \(url.lastPathComponent)")
-                    let finalImage = Image(nsImage: nsImage)
-                    await MainActor.run {
-                        self.image = finalImage
-                        self.isLoading = false
-                    }
-                } else {
-                    print("❌ Failed to create NSImage from file")
-                    await MainActor.run {
-                        self.isLoading = false
-                        self.errorMessage = "Could not create image from downloaded file"
-                    }
-                }
-                #endif
+                outputStream.close()
                 
-                // Clean up after loading
-                try? FileManager.default.removeItem(at: localURL)
-                
+                // Get the data from the output stream
+                if let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data {
+                    await MainActor.run {
+                        self.imageData = data
+                        self.isLoading = false
+                    }
+                    print("✅ Image downloaded successfully to memory, size: \(data.count) bytes")
+                } else {
+                    throw NSError(domain: "Image", code: -1,
+                                 userInfo: [NSLocalizedDescriptionKey: "Failed to get image data from stream"])
+                }
             } catch {
                 print("❌ Failed to load image: \(error)")
                 await MainActor.run {
@@ -495,41 +195,107 @@ struct AsyncSFTPImageView: View {
         }
     }
 }
-                // MARK: - PinchToZoom
-struct PinchToZoom: ViewModifier {
-    #if os(iOS)
-    @State var scale: CGFloat = 1.0
-    @State var lastScale: CGFloat = 1.0
+
+// MARK: - ImageWebView
+struct ImageWebView: UIViewRepresentable {
+    let imageData: Data
     
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(scale)
-            .gesture(
-                MagnificationGesture()
-                    .onChanged { value in
-                        let delta = value / lastScale
-                        lastScale = value
-                        scale *= delta
-                    }
-                    .onEnded { _ in
-                        lastScale = 1.0
-                    }
-            )
-            .onTapGesture(count: 2) {
-                withAnimation {
-                    if scale > 1.0 {
-                        scale = 1.0
-                    } else {
-                        scale = 2.0
-                    }
+    func makeUIView(context: Context) -> WKWebView {
+        // Create a configuration with appropriate preferences
+        let configuration = WKWebViewConfiguration()
+        
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.backgroundColor = .black
+        webView.scrollView.backgroundColor = .black
+        webView.isOpaque = false
+        
+        // Configure for image viewing
+        webView.scrollView.minimumZoomScale = 1.0
+        webView.scrollView.maximumZoomScale = 5.0
+        webView.scrollView.showsHorizontalScrollIndicator = false
+        webView.scrollView.showsVerticalScrollIndicator = false
+        webView.scrollView.bounces = true
+        
+        // Important: Handle double-tap to zoom
+        let doubleTapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleTap(_:)))
+        doubleTapGesture.numberOfTapsRequired = 2
+        webView.addGestureRecognizer(doubleTapGesture)
+        
+        return webView
+    }
+    
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        // Convert image data to base64
+        let base64String = imageData.base64EncodedString()
+        
+        // Determine mime type (assuming JPEG for simplicity, but could be enhanced)
+        let mimeType = "image/jpeg"
+        
+        // Use HTML with embedded base64 image data
+        let htmlString = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+            <style>
+                html, body {
+                    margin: 0;
+                    padding: 0;
+                    background-color: black;
+                    width: 100%;
+                    height: 100%;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    overflow: hidden;
+                }
+                img {
+                    max-width: 100%;
+                    max-height: 100vh;
+                    object-fit: contain;
+                }
+            </style>
+        </head>
+        <body>
+            <img src="data:\(mimeType);base64,\(base64String)" alt="Image" />
+        </body>
+        </html>
+        """
+        
+        webView.loadHTMLString(htmlString, baseURL: nil)
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject {
+        var parent: ImageWebView
+        
+        init(_ parent: ImageWebView) {
+            self.parent = parent
+        }
+        
+        @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+            if let webView = gesture.view as? WKWebView {
+                let scrollView = webView.scrollView
+                
+                if scrollView.zoomScale > scrollView.minimumZoomScale {
+                    // If zoomed in, zoom out
+                    scrollView.setZoomScale(scrollView.minimumZoomScale, animated: true)
+                } else {
+                    // If zoomed out, zoom in to the tap location
+                    let location = gesture.location(in: webView)
+                    let zoomRect = CGRect(
+                        x: location.x - 50,
+                        y: location.y - 50,
+                        width: 100,
+                        height: 100
+                    )
+                    scrollView.zoom(to: zoomRect, animated: true)
                 }
             }
+        }
     }
-    #else
-    // macOS doesn't need the same pinch-to-zoom implementation
-    func body(content: Content) -> some View {
-        content
-    }
-    #endif
 }
 #endif

@@ -2,10 +2,10 @@
 import SwiftUI
 import KeychainAccess
 import UIKit
-import mft
-import NIOSSH
+//import NIOSSH
 import AVFoundation
 import MobileVLCKit
+import Citadel
 
 public class ThumbnailManager: NSObject {
     public static let shared = ThumbnailManager()
@@ -161,30 +161,33 @@ public class ThumbnailManager: NSObject {
             throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing SFTP credentials"])
         }
         
-        let connection = MFTSftpConnection(
-            hostname: hostname,
+        // Create SSH client
+        let client = try await SSHClient.connect(
+            host: hostname,
             port: Int(server.sftpPort),
-            username: username,
-            password: password
+            authenticationMethod: .passwordBased(username: username, password: password),
+            hostKeyValidator: .acceptAnything(),
+            reconnect: .never
         )
-        try connection.connect()
-        try connection.authenticate()
         
-        let tempURL = fileManager.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension(URL(fileURLWithPath: path).pathExtension)
+        // Open an SFTP session
+        let sftp = try await client.openSFTP()
         
-        let stream = OutputStream(toFileAtPath: tempURL.path, append: false)!
-        stream.open()
-        defer {
-            stream.close()
-            try? fileManager.removeItem(at: tempURL)
+        // Read the file data
+        let buffer = try await sftp.withFile(
+            filePath: path,
+            flags: .read
+        ) { file in
+            try await file.readAll()
         }
         
-        try connection.contents(atPath: path, toStream: stream, fromPosition: 0) { _, _ in true }
+        // Close the SFTP session
+        try await sftp.close()
         
-        guard let imageData = try? Data(contentsOf: tempURL),
-              let uiImage = UIImage(data: imageData) else {
+        // Convert ByteBuffer to Data
+        let imageData = Data(buffer: buffer)
+        
+        guard let uiImage = UIImage(data: imageData) else {
             throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to load image data"])
         }
         
@@ -192,6 +195,8 @@ public class ThumbnailManager: NSObject {
         try? saveToCache(image: uiImage, for: path)
         return thumb
     }
+    
+    
     
     // MARK: - Video thumbs via FFmpeg (server-side)
     
@@ -203,18 +208,14 @@ public class ThumbnailManager: NSObject {
             throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing credentials"])
         }
         
-        // Create SSH connection
-        let ssh = SSHConnection(
+        // Create SSH client
+        let client = try await SSHClient.connect(
             host: hostname,
             port: Int(server.sftpPort),
-            username: username,
-            password: password
+            authenticationMethod: .passwordBased(username: username, password: password),
+            hostKeyValidator: .acceptAnything(),
+            reconnect: .never
         )
-        
-        try await ssh.connect()
-        defer {
-            try? ssh.disconnect()
-        }
         
         // Generate a unique temp filename
         let tempThumbPath = "/tmp/thumb_\(UUID().uuidString).jpg"
@@ -223,65 +224,38 @@ public class ThumbnailManager: NSObject {
         let escapedPath = "'\(path.replacingOccurrences(of: "'", with: "'\\''"))'"
         let escapedThumbPath = "'\(tempThumbPath.replacingOccurrences(of: "'", with: "'\\''"))'"
         
-        // Execute ffmpeg command - use 3 seconds timestamp as requested
-        let ffmpegCmd = "ffmpeg -y -i \(escapedPath) -ss 00:00:03.000 -vframes 1 \(escapedThumbPath)"
-        let result = try await ssh.executeCommand(ffmpegCmd)
+        let timestamps = ["00:00:03.000", "00:00:00.000"]
         
-        if result.status != 0 {
-            // Try one more time with a different timestamp if first attempt fails
-            let retryCmd = "ffmpeg -y -i \(escapedPath) -ss 00:00:00.000 -vframes 1 \(escapedThumbPath)"
-            let retryResult = try await ssh.executeCommand(retryCmd)
+        for timestamp in timestamps {
+            // Execute ffmpeg command with current timestamp and check its exit status
+            let ffmpegCmd = "ffmpeg -y -i \(escapedPath) -ss \(timestamp) -vframes 1 \(escapedThumbPath) 2>/dev/null; echo $?"
+            let exitCodeBuffer = try await client.executeCommand(ffmpegCmd)
+            let exitCode = Int32(String(buffer: exitCodeBuffer).trimmingCharacters(in: .whitespacesAndNewlines)) ?? 1
             
-            if retryResult.status != 0 {
-                throw NSError(domain: "ThumbnailManager", code: -3, userInfo: [
-                    NSLocalizedDescriptionKey: "FFmpeg failed to generate thumbnail"
-                ])
+            if exitCode == 0 {
+                // FFmpeg succeeded, try to read the file
+                let catCmd = "cat \(escapedThumbPath)"
+                let imageBuffer = try await client.executeCommand(catCmd)
+                
+                // Clean up regardless of success
+                let cleanupCmd = "rm -f \(escapedThumbPath)"
+                _ = try await client.executeCommand(cleanupCmd)
+                
+                // Convert buffer to UIImage
+                if let uiImage = UIImage(data: Data(buffer: imageBuffer)) {
+                    let thumb = processThumbnail(uiImage: uiImage, isVideo: true)
+                    try? saveToCache(image: uiImage, for: path)
+                    return thumb
+                }
             }
+            
+            // Clean up if this attempt failed
+            let cleanupCmd = "rm -f \(escapedThumbPath)"
+            _ = try await client.executeCommand(cleanupCmd)
         }
         
-        // Download the generated thumbnail
-        let tempURL = fileManager.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("jpg")
-        
-        do {
-            let connection = MFTSftpConnection(
-                hostname: hostname,
-                port: Int(server.sftpPort),
-                username: username,
-                password: password
-            )
-            try connection.connect()
-            try connection.authenticate()
-            
-            let stream = OutputStream(toFileAtPath: tempURL.path, append: false)!
-            stream.open()
-            defer {
-                stream.close()
-            }
-            
-            try connection.contents(atPath: tempThumbPath, toStream: stream, fromPosition: 0) { _, _ in true }
-            
-            // Delete remote thumbnail
-            _ = try await ssh.executeCommand("rm -f \(escapedThumbPath)")
-            
-            guard let imageData = try? Data(contentsOf: tempURL),
-                  let uiImage = UIImage(data: imageData) else {
-                throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to load thumbnail"])
-            }
-            
-            let thumb = processThumbnail(uiImage: uiImage, isVideo: true)
-            try? saveToCache(image: uiImage, for: path)
-            
-            try? fileManager.removeItem(at: tempURL)
-            return thumb
-            
-        } catch {
-            try? fileManager.removeItem(at: tempURL)
-            // Delete remote thumbnail in case of error
-            try? await ssh.executeCommand("rm -f \(escapedThumbPath)")
-            throw error
-        }
+        throw NSError(domain: "ThumbnailManager", code: -3,
+            userInfo: [NSLocalizedDescriptionKey: "Failed to generate thumbnail with FFmpeg"])
     }
     
     // MARK: - Video Thumbnail Generation via VLC

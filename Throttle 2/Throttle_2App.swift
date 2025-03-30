@@ -14,9 +14,12 @@ let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "jfif", "bmp"]
 let videoExtensions: Set<String> = ["mp4", "mov", "avi", "mkv", "flv", "mpeg", "m4v", "wmv"]
 let videoExtensionsPlayable: Set<String> = ["mp4", "mov", "mpeg", "m4v"]
 
+
+
 @main
 struct Throttle_2App: App {
     let dataManager = DataManager.shared
+    private var tunnelManager: SSHTunnelManager?
     // Monitor the scene phase so we can restart the proxy when needed.
     @Environment(\.scenePhase) private var scenePhase
     
@@ -47,31 +50,32 @@ struct Throttle_2App: App {
                     if newValue == .background {
                         manager.stopPeriodicUpdates()
                     }else if newValue == .active {
-                        manager.startPeriodicUpdates()
+                        //manager.startPeriodicUpdates()
+                        setupServer(store: store, torrentManager: manager)
                     }
                 }
                 .onChange(of: store.selection) { oldValue, newValue in
-                    if store.selection != nil {
-                        ServerManager.shared.setServer(store.selection!)
-                    }
-                    if let selection = newValue,
-                       let user = selection.user,
-                       !user.isEmpty {
+//                    if store.selection != nil {
+//                        ServerManager.shared.setServer(store.selection!)
+//                    }
+//                    if let selection = newValue,
+//                       let user = selection.user,
+//                       !user.isEmpty {
+//                        
+//                        if let password = keychain["password" + selection.name!], !password.isEmpty {
+//                            store.connectTransmission = selection.url!.replacingOccurrences(
+//                                of: "://",
+//                                with: "://" + user + ":" + password + "@"
+//                            ) + (store.selection?.rpc ?? "")
+//                        } else {
+//                            store.connectTransmission = selection.url!
+//                        }
+                    setupServer(store: store, torrentManager: manager)
                         
-                        if let password = keychain["password" + selection.name!], !password.isEmpty {
-                            store.connectTransmission = selection.url!.replacingOccurrences(
-                                of: "://",
-                                with: "://" + user + ":" + password + "@"
-                            ) + (store.selection?.rpc ?? "")
-                        } else {
-                            store.connectTransmission = selection.url!
-                        }
-                        manager.updateBaseURL(URL( string: store.connectTransmission)!)
-                        manager.startPeriodicUpdates()
                         //print(store.connectTransmission)
                     }
                    
-                }
+               // }
             
         }
         
@@ -86,14 +90,12 @@ struct Throttle_2App: App {
                     presenting.activeSheet = "settings"  // Assuming you have activeSheet enum defined
                 }
                 .keyboardShortcut(",", modifiers: [.command])
-            }
-            CommandGroup(after: .windowList){
                 Button("Refresh") {
                     manager.reset()
                     manager.isLoading.toggle()
-                }
-                .keyboardShortcut("r", modifiers: [.command])
+                }.keyboardShortcut("r", modifiers: [.command])
             }
+           
             
             
         }
@@ -111,27 +113,32 @@ struct Throttle_2App: App {
                     if newValue == .background {
                         manager.stopPeriodicUpdates()
                     }else if newValue == .active {
-                        manager.startPeriodicUpdates()
+                        //manager.startPeriodicUpdates()
+                        setupServer(store: store, torrentManager: manager)
                     }
                 }
                 .onChange(of: store.selection) { oldValue, newValue in
                     if store.selection != nil {
-                        ServerManager.shared.setServer(store.selection!)
-                    }
-                    if let selection = newValue,
-                       let user = selection.user,
-                       !user.isEmpty {
-                        
-                        if let password = keychain["password" + selection.name!], !password.isEmpty {
-                            store.connectTransmission = selection.url!.replacingOccurrences(
-                                of: "://",
-                                with: "://" + user + ":" + password + "@"
-                            ) + (store.selection?.rpc ?? "")
-                        } else {
-                            store.connectTransmission = selection.url!
-                        }
-                        manager.updateBaseURL(URL( string: store.connectTransmission)!)
-                        manager.startPeriodicUpdates()
+//                        let forwarder = SSHReverseForward()
+//                        try forwarder.connect(host: "srg.im", port: 22, username: "steve", password: "Indigo1928!")
+//                        try forwarder.startReverseForward(remotePort: 9092, localPort: 9091)
+//                        //ServerManager.shared.setServer(store.selection!)
+//                    }
+//                    if let selection = newValue,
+//                       let user = selection.user,
+//                       !user.isEmpty {
+//                        
+//                        if let password = keychain["password" + selection.name!], !password.isEmpty {
+//                            store.connectTransmission = selection.url!.replacingOccurrences(
+//                                of: "://",
+//                                with: "://" + user + ":" + password + "@"
+//                            ) + ":" + String(selection.port) + (store.selection?.rpc ?? "")
+//                        } else {
+//                            store.connectTransmission = selection.url!
+//                        }
+//                        manager.updateBaseURL(URL( string: store.connectTransmission)!)
+//                        manager.startPeriodicUpdates()
+                        setupServer(store: store, torrentManager: manager)
                         //print(store.connectTransmission)
                     }
                    
@@ -140,6 +147,104 @@ struct Throttle_2App: App {
         }
       
         #endif
+    }
+    
+    func setupServer (store: Store, torrentManager: TorrentManager) {
+        TunnelManagerHolder.shared.tearDownAllTunnels()
+        // url construction for server wuaries
+        if store.selection != nil {
+            // load the keychain
+            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+            var server = store.selection
+            // trying to keep it as easy as possible
+            let proto = (server?.protoHttps ?? false) ? "https" : "http"
+            let domain = server?.url ?? "localhost"
+            let user = server?.sftpUser ?? ""
+            let password = keychain["password" + (server?.name! ?? "")] ?? ""
+            
+            let port  = server?.port ?? 9091
+            let path = server?.rpc ?? "transmission/rpc"
+            
+            let isTunnel = server?.sftpRpc ?? false
+            let hasKey = server?.sftpUsesKey
+            let localport = 4000 // update after tunnel logic
+            
+            var url = ""
+            var at = ""
+            
+            if isTunnel{
+                
+                //server tunnel creation
+                let sshPass = keychain["sftpPassword" + (server?.name! ?? "")] ?? ""
+                
+                if let server = server {
+                    Task {
+                        do {
+                            let tmanager = try SSHTunnelManager(server: server, localPort: localport, remoteHost: "localhost", remotePort: Int(port))
+                            try await tmanager.start()
+                            TunnelManagerHolder.shared.storeTunnel(tmanager, withIdentifier: "transmission-rpc")
+                            
+                            url += "http://"
+                            if !user.isEmpty {
+                                at = "@"
+                                url += user
+                                if !password.isEmpty {
+                                    url += ":\(password)"
+                                }
+                            }
+                            url += "\(at)localhost:\(String(localport))\(path)"
+                            
+                            store.connectTransmission = url
+                            ServerManager.shared.setServer(store.selection!)
+                            
+                            
+                            torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
+                            torrentManager.startPeriodicUpdates()
+                        } catch let error as SSHTunnelError {
+                            switch error {
+                            case .missingCredentials:
+                                print("Error: Missing credentials")
+                            case .connectionFailed(let underlyingError):
+                                print("Error: Connection failed: \(underlyingError)")
+                            case .portForwardingFailed(let underlyingError):
+                                print("Error: Port forwarding failed: \(underlyingError)")
+                            case .localProxyFailed(let underlyingError):
+                                print("Error: Local proxy failed: \(underlyingError)")
+                            case .reconnectFailed(let underlyingError):
+                                print("Error: Reconnect failed: \(underlyingError)")
+                            case .invalidServerConfiguration:
+                                print("Error: Invalid server configuration")
+                            case .tunnelAlreadyConnected:
+                                print("Error: Tunnel already connected")
+                            case .tunnelNotConnected:
+                                print("Error: Tunnel not connected")
+                            }
+                        } catch {
+                            print("An unexpected error occurred: \(error)")
+                        }
+                    }
+                }
+                
+                
+            }  else {
+                url += "\(proto)://"
+                if !user.isEmpty {
+                    at = "@"
+                    url += user
+                    if !password.isEmpty {
+                        url += ":\(password)"
+                    }
+                }
+                url += "\(at)\(domain):\(String(port))\(path)"
+                store.connectTransmission = url
+                ServerManager.shared.setServer(store.selection!)
+                
+                
+                torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
+                torrentManager.startPeriodicUpdates()
+            }
+            
+        }
     }
 }
 

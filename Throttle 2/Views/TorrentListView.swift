@@ -11,12 +11,9 @@ struct TorrentListView: View {
     @ObservedObject var presenting: Presenting
     @ObservedObject var filter: TorrentFilters
     
-    // State for animation and sorting
-    var foreverAnimation: Animation {
-            Animation.linear(duration: 2.0)
-                .repeatForever(autoreverses: false)
-        }
-    @State private var isAnimating = false
+    // State  sorting
+    
+    
     @AppStorage("sortOption") var sortOption: String = "dateAdded"
     @AppStorage("filterOption") var filterOption: String = "all"
     // CoreData fetch request for servers
@@ -215,29 +212,7 @@ struct TorrentListView: View {
                     }
                 }
             }
-#if os(macOS)
-//            ToolbarItem {
-//                Button(action: {
-//                    Task {
-//                        manager.reset()
-//                        manager.isLoading.toggle()
-//                    }
-//                }) {
-//                    if manager.isLoading {
-//                        Image(systemName: "arrow.trianglehead.clockwise.rotate.90")
-//                            .rotationEffect(Angle(degrees: self.isAnimating ? 360 : 0.0))
-//                            .animation(self.isAnimating ? foreverAnimation : .default)
-//                            .onAppear { self.isAnimating = true }
-//                            .onDisappear { self.isAnimating = false }
-//                    } else {
-//                        Image(systemName: "arrow.trianglehead.clockwise.rotate.90")
-//                        
-//                        //}
-//                        //}
-//                    }
-//                }
-//            }
-#endif
+
             if !isSidebarVisible {
 
                 ToolbarItem (placement: .automatic){
@@ -246,11 +221,6 @@ struct TorrentListView: View {
             }
             
             
-        }
-
-        .onChange(of: store.selection?.url ?? "http://localhost") { newURL in
-            manager.updateBaseURL((URL(string: newURL) ?? URL( string: "localhost://"))!)
-            manager.startPeriodicUpdates()
         }
         .onAppear {
             print("🚀 View appeared, starting periodic updates")
@@ -262,6 +232,7 @@ struct TorrentListView: View {
         }
         .sheet(isPresented: $showDeleteSheet) {
             if let deleteSheet = deleteSheet {
+                
                 deleteSheet.sheet
 #if os(iOS)
 .presentationDetents([.medium])

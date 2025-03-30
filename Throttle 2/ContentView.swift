@@ -170,7 +170,12 @@ struct ContentView: View {
             #endif
             
             if presenting.didStart {
-                store.selection = servers.first(where: { $0.isDefault }) ?? servers.first
+                if UserDefaults.standard.bool(forKey: "openDefaultServer") != false || UserDefaults.standard.object(forKey: "selectedServer") == nil {
+                    store.selection = servers.first(where: { $0.isDefault }) ?? servers.first
+                }else{
+                    store.selection = servers.first(where: { $0.id?.uuidString == UserDefaults.standard.string(forKey: "selectedServer")}) ?? servers.first
+                }
+                
                 presenting.didStart = false
             }
             

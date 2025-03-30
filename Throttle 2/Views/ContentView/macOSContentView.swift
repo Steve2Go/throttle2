@@ -24,6 +24,8 @@ struct MacOSContentView: View {
     @AppStorage("firstRun") private var firstRun = true
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = true
     @State var isMounted = false
+
+  @State private var isAnimating = false
     
     #if os(macOS)
     var mountManager = MountManager()
@@ -44,7 +46,23 @@ struct MacOSContentView: View {
             TorrentListView(manager: manager, store: store, presenting: presenting,  filter: filter ,isSidebarVisible: $isSidebarVisible)
             //.padding(.top, 10)
                 .navigationBarBackButtonHidden(true)
-                
+                .toolbar{
+                    ToolbarItem {
+                        Button {
+                            Task {
+                                manager.reset()
+                                manager.isLoading.toggle()
+                            }
+                        } label: {
+                            if manager.isLoading{
+                                Image(systemName: "arrow.trianglehead.clockwise.rotate.90")
+                                .symbolEffect(.rotate)
+                            } else{
+                                Image(systemName: "arrow.trianglehead.clockwise.rotate.90")
+                            }
+                        }
+                    }
+                }
             
         } detail: {
             if (store.selection == nil) {

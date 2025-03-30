@@ -24,6 +24,7 @@ struct AddTorrentView: View {
     @State private var error: Error?
     @State private var showError = false
     @State private var fileBrowser = false
+    @AppStorage("deleteOnSuccess") var deleteOnSuccess: Bool = true
     
     var body: some View {
         NavigationStack {
@@ -143,14 +144,22 @@ struct AddTorrentView: View {
                     }
                     .pickerStyle(MenuPickerStyle())
                 }
-                
+                if store.selectedFile != nil {
+                    Toggle("Delete Torrent File", isOn: $deleteOnSuccess)
+                    #if os(iOS)
+                        .toggleStyle(CheckboxToggleStyle())
+#endif
+                }
                 // Action buttons
                 HStack {
+                    
                     Spacer()
                     Button("Cancel") {
                         presenting.activeSheet = nil
                     }
+                    #if os(iOS)
                     Spacer()
+#endif
                     Button("Add") {
                         Task { @MainActor in
                             await addTorrent()
@@ -274,6 +283,16 @@ struct AddTorrentView: View {
                              userInfo: [NSLocalizedDescriptionKey: "Failed to add torrent"])
             } else {
                 
+                if deleteOnSuccess {
+                    do {
+                        let secure = store.selectedFile!.startAccessingSecurityScopedResource()
+                        try FileManager.default.removeItem(at: file!)
+                        // File deleted successfully
+                        
+                    } catch {
+                        print("Error deleting file: \(error)")
+                    }
+                }
                 presenting.activeSheet = nil
                 isLoading = false
             }

@@ -15,6 +15,7 @@ struct SettingsView: View {
     @AppStorage("usePlaylist") var usePlaylist: Bool = false
     @AppStorage("waitPlaylist") var waitPlaylist: Int = 5
     @AppStorage("primaryFile") var primaryFiles: Bool = false
+    @AppStorage("deleteOnSuccess") var deleteOnSuccess: Bool = true
     @AppStorage("qlVideo") var qlVideo: Bool = false
     @ObservedObject var presenting: Presenting
     @State var installerView = false
@@ -64,13 +65,18 @@ struct SettingsView: View {
             Section {
                 settingRow(
                     title: "Sync servers with iCloud",
-                    description: "Synchronize server settings across devices. SSH keys may need adding manually.",
+                    description: "Synchronize server settings across devices. Restart Required.",
                     control: Toggle("", isOn: $useCloudKit)
                 )
                 settingRow(
-                    title: "Open Default Server",
-                    description: "Automatically connect to default server on launch",
+                    title: openDefault ? "Opening Default Server" : "Opening Last Used Server",
+                    description: "Automatically connect to server on launch",
                     control: Toggle("", isOn: $openDefault)
+                )
+                settingRow(
+                    title: "Delete Torrents",
+                    description: ".torrent deletion after a sucessful upload",
+                    control: Toggle("", isOn: $deleteOnSuccess)
                 )
                 settingRow(
                     title: "Show Thumbnails in List",
@@ -150,12 +156,12 @@ struct SettingsView: View {
                     Text("Restart you Mac then clear cache below after installation.").font(.caption)
                 }
 #endif
-                HStack{
-                    Button("Clear Cache"){
+                
+                    Button("Clear Cache (Restart Required)"){
                         ThumbnailManager.shared.clearCache()
                     }
-                    Text("Restart throttle to download new thumbnails")
-                }
+                   
+              
                 
                 
             } header: {

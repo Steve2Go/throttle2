@@ -11,7 +11,7 @@ import SwiftUI
 import KeychainAccess
 import UIKit
 import mft
-import NIOSSH
+//import NIOSSH
 import MobileVLCKit
 
 public class ThumbnailManager: NSObject {

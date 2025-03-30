@@ -247,9 +247,14 @@ struct FileBrowserView: View {
                                     Text(item.name)
                                         Spacer()
                                         if selectFiles == true {
-                                            Button("Select File", systemImage: "checkmark.circle.fill"){
+                                            Button{
                                                 onFolderSelected(viewModel.currentPath + "/" + item.name)
                                                 dismiss()
+                                            } label:{
+#if os(iOS)
+                                                Image(systemName: "checkmark.circle.fill")
+                                                #endif
+                                                Text("Select File")
                                             }
                                         }
                                 }
@@ -285,9 +290,11 @@ struct FileBrowserView: View {
                     // "New Folder" Button
                     Button(action: { showNewFolderPrompt = true }) {
                         VStack{
+#if os(iOS)
                             Image(systemName: "folder.badge.plus")
                                // .resizable()
                                 .frame(width: 20, height: 20)
+                            #endif
                             Text("New Folder")
                         }
                         
@@ -300,9 +307,11 @@ struct FileBrowserView: View {
                         showUploadView.toggle()
                     } label: {
                         VStack{
+#if os(iOS)
                             Image(systemName: "arrow.up.document")
                                 //.resizable()
                                 .frame(width: 20, height: 20)
+                            #endif
                             Text("Upload")
                         }
                     }
@@ -316,9 +325,11 @@ struct FileBrowserView: View {
                         dismiss()
                     }) {
                         VStack{
+#if os(iOS)
                             Image(systemName: "checkmark.circle.fill")
                              //   .resizable()
                                 .frame(width: 20, height: 20)
+#endif
                             Text("Select Folder")
                         }
                     }
@@ -328,9 +339,9 @@ struct FileBrowserView: View {
                         dismiss()
                     }) {
                         VStack{
-                            Image(systemName: "xmark.circle.fill")
-                                //.resizable()
-                                .frame(width: 20, height: 20)
+//                            Image(systemName: "xmark.circle.fill")
+//                                //.resizable()
+//                                .frame(width: 20, height: 20)
                             Text("Cancel")
                         }
                     }

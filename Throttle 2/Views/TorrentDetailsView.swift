@@ -252,18 +252,28 @@ struct DetailsView: View {
     private var torrentDetails: some View {
         if let selectedTorrentId = store.selectedTorrentId,
            let torrent = detailedTorrent {
-            
-            Text(torrent.name ?? "Torrent")
-                .font(.headline)
-                .padding()
-                .padding(.bottom, 0)
+     
+                
+                Text(torrent.name ?? "Torrent")
+                    .font(.headline)
+                    .padding()
+                    .padding(.bottom, 0)
+    
             Divider()
                 .padding(.bottom, 0)
             ScrollView {
                 VStack(spacing: 16) {
                     HStack {
+#if os(macOS)
+                        Button("Close" ,systemImage: "xmark"){
+    store.selectedTorrentId = nil
+}
+#endif
+#if os(iOS)
+Spacer()
+#endif
                     // torrent download
-                    Button("Copy Magnet", systemImage: "document.on.document"){
+                    Button("Magnet", systemImage: "document.on.document"){
                         #if os(iOS)
                         UIPasteboard.general.string = magnet
                         #else
@@ -271,10 +281,13 @@ struct DetailsView: View {
                         #endif
                         showToast.toggle()
                     }
+                        #if os(iOS)
+                    .padding(.trailing,15)
+#endif
                     
                     // button for downloading the torrent file
                     if let torrentFileValue = detailedTorrent?.dynamicFields["torrentFile"]?.value as? String {
-                        Button("Download .torrent", systemImage: "arrow.down.doc") {
+                        Button(".torrent", systemImage: "arrow.down.doc") {
                             Task {
                                 do {
                                     let data: Data

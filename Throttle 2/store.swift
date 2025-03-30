@@ -27,13 +27,23 @@ class Store: NSObject, ObservableObject {
     @Published var connectTransmission = ""
     @Published var connectHttp = ""
     @AppStorage("selectedServerId") private var selectedServerId: String?
+    private let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+    //private var tunnelManager = SSHTunnelManager.shared
     
     @Published var selection: ServerEntity? {
         didSet {
             if let server = selection {
                 selectedServerId = server.id?.uuidString
+                Task {
+                   // await updateConnection(for: server)
+                }
             } else {
                 selectedServerId = nil
+                if let oldServer = oldValue {
+                    Task {
+                       // await tunnelManager.closeTunnel(
+                    }
+                }
             }
         }
     }
@@ -57,11 +67,13 @@ class Store: NSObject, ObservableObject {
     @Published var FileBrowseCover = false
     @Published var fileURL:String?
     @Published var fileBrowserName:String?
-    #if os(iOS)
+   // #if os(iOS)
     @Published var ssh: SSHConnection?
-#endif
+//#endif
 #if os(iOS)
     var currentSFTPViewModel: SFTPFileBrowserViewModel?
+    
+
     
     func handleVLCCallback(_ url: URL) {
         let action = url.lastPathComponent
@@ -105,6 +117,7 @@ class Store: NSObject, ObservableObject {
             print("Failed to fetch server with id \(uuid): \(error)")
         }
     }
+    
 }
  
 
