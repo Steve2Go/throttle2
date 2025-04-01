@@ -18,7 +18,7 @@
 
 ## iOS
 - Built in File Browser using SFTP
-- Server side thumbnails for media (Requrees FFMpeg on your server), falls back to client side using VlcKit
+- Server side thumbnails for media (Requires FFMpeg on your server), falls back to client side using VlcKit
 - Playback via VlcKit with a contuious play implimentation
 
 ## To Come
