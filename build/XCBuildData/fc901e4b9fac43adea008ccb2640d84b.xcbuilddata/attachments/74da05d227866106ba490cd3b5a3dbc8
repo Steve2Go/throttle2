@@ -1,4 +1,0 @@
-module SimpleToast {
-header "SimpleToast-Swift.h"
-export *
-}
