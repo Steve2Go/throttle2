@@ -33,7 +33,7 @@ Based on lessons learned from Mission for Mac & Throttle 1 (a fork of mission)
 
 ## Server Preparation
 
-### Reccomended setup for a mac server (In additions to transmission):
+### Reccomended setup for a mac server (In addition to transmission):
 Install Homebrew and transmission-create if not already installed:  
 `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
 `brew install transmission-cli'
@@ -41,7 +41,7 @@ For server side Thumnails for the ios version of throttle (Reccomnded)
 `brew install ffmpeg`
 Enable remote login (ssh): https://support.apple.com/lt-lt/guide/mac-help/mchlp1066/mac
 
-### Reccomended setup for a Debian or Ubuntu server (Ina addition to transmission):
+### Reccomended setup for a Debian or Ubuntu server (In addition to transmission):
 `sudo apt update`
 `sudo apt install transmission-cli'
 For server side Thumnails for the ios version of throttle (Reccomnded) on ubuntu
