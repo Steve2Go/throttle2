@@ -400,7 +400,7 @@ class TorrentManager: ObservableObject {
     
     func fetchUpdates(selectedId: Int? = nil) async throws {
         guard let baseURL = baseURL else { return }
-        isLoading = true
+        
         defer { isLoading = false }
         
         var fieldsToFetch: [String] = []
