@@ -33,6 +33,7 @@ func serverMenuToolbarItem(
         } label: {
             Image(systemName: "externaldrive.badge.wifi")
         }
+        //.disabled(manager.isLoading)
     }
 }
 

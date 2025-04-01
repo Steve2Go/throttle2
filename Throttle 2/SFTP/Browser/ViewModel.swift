@@ -501,7 +501,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
         // Properly encode the password for URL
         let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
         
-        let vlcUrl = URL(string: "vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")
+        let vlcUrl = URL(string: "vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=http://localhost:\(port)\(path)")
+                            //"vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")
         
         if let url = vlcUrl {
             DispatchQueue.main.async {

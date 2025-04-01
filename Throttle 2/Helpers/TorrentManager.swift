@@ -402,7 +402,7 @@ class TorrentManager: ObservableObject {
         guard let baseURL = baseURL else { return }
         
         defer { isLoading = false }
-        
+       // await TunnelManagerHolder.shared.ensureAllTunnelsHealth()
         var fieldsToFetch: [String] = []
         let firstFetch = fileCache.isEmpty
         

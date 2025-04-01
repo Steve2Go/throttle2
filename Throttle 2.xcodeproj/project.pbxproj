@@ -7,8 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E706AFF32D99966D005825F4 /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */; };
+		E706AFF32D99966D005825F4 /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */; platformFilter = ios; };
+		E706AFF82D9A5F1D005825F4 /* NIOHTTP1 in Frameworks */ = {isa = PBXBuildFile; productRef = E706AFF72D9A5F1D005825F4 /* NIOHTTP1 */; };
 		E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = E7150E522D631F8B009C4217 /* KeychainAccess */; };
+		E759AB6B2D9B99E800E4B4CA /* FlyingFox in Frameworks */ = {isa = PBXBuildFile; productRef = E759AB6A2D9B99E800E4B4CA /* FlyingFox */; };
 		E76257282D97B0060049E9EF /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = E76257272D97B0060049E9EF /* Citadel */; };
 		E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */ = {isa = PBXBuildFile; productRef = E76AA8B52D8423E00009CA6F /* SimpleToast */; };
 		E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */ = {isa = PBXBuildFile; productRef = E7F5F3EF2D718B2700079054 /* FilePicker */; };
@@ -184,9 +186,11 @@
 				E706AFF32D99966D005825F4 /* MobileVLCKit.xcframework in Frameworks */,
 				E76257282D97B0060049E9EF /* Citadel in Frameworks */,
 				E7F968992D884B5C00A19857 /* mft.xcframework in Frameworks */,
+				E706AFF82D9A5F1D005825F4 /* NIOHTTP1 in Frameworks */,
 				E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */,
 				E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */,
 				E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */,
+				E759AB6B2D9B99E800E4B4CA /* FlyingFox in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -306,6 +310,8 @@
 				E7F5F3EF2D718B2700079054 /* FilePicker */,
 				E76AA8B52D8423E00009CA6F /* SimpleToast */,
 				E76257272D97B0060049E9EF /* Citadel */,
+				E706AFF72D9A5F1D005825F4 /* NIOHTTP1 */,
+				E759AB6A2D9B99E800E4B4CA /* FlyingFox */,
 			);
 			productName = "Throttle 2";
 			productReference = E7150E172D631D08009C4217 /* Throttle 2.app */;
@@ -384,6 +390,8 @@
 				E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */,
 				E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */,
 				E76257262D97B0060049E9EF /* XCRemoteSwiftPackageReference "Citadel" */,
+				E706AFF62D9A5F1D005825F4 /* XCRemoteSwiftPackageReference "swift-nio" */,
+				E759AB692D9B99E800E4B4CA /* XCRemoteSwiftPackageReference "FlyingFox" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E7150E182D631D08009C4217 /* Products */;
@@ -988,12 +996,28 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		E706AFF62D9A5F1D005825F4 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.81.0;
+			};
+		};
 		E7150E512D631F8B009C4217 /* XCRemoteSwiftPackageReference "KeychainAccess" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kishikawakatsumi/KeychainAccess";
 			requirement = {
 				branch = master;
 				kind = branch;
+			};
+		};
+		E759AB692D9B99E800E4B4CA /* XCRemoteSwiftPackageReference "FlyingFox" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swhitty/FlyingFox.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.21.0;
 			};
 		};
 		E76257262D97B0060049E9EF /* XCRemoteSwiftPackageReference "Citadel" */ = {
@@ -1023,10 +1047,20 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		E706AFF72D9A5F1D005825F4 /* NIOHTTP1 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E706AFF62D9A5F1D005825F4 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOHTTP1;
+		};
 		E7150E522D631F8B009C4217 /* KeychainAccess */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E7150E512D631F8B009C4217 /* XCRemoteSwiftPackageReference "KeychainAccess" */;
 			productName = KeychainAccess;
+		};
+		E759AB6A2D9B99E800E4B4CA /* FlyingFox */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E759AB692D9B99E800E4B4CA /* XCRemoteSwiftPackageReference "FlyingFox" */;
+			productName = FlyingFox;
 		};
 		E76257272D97B0060049E9EF /* Citadel */ = {
 			isa = XCSwiftPackageProductDependency;

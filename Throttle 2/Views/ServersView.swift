@@ -335,7 +335,7 @@ Toggle("Server Side Thumbnails with FFMpeg", isOn: $ffThumb)
                     Button("Save") {
                         saveServer()
                     }
-                    .disabled(name.isEmpty || url.isEmpty)
+                    .disabled(name.isEmpty || (url.isEmpty && !sftpRpc))
                 }
                 if server != nil {
                     ToolbarItem(placement: .destructiveAction) {

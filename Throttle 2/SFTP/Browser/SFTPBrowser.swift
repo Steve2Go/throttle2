@@ -264,7 +264,7 @@ struct SFTPFileBrowserView: View {
                     
                     if fileType == .video {
                         Button("Play") { self.viewModel.openFile(item: item, server: server)}
-                        Button("Play in VLC") { viewModel.openVideoInVLC(item: item, server: server) }
+                       // Button("Play in VLC") { viewModel.openVideoInVLC(item: item, server: server) }
                         
                     }
                     

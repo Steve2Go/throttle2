@@ -31,6 +31,7 @@ class TunnelManagerHolder {
         activeTunnels[identifier] = tunnel
     }
     
+    
     // Get a tunnel by its identifier
     func getTunnel(withIdentifier identifier: String) -> SSHTunnelManager? {
         return activeTunnels[identifier]
@@ -43,6 +44,24 @@ class TunnelManagerHolder {
             activeTunnels.removeValue(forKey: identifier)
         }
     }
+    func ensureTunnelHealth(withIdentifier identifier: String) async throws {
+            if let tunnel = activeTunnels[identifier] {
+                try await tunnel.recreateIfNeeded()
+            }
+        }
+        
+        // Method to ensure all tunnels are healthy
+        func ensureAllTunnelsHealth() async {
+            for (identifier, tunnel) in activeTunnels {
+                do {
+                    try await tunnel.recreateIfNeeded()
+                } catch {
+                    print("TunnelManagerHolder: Failed to recreate tunnel with identifier \(identifier): \(error)")
+                }
+            }
+        }
+    
+    
     
     // Method to tear down all tunnels
     func tearDownAllTunnels() {
@@ -67,6 +86,9 @@ class SSHTunnelManager {
     private var server: ServerEntity
     private var isConnected: Bool = false
     private var localChannel: Channel?
+    private var healthCheckTimer: Timer?
+    private var healthCheckTask: Task<Void, Never>?
+    private var connectionTask: Task<Void, Error>?
 
     init(server: ServerEntity, localPort: Int, remoteHost: String, remotePort: Int) throws {
         print("SSHTunnelManager: Initializing tunnel")
@@ -85,14 +107,45 @@ class SSHTunnelManager {
 
     deinit {
         print("SSHTunnelManager: Deinitializing")
+        
+        // Cancel any ongoing tasks
+        connectionTask?.cancel()
+        connectionTask = nil
+        
+        // Clean up channels and connections
         stop()
+        
+        // Shutdown the event loop group
         try? group.syncShutdownGracefully()
     }
 
     func start() async throws {
         print("SSHTunnelManager: Starting tunnel")
-        try await connect()
-        try await startBasicProxy()
+        
+        // Cancel any existing task first
+        connectionTask?.cancel()
+        
+        // Create a new task for the connection
+        connectionTask = Task { [weak self] in
+            guard let self = self else {
+                throw SSHTunnelError.connectionFailed(NSError(domain: "SSHTunnelManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Self was deallocated"]))
+            }
+            
+            try await self.connect()
+            try await self.startBasicProxy()
+            
+            // Keep this task alive until cancelled to prevent premature deallocation
+            try await withTaskCancellationHandler {
+                // Wait indefinitely until task is cancelled
+                try await Task.sleep(nanoseconds: UInt64.max)
+            } onCancel: {
+                // Handle clean shutdown when task is cancelled
+                print("SSHTunnelManager: Connection task cancelled")
+            }
+        }
+        
+        // Wait for the connection to be established
+        try await connectionTask?.value
     }
 
     private func connect() async throws {
@@ -105,7 +158,7 @@ class SSHTunnelManager {
             port: Int(server.sftpPort),
             authenticationMethod: .passwordBased(username: server.sftpUser!, password: password),
             hostKeyValidator: .acceptAnything(),
-            reconnect: .never
+            reconnect: .always
         )
         isConnected = true
         print("SSH Tunnel connected to \(server.sftpHost!):\(server.sftpPort)")
@@ -136,15 +189,93 @@ class SSHTunnelManager {
         print("Local HTTP proxy listening on port \(localPort)")
     }
 
+    func isHealthy() -> Bool {
+        // Basic check if we have a client and active local channel
+        guard let client = client,
+              let localChannel = localChannel,
+              isConnected == true else {
+            return false
+        }
+        
+        // Check if the local channel is still active
+        if !localChannel.isActive {
+            return false
+        }
+        
+        return true
+    }
+
+    func recreateIfNeeded() async throws {
+        if !isHealthy() {
+            print("SSHTunnelManager: Tunnel is unhealthy, recreating...")
+            // Stop the existing tunnel first
+            stop()
+            
+            
+            // Wait a moment before reconnecting
+            try await Task.sleep(nanoseconds: 500_000_000) // 500ms
+            
+            // Recreate the tunnel
+            try await start()
+            print("SSHTunnelManager: Tunnel has been recreated")
+        }
+    }
+
+    // Add method to periodically check health
+    func startHealthChecks(interval: TimeInterval = 60.0) {
+        // Cancel any existing health check task first
+        stopHealthChecks()
+        
+        // Create a task for health checks that won't cause memory leaks
+        healthCheckTask = Task { [weak self] in
+            // Continue health checks until task is cancelled
+            while !Task.isCancelled {
+                guard let self = self else { break }
+                
+                do {
+                    try await self.recreateIfNeeded()
+                    
+                    // Wait for the specified interval before checking again
+                    try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+                } catch {
+                    if !Task.isCancelled {
+                        print("SSHTunnelManager: Health check error: \(error)")
+                        // Add a shorter delay if an error occurs
+                        try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+                    }
+                }
+            }
+        }
+    }
+    // Method to stop health checks
+    func stopHealthChecks() {
+        // Cancel the health check task
+        healthCheckTask?.cancel()
+        healthCheckTask = nil
+        
+        // Also cleanup timer if it exists (for legacy code)
+        healthCheckTimer?.invalidate()
+        healthCheckTimer = nil
+    }
+
+
     func stop() {
         print("SSHTunnelManager: Stopping tunnel")
         isConnected = false
         
+        // Cancel the connection task
+        connectionTask?.cancel()
+        connectionTask = nil
+        
+        // Ensure we close the local channel on the correct event loop
         if let localChannel = localChannel {
-            localChannel.close(promise: nil)
+            localChannel.eventLoop.execute {
+                localChannel.close(promise: nil)
+            }
             self.localChannel = nil
         }
         
+        // Close the SSH client
         if let client = client {
             Task {
                 try? await client.close()
@@ -177,17 +308,34 @@ class BasicTunnelHandler: ChannelInboundHandler {
     private var remoteChannel: Channel?
     private var pendingData: [ByteBuffer] = []
     private var remoteConnected = false
+    private var connectionTask: Task<Void, Error>?
     
     init(context: BasicTunnelContext) {
         self.context = context
     }
     
+    deinit {
+        print("BasicTunnelHandler: Deinitializing")
+        connectionTask?.cancel()
+        remoteChannel?.close(promise: nil)
+    }
+    
     func channelActive(context: ChannelHandlerContext) {
         print("BasicTunnel: Local connection established")
         
-        let localChannel = context.channel
+        // Store weak references to avoid cycles
+        weak var weakSelf = self
+        weak var weakLocalChannel = context.channel
         
-        Task {
+        // Cancel any existing task
+        connectionTask?.cancel()
+        
+        // Create a new connection task
+        connectionTask = Task {
+            guard let self = weakSelf, let localChannel = weakLocalChannel else {
+                throw NSError(domain: "BasicTunnelHandler", code: -1, userInfo: [NSLocalizedDescriptionKey: "Handler or channel was deallocated"])
+            }
+            
             do {
                 // Create the tunnel to the remote host
                 let originAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 0)
@@ -198,25 +346,33 @@ class BasicTunnelHandler: ChannelInboundHandler {
                     originatorAddress: originAddress
                 )
                 
-                // Use a much simpler approach with the SSH channel
+                // Use a simpler approach with the SSH channel
                 let remoteChannel = try await self.context.sshClient.createDirectTCPIPChannel(
                     using: settings
                 ) { channel in
-                    // Only add a basic handler that doesn't rely on context
+                    // Add a basic handler that doesn't rely on strong context references
                     let handler = BasicOutboundHandler()
                     return channel.pipeline.addHandler(handler)
+                }
+                
+                // Check if still alive before proceeding
+                guard !Task.isCancelled, let self = weakSelf, let localChannel = weakLocalChannel else {
+                    remoteChannel.close(promise: nil)
+                    throw NSError(domain: "BasicTunnelHandler", code: -2, userInfo: [NSLocalizedDescriptionKey: "Task cancelled or references lost"])
                 }
                 
                 // Store the remote channel
                 self.remoteChannel = remoteChannel
                 
-                // Set up a very basic byte relay
-                try await setupDataRelay(localChannel: localChannel, remoteChannel: remoteChannel)
+                // Set up data relay
+                try await self.setupDataRelay(localChannel: localChannel, remoteChannel: remoteChannel)
                 
                 print("BasicTunnel: Remote connection established")
                 
-                // At this point, the channels are connected
+                // Execute on the correct event loop
                 localChannel.eventLoop.execute {
+                    guard let self = weakSelf, !Task.isCancelled else { return }
+                    
                     self.remoteConnected = true
                     
                     // Forward any pending data
@@ -227,7 +383,7 @@ class BasicTunnelHandler: ChannelInboundHandler {
                 }
             } catch {
                 print("BasicTunnel: Failed to establish remote connection: \(error)")
-                localChannel.close(promise: nil)
+                weakLocalChannel?.close(promise: nil)
             }
         }
     }
@@ -269,11 +425,36 @@ class BasicTunnelHandler: ChannelInboundHandler {
     
     func channelInactive(context: ChannelHandlerContext) {
         print("BasicTunnel: Local connection closed")
-        remoteChannel?.close(promise: nil)
+        
+        // Cancel the task to avoid dangling references
+        connectionTask?.cancel()
+        connectionTask = nil
+        
+        // Close the remote channel on its own event loop
+        if let remoteChannel = remoteChannel {
+            remoteChannel.eventLoop.execute {
+                remoteChannel.close(promise: nil)
+            }
+            self.remoteChannel = nil
+        }
+        
+        // Clear any pending data
+        pendingData.removeAll()
     }
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         print("BasicTunnel: Error caught: \(error)")
+        
+        // Clean up resources
+        connectionTask?.cancel()
+        connectionTask = nil
+        
+        if let remoteChannel = remoteChannel {
+            remoteChannel.close(promise: nil)
+            self.remoteChannel = nil
+        }
+        
+        // Close the context
         context.close(promise: nil)
     }
 }
@@ -300,21 +481,23 @@ class BasicRelayHandler: ChannelInboundHandler {
     typealias InboundIn = ByteBuffer
     typealias OutboundOut = ByteBuffer
     
-    private let targetChannel: Channel
+    // Use weak reference to avoid circular dependencies
+    private weak var targetChannel: Channel?
     
     init(targetChannel: Channel) {
         self.targetChannel = targetChannel
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        // Forward data to the target channel
-        // We don't transform the data, just pass it through
-        targetChannel.writeAndFlush(data, promise: nil)
+        // Only forward if target channel still exists
+        if let targetChannel = targetChannel {
+            targetChannel.writeAndFlush(data, promise: nil)
+        }
     }
     
     func channelInactive(context: ChannelHandlerContext) {
         print("BasicRelay: Channel inactive")
-        targetChannel.close(promise: nil)
+        targetChannel?.close(promise: nil)
     }
 }
 

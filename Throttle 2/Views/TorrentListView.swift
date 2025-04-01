@@ -107,6 +107,11 @@ struct TorrentListView: View {
     var body: some View {
         ScrollView {
             LazyVStack {
+                #if os(iOS)
+                if manager.isLoading {
+                    ProgressView()
+                }
+#endif
                 ForEach(sortedTorrents) { torrent in
                     TorrentRowView(
                         manager: manager,

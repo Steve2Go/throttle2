@@ -75,6 +75,7 @@ struct iOSContentView: View {
                         } label: {
                             Image(systemName: "externaldrive.badge.wifi")
                         }
+                        .disabled(manager.isLoading)
                     }
                 }
                 if (!isiPad || (isiPad && !isSidebarVisible)) {

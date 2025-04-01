@@ -117,43 +117,47 @@ struct ContentView: View {
 #endif
             if !isSidebarVisible {
 #if os(iOS)
-                ToolbarItem(placement: .topBarTrailing){
-                    Menu {
-                        ForEach(servers) { server in
-                            Button(action: {
-                                store.selection = server
-                            }, label: {
-                                if store.selection == server {
-                                    Image(systemName: "checkmark.circle").padding(.leading, 6)
-                                } else {
-                                    Image(systemName: "circle")
-                                }
-                                Text(server.isDefault ? (server.name ?? "") + " (Default)" : (server.name ?? ""))
-                            })
-                            .buttonStyle(.plain)
-                        }
-                    } label: {
-                        Image(systemName: "externaldrive.badge.wifi")
+                if servers.count > 1 {
+                    ToolbarItem(placement: .topBarTrailing){
+                        Menu {
+                            ForEach(servers) { server in
+                                Button(action: {
+                                    store.selection = server
+                                }, label: {
+                                    if store.selection == server {
+                                        Image(systemName: "checkmark.circle").padding(.leading, 6)
+                                    } else {
+                                        Image(systemName: "circle")
+                                    }
+                                    Text(server.isDefault ? (server.name ?? "") + " (Default)" : (server.name ?? ""))
+                                })
+                                .buttonStyle(.plain)
+                            }
+                        } label: {
+                            Image(systemName: "externaldrive.badge.wifi")
+                        }.disabled(manager.isLoading)
                     }
                 }
 #else
-                ToolbarItem {
-                    Menu {
-                        ForEach(servers) { server in
-                            Button(action: {
-                                store.selection = server
-                            }, label: {
-                                if store.selection == server {
-                                    Image(systemName: "checkmark.circle").padding(.leading, 6)
-                                } else {
-                                    Image(systemName: "circle")
-                                }
-                                Text(server.isDefault ? (server.name ?? "") + " (Default)" : (server.name ?? ""))
-                            })
-                            .buttonStyle(.plain)
-                        }
-                    } label: {
-                        Image(systemName: "externaldrive.badge.wifi")
+                if servers.count > 1 {
+                    ToolbarItem {
+                        Menu {
+                            ForEach(servers) { server in
+                                Button(action: {
+                                    store.selection = server
+                                }, label: {
+                                    if store.selection == server {
+                                        Image(systemName: "checkmark.circle").padding(.leading, 6)
+                                    } else {
+                                        Image(systemName: "circle")
+                                    }
+                                    Text(server.isDefault ? (server.name ?? "") + " (Default)" : (server.name ?? ""))
+                                })
+                                .buttonStyle(.plain)
+                            }
+                        } label: {
+                            Image(systemName: "externaldrive.badge.wifi")
+                        }.disabled(manager.isLoading)
                     }
                 }
 #endif
@@ -235,17 +239,17 @@ struct ContentView: View {
             if url.isFileURL {
                 store.selectedFile = url
                 store.selectedFile!.startAccessingSecurityScopedResource()
-                Task {
-                    try await Task.sleep(for: .milliseconds(500))
-                    presenting.activeSheet = "adding"
-                }
+//                Task {
+//                    try await Task.sleep(for: .milliseconds(500))
+//                    presenting.activeSheet = "adding"
+//                }
             }
             else if url.absoluteString.lowercased().hasPrefix("magnet:") {
                 store.magnetLink = url.absoluteString
-                Task {
-                    try await Task.sleep(for: .milliseconds(500))
-                    presenting.activeSheet = "adding"
-                }
+//                Task {
+//                    try await Task.sleep(for: .milliseconds(500))
+//                    presenting.activeSheet = "adding"
+//                }
             }
             else {
                 print("URL ignored: Not a file or magnet link")
