@@ -259,7 +259,8 @@ public class ThumbnailManager: NSObject {
     }
     
     // MARK: - Video Thumbnail Generation via VLC
-    
+        
+    @MainActor
     private func generateVideoThumbnail(for path: String, server: ServerEntity) async throws -> Image {
         let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
         guard let username = server.sftpUser,
@@ -268,108 +269,169 @@ public class ThumbnailManager: NSObject {
             throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing SFTP credentials"])
         }
         
-        // Properly escape credentials for URL
+        // Properly escape credentials and path for URL
         let escapedUsername = username.addingPercentEncoding(withAllowedCharacters: .urlUserAllowed) ?? username
         let escapedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? password
         let port = server.sftpPort
         
-        // Create SFTP URL
-        let sftpURLString = "sftp://\(escapedUsername):\(escapedPassword)@\(hostname):\(port)\(path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!)"
-        guard let sftpURL = URL(string: sftpURLString) else {
-            throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid SFTP URL"])
+        // More careful path encoding
+        // First split the path into components
+        var pathComponents = path.split(separator: "/")
+        
+        // Encode each component individually
+        let encodedComponents = pathComponents.map { component in
+            return String(component)
+                .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String(component)
         }
         
+        // Rejoin with slashes
+        let encodedPath = "/" + encodedComponents.joined(separator: "/")
+        
+        // Create SFTP URL
+        let sftpURLString = "sftp://\(escapedUsername):\(escapedPassword)@\(hostname):\(port)\(encodedPath)"
+        
+        print("Generated URL (credentials redacted): sftp://<credentials>@\(hostname):\(port)\(encodedPath)")
+        
+        guard let sftpURL = URL(string: sftpURLString) else {
+            // If URL creation fails, try an alternative encoding approach
+            let fallbackEncodedPath = path
+                .replacingOccurrences(of: " ", with: "%20")
+                .replacingOccurrences(of: "&", with: "%26")
+                .replacingOccurrences(of: "+", with: "%2B")
+                .replacingOccurrences(of: ",", with: "%2C")
+                .replacingOccurrences(of: ":", with: "%3A")
+                .replacingOccurrences(of: ";", with: "%3B")
+                .replacingOccurrences(of: "=", with: "%3D")
+                .replacingOccurrences(of: "?", with: "%3F")
+                .replacingOccurrences(of: "@", with: "%40")
+                .replacingOccurrences(of: "#", with: "%23")
+                .replacingOccurrences(of: "[", with: "%5B")
+                .replacingOccurrences(of: "]", with: "%5D")
+            
+            let fallbackURLString = "sftp://\(escapedUsername):\(escapedPassword)@\(hostname):\(port)\(fallbackEncodedPath)"
+            guard let fallbackURL = URL(string: fallbackURLString) else {
+                throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid SFTP URL"])
+            }
+            
+            print("Using fallback URL encoding method")
+            return try await generateThumbnailWithWait(url: fallbackURL, path: path)
+        }
+        
+        return try await generateThumbnailWithWait(url: sftpURL, path: path)
+    }
+
+    // Helper function that uses a waiting approach instead of seeking
+    @MainActor
+    private func generateThumbnailWithWait(url: URL, path: String) async throws -> Image {
         print("Using VLC with direct SFTP URL for video thumbnail: \(path)")
         
-        // Create media directly from SFTP URL
-        let media = VLCMedia(url: sftpURL)
+        // Create media
+        let media = VLCMedia(url: url)
+        
+        // Add some options that might help with buffering and connection
+        media.addOption(":network-caching=3000")
+        media.addOption(":sout-mux-caching=3000")
+        media.addOption(":file-caching=3000")
         
         // Create player
         let mediaPlayer = VLCMediaPlayer()
         mediaPlayer.media = media
         mediaPlayer.audio.isMuted = true
         
-        // Create a view for rendering
-        let videoView = await UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 240))
-        videoView.backgroundColor = .black
-        mediaPlayer.drawable = videoView
+        // Set proper scaling mode to fill the view
+        mediaPlayer.scaleFactor = 1 // Fill mode
+        
+        // Create a simple view for rendering with 16:9 aspect ratio
+        let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 180))
+        containerView.backgroundColor = .black
+        
+        // Set the drawable
+        mediaPlayer.drawable = containerView
         
         var thumbnailImage: UIImage?
-        let timeoutDuration: UInt64 = 20_000_000_000 // 20 seconds timeout for SFTP streaming
         
-        // Create a task for the thumbnail generation with timeout
-        return try await withTimeout(seconds: 30) {
-            // Start playback
-            mediaPlayer.play()
+        // Start playback
+        mediaPlayer.play()
+        
+        // Wait for initial buffering with progressively longer waits
+        // This focuses on giving the player time to load rather than seeking
+        let waitTimes = [6, 4, 3, 3, 4]  // Wait times in seconds
+        
+        for (index, waitTime) in waitTimes.enumerated() {
+            // Wait for the specified time
+            try await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
             
-            // Wait longer for SFTP streaming to buffer
-            //try await Task.sleep(nanoseconds: 3_000_000_000) // 4 seconds initial wait
-            
-            // Try at 3 seconds position
-            //mediaPlayer.position = 0.0 // Try to get to approximately 30% in (usually past intro/black frames)
-            
-            // Wait for seek to complete
-            try await Task.sleep(nanoseconds: 5_000_000_000) // 1 second
+            // Make sure layout is up to date
+            containerView.layoutIfNeeded()
             
             // Capture the frame
-            thumbnailImage = await withCheckedContinuation { continuation in
-                DispatchQueue.main.async {
-                    UIGraphicsBeginImageContextWithOptions(videoView.bounds.size, false, 0.0)
-                    videoView.drawHierarchy(in: videoView.bounds, afterScreenUpdates: true)
-                    let image = UIGraphicsGetImageFromCurrentImageContext()
-                    UIGraphicsEndImageContext()
-                    continuation.resume(returning: image)
-                }
+            UIGraphicsBeginImageContextWithOptions(containerView.bounds.size, false, 0.0)
+            containerView.drawHierarchy(in: containerView.bounds, afterScreenUpdates: true)
+            let capturedImage = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+            
+            // Check if this capture is valid
+            if let image = capturedImage, !self.isEmptyImage(image) {
+                thumbnailImage = image
+                break
             }
+            
+            print("Attempt \(index + 1) at capturing frame after \(waitTime)s wait was unsuccessful")
+        }
+        
+        // Stop playback
+        mediaPlayer.stop()
+        
+        // Check if we got a valid image
+        guard let image = thumbnailImage, !self.isEmptyImage(image) else {
+            throw NSError(domain: "ThumbnailManager", code: -4, userInfo: [NSLocalizedDescriptionKey: "Failed to generate valid thumbnail"])
+        }
+        
+        // Process and cache the thumbnail
+        let thumb = self.processThumbnail(uiImage: image, isVideo: true)
+        try? self.saveToCache(image: image, for: path)
+        return thumb
+    }
 
-            // If first attempt failed, wait more
-            if thumbnailImage == nil || self.isEmptyImage(thumbnailImage!) {
-                print("First frame capture was empty, waiting 3s")
-                
-                //mediaPlayer.position = 0.0
-                try await Task.sleep(nanoseconds: 3_000_000_000) // 1 second
-                
-                thumbnailImage = await withCheckedContinuation { continuation in
-                    DispatchQueue.main.async {
-                        UIGraphicsBeginImageContextWithOptions(videoView.bounds.size, false, 0.0)
-                        videoView.drawHierarchy(in: videoView.bounds, afterScreenUpdates: true)
-                        let image = UIGraphicsGetImageFromCurrentImageContext()
-                        UIGraphicsEndImageContext()
-                        continuation.resume(returning: image)
-                    }
-                }
-            }
+    // Helper function to set up VLC player on the main thread
+    private func setupVLCPlayerOnMainThread(with url: URL) async throws -> (VLCMediaPlayer, UIView) {
+        return try await MainActor.run {
+            // Create media
+            let media = VLCMedia(url: url)
             
-            // If second attempt failed, wait agan for ages
-            if thumbnailImage == nil || self.isEmptyImage(thumbnailImage!) {
-                print("Second frame capture was empty, waiting 5s")
-                
-                //mediaPlayer.position = 0.1
-                try await Task.sleep(nanoseconds: 10_000_000_000) // 1 second
-                
-                thumbnailImage = await withCheckedContinuation { continuation in
-                    DispatchQueue.main.async {
-                        UIGraphicsBeginImageContextWithOptions(videoView.bounds.size, false, 0.0)
-                        videoView.drawHierarchy(in: videoView.bounds, afterScreenUpdates: true)
-                        let image = UIGraphicsGetImageFromCurrentImageContext()
-                        UIGraphicsEndImageContext()
-                        continuation.resume(returning: image)
-                    }
-                }
-            }
+            // Create player
+            let mediaPlayer = VLCMediaPlayer()
+            mediaPlayer.media = media
+            mediaPlayer.audio.isMuted = true
             
-            // Stop playback
-            mediaPlayer.stop()
+            // Set proper scaling mode
+            mediaPlayer.scaleFactor = 1 // Fill mode
             
-            // Check if we got a valid image
-            guard let image = thumbnailImage, !self.isEmptyImage(image) else {
-                throw NSError(domain: "ThumbnailManager", code: -4, userInfo: [NSLocalizedDescriptionKey: "Failed to generate valid thumbnail"])
-            }
+            // Create a simple view for rendering
+            // Using standard dimensions
+            let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 180))
+            containerView.backgroundColor = .black
             
-            // Process and cache the thumbnail
-            let thumb = self.processThumbnail(uiImage: image, isVideo: true)
-            try? self.saveToCache(image: image, for: path)
-            return thumb
+            // Set the drawable
+            mediaPlayer.drawable = containerView
+            
+            return (mediaPlayer, containerView)
+        }
+    }
+
+    // Helper function to capture a frame on the main thread
+    private func captureFrameOnMainThread(from view: UIView) async throws -> UIImage? {
+        return await MainActor.run {
+            // Ensure the view is laid out
+            view.layoutIfNeeded()
+            
+            // Capture the view
+            UIGraphicsBeginImageContextWithOptions(view.bounds.size, false, 0.0)
+            view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
+            let image = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+            
+            return image
         }
     }
 
