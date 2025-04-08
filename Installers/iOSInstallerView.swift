@@ -155,114 +155,118 @@ struct FFmpegInstallerView: View {
     }
     
     private func performInstallation() async {
-        isInstalling = true
-        
-        do {
-            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-            guard let username = server.sftpUser,
-                  let password = keychain["sftpPassword" + (server.name ?? "")],
-                  let hostname = server.sftpHost else {
-                appendOutput("Error: Missing server credentials")
-                return
-            }
+            isInstalling = true
             
-            // Connect to server
-            let client = try await SSHClient.connect(
-                host: hostname,
-                port: Int(server.sftpPort),
-                authenticationMethod: .passwordBased(username: username, password: password),
-                hostKeyValidator: .acceptAnything(),
-                reconnect: .never
-            )
-            
-            // Check if FFmpeg is already installed
-            appendOutput("Checking FFmpeg installation...")
-            let ffmpegCheck = try await client.executeCommand("which ffmpeg")
-            if !String(buffer: ffmpegCheck).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                appendOutput("FFmpeg is installed at: \(String(buffer: ffmpegCheck))")
-                installationComplete = true
-                return
-            }
-            
-            // Detect package manager and OS
-            appendOutput("\nChecking package managers...")
-            
-            // Check for apt (Debian/Ubuntu)
-            let aptCheck = try await client.executeCommand("which apt")
-            if !String(buffer: aptCheck).isEmpty {
-                appendOutput("Package manager found: apt (Debian/Ubuntu)")
-                // Install FFmpeg using apt
-                appendOutput("\nUpdating package list...")
-                _ = try await client.executeCommand("sudo -S apt update")
+            do {
+                let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+                guard let username = server.sftpUser,
+                      let password = keychain["sftpPassword" + (server.name ?? "")],
+                      let hostname = server.sftpHost else {
+                    appendOutput("Error: Missing server credentials")
+                    return
+                }
                 
-                appendOutput("Installing FFmpeg...")
-                let installResult = try await client.executeCommand("sudo -S apt install -y ffmpeg")
-                appendOutput(String(buffer: installResult))
+                // Connect to server
+                let client = try await SSHClient.connect(
+                    host: hostname,
+                    port: Int(server.sftpPort),
+                    authenticationMethod: .passwordBased(username: username, password: password),
+                    hostKeyValidator: .acceptAnything(),
+                    reconnect: .never
+                )
                 
-            } else {
-                // Check for pacman (Arch)
-                let pacmanCheck = try await client.executeCommand("which pacman")
-                if !String(buffer: pacmanCheck).isEmpty {
-                    appendOutput("Package manager found: pacman (Arch)")
-                    // Install FFmpeg using pacman
-                    appendOutput("\nInstalling FFmpeg...")
-                    let installResult = try await client.executeCommand("sudo -S pacman -S --noconfirm ffmpeg")
+                // Check if FFmpeg is already installed
+                appendOutput("Checking FFmpeg installation...")
+                let ffmpegCheckCmd = "which ffmpeg; echo $?"
+                let ffmpegCheck = try await client.executeCommand(ffmpegCheckCmd)
+                let output = String(buffer: ffmpegCheck)
+                let lines = output.split(separator: "\n")
+                
+                // Last line should be the exit code
+                if let exitCode = Int(lines.last ?? "1"), exitCode == 0 {
+                    let path = lines.dropLast().joined(separator: "\n")
+                    server.ffThumb = true
+                    appendOutput("FFmpeg is installed at: \(path)")
+                    installationComplete = true
+                    return
+                }
+                
+                // Detect package manager and OS
+                appendOutput("\nChecking package managers...")
+                
+                // Check for apt (Debian/Ubuntu)
+                let aptCheck = try await client.executeCommand("which apt")
+                if !String(buffer: aptCheck).isEmpty {
+                    appendOutput("Package manager found: apt (Debian/Ubuntu)")
+                    // Install FFmpeg using apt
+                    appendOutput("\nUpdating package list...")
+                    let updateResult = try await client.executeCommand("echo '\(password)' | sudo -S apt update")
+                    appendOutput(String(buffer: updateResult))
+                    
+                    // Continue regardless of update outcome
+                    appendOutput("Installing FFmpeg...")
+                    let installResult = try await client.executeCommand("echo '\(password)' | sudo -S apt install -y ffmpeg")
                     appendOutput(String(buffer: installResult))
                     
                 } else {
-                    // Check for Homebrew (macOS)
-                    let brewCheck = try await client.executeCommand("which brew")
-                    if !String(buffer: brewCheck).isEmpty {
-                        appendOutput("Package manager found: Homebrew (macOS)")
-                        // Install FFmpeg using Homebrew
+                    // Check for pacman (Arch)
+                    let pacmanCheck = try await client.executeCommand("which pacman")
+                    if !String(buffer: pacmanCheck).isEmpty {
+                        appendOutput("Package manager found: pacman (Arch)")
+                        // Install FFmpeg using pacman
                         appendOutput("\nInstalling FFmpeg...")
-                        let installResult = try await client.executeCommand("brew install ffmpeg")
+                        let installResult = try await client.executeCommand("echo '\(password)' | sudo -S pacman -S --noconfirm ffmpeg")
                         appendOutput(String(buffer: installResult))
                         
                     } else {
-                        // If on macOS but no Homebrew, try to install it
-                        let uname = try await client.executeCommand("uname")
-                        if String(buffer: uname).contains("Darwin") {
-                            appendOutput("macOS detected, installing Homebrew...")
-                            
-                            // Install Homebrew
-                            let installBrewCmd = """
-                            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-                            """
-                            _ = try await client.executeCommand(installBrewCmd)
-                            
-                            // Install FFmpeg
+                        // Check for Homebrew (macOS)
+                        let brewCheck = try await client.executeCommand("which brew")
+                        if !String(buffer: brewCheck).isEmpty {
+                            appendOutput("Package manager found: Homebrew (macOS)")
+                            // Install FFmpeg using Homebrew
                             appendOutput("\nInstalling FFmpeg...")
                             let installResult = try await client.executeCommand("brew install ffmpeg")
                             appendOutput(String(buffer: installResult))
+                            
                         } else {
-                            appendOutput("Error: No supported package manager found")
-                            return
+                            // If on macOS but no Homebrew, try to install it
+                            let uname = try await client.executeCommand("uname")
+                            if String(buffer: uname).contains("Darwin") {
+                                appendOutput("macOS detected, installing Homebrew...")
+                                
+                                // Install Homebrew
+                                let installBrewCmd = """
+                                /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+                                """
+                                _ = try await client.executeCommand(installBrewCmd)
+                                
+                                // Install FFmpeg
+                                appendOutput("\nInstalling FFmpeg...")
+                                let installResult = try await client.executeCommand("brew install ffmpeg")
+                                appendOutput(String(buffer: installResult))
+                            } else {
+                                appendOutput("Error: No supported package manager found")
+                                return
+                            }
                         }
                     }
                 }
+                
+                // Verify installation
+                let finalCheck = try await client.executeCommand("which ffmpeg")
+                if !String(buffer: finalCheck).isEmpty {
+                    appendOutput("\nSuccessfully installed FFmpeg!")
+                    server.ffThumb = true
+                    installationComplete = true
+                } else {
+                    appendOutput("\nError: FFmpeg installation could not be verified")
+                }
+                
+            } catch {
+                appendOutput("\nError: \(error.localizedDescription)")
             }
             
-            // Verify installation
-            let finalCheck = try await client.executeCommand("which ffmpeg")
-            if !String(buffer: finalCheck).isEmpty {
-                appendOutput("\nSuccessfully installed FFmpeg!")
-                installationComplete = true
-            } else {
-                appendOutput("\nError: FFmpeg installation could not be verified")
-            }
-            
-        } catch {
-            appendOutput("\nError: \(error.localizedDescription)")
+            isInstalling = false
         }
-        
-        isInstalling = false
-    }
 }
 
-// Preview provider
-struct FFmpegInstallerView_Previews: PreviewProvider {
-    static var previews: some View {
-        FFmpegInstallerView(server: ServerEntity())
-    }
-}

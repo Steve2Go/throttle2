@@ -154,6 +154,7 @@ struct CreateTorrent: View {
                         Button {
                             store.addPath = (filePath as NSString).deletingLastPathComponent
                             openFile(path: localPath)
+                            
                         } label: {
                             Text("Start Seeding")
                         }
@@ -172,14 +173,6 @@ struct CreateTorrent: View {
     }
     func openFile(path: String) {
             store.addPath = (filePath as NSString).deletingLastPathComponent
-                
-            #if os(macOS)
-        Task{
-            dismiss()
-            try await Task.sleep(for: .milliseconds(500))
-            NSWorkspace.shared.open(URL(fileURLWithPath: path))
-        }
-            #else
             if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
                let filename = URL(string: path)?.lastPathComponent {
                 let fileURL = documentsURL.appendingPathComponent(filename)
@@ -191,11 +184,9 @@ struct CreateTorrent: View {
                 Task {
                     try await Task.sleep(for: .milliseconds(500))
                     store.selectedFile = fileURL
-                    store.selectedFile?.startAccessingSecurityScopedResource()
                     presenting.activeSheet = "adding"
                 }
             }
-            #endif
         }
     func createTorrent() async throws {
         isProcessing = true

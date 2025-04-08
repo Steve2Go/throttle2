@@ -151,7 +151,7 @@ struct SettingsView: View {
                         Button("Get QL Video") {
                             openURL(URL(string:"https://github.com/Marginal/QLVideo/releases/latest")!)
                         }
-                        Text("Enables video thumnails in Finder & Throttle nativley")
+                        Text("Enables video thumnails in Finder & improves Throttle thumbnails")
                     }
                     Text("Restart you Mac then clear cache below after installation.").font(.caption)
                 }
@@ -176,6 +176,11 @@ struct SettingsView: View {
                 Button("Install Dependencies") {
                     installerView.toggle()
                 }
+                #else
+                Text("FFMpeg is used for superior server - side thumbnail generation. Click below for Installation").font(.caption)
+                Button("Install Dependencies") {
+                    installerView.toggle()
+                }
                 #endif
                 
                 Text("In app icons via SF Icons and https://icons8.com.").font(.caption)
@@ -185,13 +190,22 @@ struct SettingsView: View {
             }
             
         }
-        #if os(macOS)
+       
         .formStyle(.grouped)
         .padding(.top, 0)
         .sheet(isPresented: $installerView){
+#if os(macOS)
             InstallerView()
-        } .frame(width: 500, height: 500)
-        #endif
+                .frame(width: 500, height: 500)
+            #else
+            if ServerManager.shared.selectedServer != nil {
+                FFmpegInstallerView(server: ServerManager.shared.selectedServer!)
+            } else {
+                Text("Please select a server first.")
+            }
+#endif
+        }
+       
         
     }
     

@@ -26,6 +26,7 @@ struct SFTPFileBrowserView: View {
     @State private var showDeleteConfirmation = false
     @State private var itemToDelete: FileItem?
     @State private var showUploadView = false
+    @State var showingFFmpegPlayer = false
     
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -46,6 +47,8 @@ struct SFTPFileBrowserView: View {
             self.store = store
             _viewModel = StateObject(wrappedValue: SFTPFileBrowserViewModel(currentPath: currentPath, basePath: basePath, server: server))
         }
+    
+    
     
     var body: some View {
         VStack {
@@ -71,7 +74,7 @@ struct SFTPFileBrowserView: View {
                         HStack {
                             
                             Button(action: {
-                                clearThumbnailOperations()
+                               // clearThumbnailOperations()
                                 dismiss()
                             }) {
                                 Text("Close")
@@ -156,6 +159,8 @@ struct SFTPFileBrowserView: View {
                                 .ignoresSafeArea(edges: .all)
                         }
                     }
+            
+            
             .alert("New Folder", isPresented: $showNewFolderPrompt) {
                 TextField("Folder Name", text: $newFolderName)
                 Button("Cancel", role: .cancel) { showNewFolderPrompt = false }
@@ -173,6 +178,67 @@ struct SFTPFileBrowserView: View {
                         SFTPUploadView(uploadManager: uploadManager)
                     .presentationDetents([.medium])
                     }
+            
+            .fullScreenCover(isPresented: Binding(
+                get: { viewModel.showingNextVideoAlert },
+                set: { viewModel.showingNextVideoAlert = $0 }
+            )) {
+                ZStack {
+                    // Black background that fills the entire screen
+                    Color.black.edgesIgnoringSafeArea(.all)
+                    
+                    VStack(spacing: 16) {
+                        Spacer()
+                        
+                        // Content unavailable view
+                        VStack(spacing: 20) {
+                            Image(systemName: "play.rectangle.on.rectangle")
+                                .font(.system(size: 60))
+                                .foregroundColor(.white)
+                            
+                            Text("Continue Playback?")
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                            
+                            if let nextVideo = viewModel.nextVideoItem {
+                                Text(nextVideo.name)
+                                    .font(.headline)
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                            }
+                            
+                            Text("Playback will begin in \(viewModel.nextVideoCountdown) seconds")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.7))
+                            
+                            Text("Tap anywhere to play now")
+                                .font(.callout)
+                                .foregroundColor(.white.opacity(0.9))
+                                .padding(.top, 8)
+                        }
+                        .padding()
+                        
+                        Spacer()
+                        
+                        // Cancel button
+                        Button("Cancel") {
+                            viewModel.cancelNextVideo()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                        .tint(.white)
+                        .padding(.bottom, 50)
+                    }
+                    .padding()
+                }
+                // Tap gesture applied to the entire ZStack for easy tapping
+                .onTapGesture {
+                    viewModel.playNextVideo(server: server)
+                }
+                .foregroundColor(.white)
+            }
 //            // Rename Alert
             .alert("Rename Item", isPresented: $showRenamePrompt) {
                 TextField("New Name", text: $newItemName)
@@ -204,6 +270,8 @@ struct SFTPFileBrowserView: View {
             } message: {
                 Text("VLC is required to stream videos. Would you like to download it now?\n\nEnsure you open it at least once and accept the prompts before coming back here.")
             }
+            
+         
             // Delete Confirmation
             .alert("Delete Item", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
@@ -264,8 +332,12 @@ struct SFTPFileBrowserView: View {
                     
                     if fileType == .video {
                         Button("Play") { self.viewModel.openFile(item: item, server: server)}
-                       // Button("Play in VLC") { viewModel.openVideoInVLC(item: item, server: server) }
-                        
+                        //Button("Play in VLC") { viewModel.openVideoInVLC(item: item, server: server) }
+//                        Button("Play Streaming") {
+//                            Task {
+//                                await viewModel.openVideoWithHTTPStreaming(item: item, server: server)
+//                            }
+//                        }
                     }
                     
                     
@@ -421,9 +493,9 @@ struct SFTPFileBrowserView: View {
                 }) {
                     Label("Open", systemImage: "play")
                 }
-                if fileType == .video {
-                    Button("Play in VLC", systemImage: "play.square") { viewModel.openVideoInVLC(item: item, server: server) }
-                }
+//                if fileType == .video {
+//                    Button("Play in VLC", systemImage: "play.square") { viewModel.openVideoInVLC(item: item, server: server) }
+//                }
             }
             
             

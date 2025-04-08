@@ -179,6 +179,7 @@ struct ServerEditView: View {
     @State private var fsThumb: Bool
     @State private var ffThumb: Bool
     @State private var thumbMax: String = "3"
+    @State private var hasPython: Bool
     
     // Updated SFTP Authentication
     @State private var sftpUsesKey: Bool
@@ -220,6 +221,7 @@ struct ServerEditView: View {
         _sftpUsesKey = State(initialValue: server?.sftpUsesKey ?? false)
         _thumbMax = State(initialValue: String(server?.thumbMax ?? 9))
         _sftpKey = State(initialValue: server?.sshKeyFullPath ?? "")
+        _hasPython = State(initialValue: server?.hasPython ?? true)
     }
     var body: some View {
         NavigationStack {
@@ -295,9 +297,12 @@ struct ServerEditView: View {
                         }
 #if os(iOS)
                         TextField("Max Connections for Thumbs", text: $thumbMax)
-
-Toggle("Server Side Thumbnails with FFMpeg", isOn: $ffThumb)
-                        Text("Installing FFMpeg is required. See https://ffmpeg.org/download.html").font(.caption)
+                        //Toggle("Client streams with Python", isOn: $hasPython)
+                        Toggle("Server Side Thumbnails with FFMpeg", isOn: $ffThumb)
+                        Text("Installing FFMpeg on the server gives faster, superior thumbnails.").font(.caption)
+                        Button("Check & Install FFMpeg"){
+                            installerView.toggle()
+                        }
 #endif
                     }
                    
@@ -353,11 +358,20 @@ Toggle("Server Side Thumbnails with FFMpeg", isOn: $ffThumb)
                 }
             }
         }.navigationBarBackButtonHidden(true)
-        #if os(macOS)
+       
             .sheet(isPresented: $installerView){
+#if os(macOS)
                 InstallerView()
-            } .frame(width: 500, height: 500)
-        #endif
+                    .frame(width: 500, height: 500)
+                #else
+                if server != nil {
+                    FFmpegInstallerView(server: server!)
+                } else {
+                    Text("Please Save this server first.")
+                }
+#endif
+            }
+     
     }
     
     
@@ -496,9 +510,11 @@ func saveServer() {
             existingServer.sftpUsesKey = sftpUsesKey
             existingServer.protoHttps = protHttps
             existingServer.thumbMax = Int32(thumbMax) ?? 9
+            existingServer.hasPython = hasPython
+            saveToKeychain()
             store.selection = nil
             store.selection = existingServer
-            saveToKeychain()
+            
             onSave?(existingServer)
         } else {
             // Create new server
@@ -524,9 +540,11 @@ func saveServer() {
             newServer.fsBrowse = fsBrowse
             newServer.sftpUsesKey = sftpUsesKey
             newServer.thumbMax = Int32(thumbMax) ?? 9
+            newServer.hasPython = hasPython
+            
+            saveToKeychain()
             store.selection = nil
             store.selection = newServer
-            saveToKeychain()
             onSave?(newServer)
         }
         

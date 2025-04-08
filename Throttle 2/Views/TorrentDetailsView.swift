@@ -575,8 +575,10 @@ Spacer()
         torrentDetails
             .onAppear() {
                 Task {
-                    try await detailedTorrent = manager.fetchTorrentDetails(id: store.selectedTorrentId ?? 0)
-                    magnet = detailedTorrent?.dynamicFields["magnetLink"]?.value as? String ?? ""
+                    if store.selectedTorrentId != nil{
+                        try await detailedTorrent = manager.fetchTorrentDetails(id: store.selectedTorrentId!)
+                        magnet = detailedTorrent?.dynamicFields["magnetLink"]?.value as? String ?? ""
+                    }
                 }
             }
             .onChange(of: store.selectedTorrentId, {

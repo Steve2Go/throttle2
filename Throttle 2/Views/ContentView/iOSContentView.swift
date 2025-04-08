@@ -155,9 +155,9 @@ struct iOSContentView: View {
             }
             
             // Make sure we have a server selected
-            if store.selection == nil {
-                store.selection = servers.first(where: { $0.isDefault }) ?? servers.first
-            }
+//            if store.selection == nil {
+//                store.selection = servers.first(where: { $0.isDefault }) ?? servers.first
+//            }
         }
         .navigationBarBackButtonHidden(true)
         .sheet( isPresented: $isCreating) {

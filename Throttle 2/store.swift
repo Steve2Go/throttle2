@@ -68,7 +68,7 @@ class Store: NSObject, ObservableObject {
     @Published var fileURL:String?
     @Published var fileBrowserName:String?
    // #if os(iOS)
-    @Published var ssh: SSHConnection?
+    //@Published var ssh: SSHConnection?
 //#endif
 #if os(iOS)
     var currentSFTPViewModel: SFTPFileBrowserViewModel?

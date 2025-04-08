@@ -8,11 +8,12 @@
 import SwiftUI
 import mft
 import KeychainAccess
+import Citadel
 
 // MARK: - ViewModel
 class SFTPFileBrowserViewModel: ObservableObject {
     @Published private(set) var items: [FileItem] = []
-       @Published private(set) var isLoading = false
+       @Published var isLoading = false
        @Published var currentPath: String
        @Published var downloadProgress: Double = 0
        @Published var isDownloading = false
@@ -26,6 +27,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
        @Published var showVideoPlayer = false
        @Published var selectedFile: FileItem?
     @Published var upOne = ""
+    @Published var showingFFmpegPlayer = false
 
     @AppStorage("sftpSortOrder") var sftpSortOrder: String = "date"
     @AppStorage("sftpFoldersFirst") var sftpFoldersFirst: Bool = true
@@ -268,7 +270,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
             do {
                 let entries = try self.sftpConnection.contentsOfDirectory(atPath: self.currentPath, maxItems: 0)
                 DispatchQueue.main.async {
-                    self.upOne = NSString( string:  NSString( string: self.currentPath ).deletingLastPathComponent ).lastPathComponent
+                    let upOneValue = NSString(string: NSString(string: self.currentPath).deletingLastPathComponent).lastPathComponent
+                    self.upOne = upOneValue.count > 10 ? String(upOneValue.prefix(10)) + "..." : upOneValue
                 }
                 let fileItems = entries.map { entry -> FileItem in
                     let isDir = entry.isDirectory
@@ -500,9 +503,11 @@ class SFTPFileBrowserViewModel: ObservableObject {
         
         // Properly encode the password for URL
         let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
+       // VideoPlayerManager.playVideoWithHTTPStreaming(path: path, server: server)
         
-        let vlcUrl = URL(string: "vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=http://localhost:\(port)\(path)")
-                            //"vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")
+       let vlcUrl = URL(string: //"vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=http://localhost:8080\(path)")
+                          "vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")
+        
         
         if let url = vlcUrl {
             DispatchQueue.main.async {
@@ -514,6 +519,9 @@ class SFTPFileBrowserViewModel: ObservableObject {
             }
         }
     }
+    // Usage from SFTPFileBrowserViewModel:
+    //
+     
     
     func openVideo(item: FileItem, server: ServerEntity) {
         // Get all video files from current directory

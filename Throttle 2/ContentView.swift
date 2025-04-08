@@ -229,9 +229,9 @@ struct ContentView: View {
             if url.scheme == "throttle" && url.host == "x-callback-url" {
                 // Let the store handle it
                 //removed for now, internal player used
-//                if UserDefaults.standard.bool(forKey: "usePlaylist") {
-//                    store.handleVLCCallback(url)
-//                }
+                if UserDefaults.standard.bool(forKey: "usePlaylist") {
+                    store.handleVLCCallback(url)
+                }
                 
                 return
             }

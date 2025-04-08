@@ -274,61 +274,40 @@ public class ThumbnailManager: NSObject {
         let escapedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? password
         let port = server.sftpPort
         
-        // More careful path encoding
-        // First split the path into components
+        // Encode path components
         var pathComponents = path.split(separator: "/")
-        
-        // Encode each component individually
         let encodedComponents = pathComponents.map { component in
             return String(component)
-                .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String(component)
+                //.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String(component)
         }
-        
-        // Rejoin with slashes
         let encodedPath = "/" + encodedComponents.joined(separator: "/")
         
         // Create SFTP URL
         let sftpURLString = "sftp://\(escapedUsername):\(escapedPassword)@\(hostname):\(port)\(encodedPath)"
-        
-        print("Generated URL (credentials redacted): sftp://<credentials>@\(hostname):\(port)\(encodedPath)")
+        print("Generating VLC thumbnail for: \(path)")
         
         guard let sftpURL = URL(string: sftpURLString) else {
-            // If URL creation fails, try an alternative encoding approach
+            // Try fallback URL if standard encoding failed
             let fallbackEncodedPath = path
-                .replacingOccurrences(of: " ", with: "%20")
-                .replacingOccurrences(of: "&", with: "%26")
-                .replacingOccurrences(of: "+", with: "%2B")
-                .replacingOccurrences(of: ",", with: "%2C")
-                .replacingOccurrences(of: ":", with: "%3A")
-                .replacingOccurrences(of: ";", with: "%3B")
-                .replacingOccurrences(of: "=", with: "%3D")
-                .replacingOccurrences(of: "?", with: "%3F")
-                .replacingOccurrences(of: "@", with: "%40")
-                .replacingOccurrences(of: "#", with: "%23")
-                .replacingOccurrences(of: "[", with: "%5B")
-                .replacingOccurrences(of: "]", with: "%5D")
-            
             let fallbackURLString = "sftp://\(escapedUsername):\(escapedPassword)@\(hostname):\(port)\(fallbackEncodedPath)"
             guard let fallbackURL = URL(string: fallbackURLString) else {
                 throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid SFTP URL"])
             }
-            
             print("Using fallback URL encoding method")
-            return try await generateThumbnailWithWait(url: fallbackURL, path: path)
+            return try await generateThumbnailWithMonitoring(url: fallbackURL, path: path)
         }
         
-        return try await generateThumbnailWithWait(url: sftpURL, path: path)
+        return try await generateThumbnailWithMonitoring(url: sftpURL, path: path)
     }
 
-    // Helper function that uses a waiting approach instead of seeking
     @MainActor
-    private func generateThumbnailWithWait(url: URL, path: String) async throws -> Image {
+    private func generateThumbnailWithMonitoring(url: URL, path: String) async throws -> Image {
         print("Using VLC with direct SFTP URL for video thumbnail: \(path)")
         
         // Create media
         let media = VLCMedia(url: url)
         
-        // Add some options that might help with buffering and connection
+        // Add options that help with buffering and connection
         media.addOption(":network-caching=31500")
         media.addOption(":sout-mux-caching=1500")
         media.addOption(":file-caching=1500")
@@ -337,61 +316,122 @@ public class ThumbnailManager: NSObject {
         let mediaPlayer = VLCMediaPlayer()
         mediaPlayer.media = media
         mediaPlayer.audio.isMuted = true
+        mediaPlayer.videoAspectRatio = UnsafeMutablePointer<CChar>(mutating: ("320:180" as NSString).utf8String)
         
-        // Set proper scaling mode to fill the view
-        mediaPlayer.scaleFactor = 1 // Fill mode
-        
-        // Create a simple view for rendering with 16:9 aspect ratio
+        // Create a view for rendering with 16:9 aspect ratio
         let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 180))
         containerView.backgroundColor = .black
         
-        // Set the drawable
-        mediaPlayer.drawable = containerView
+        // Create a dedicated videoView that we can manipulate
+        let videoView = UIView(frame: containerView.bounds)
+        videoView.backgroundColor = .clear
+        containerView.addSubview(videoView)
+        
+        // Set this as the drawable
+        mediaPlayer.drawable = videoView
+        
+        // Set other player properties for better rendering
+        mediaPlayer.scaleFactor = 0  // Scale to fill
         
         var thumbnailImage: UIImage?
         
         // Start playback
         mediaPlayer.play()
         
-        // Wait for initial buffering with progressively longer waits
-        // This focuses on giving the player time to load rather than seeking
-        let waitTimes = [3, 4, 3, 3, 4]  // Wait times in seconds
+        // Wait for the media to actually start playing by monitoring the time
+        var previousTime = mediaPlayer.time?.intValue ?? 0
+        var stableCount = 0
+        let maxAttempts = 15 // Maximum number of attempts
+        //var viewScales = [1.0, 1.5, 2.0, 1.0, 1.5]  // Different scaling factors to try
         
-        for (index, waitTime) in waitTimes.enumerated() {
-            // Wait for the specified time
-            try await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
+        for attempt in 1...maxAttempts {
+            // Wait a short period
+            try await Task.sleep(nanoseconds: UInt64(2 * 1_000_000_000))  // 0.5 seconds
             
-            // Make sure layout is up to date
-            containerView.layoutIfNeeded()
+            // Check if playback has started by comparing time values
+            let currentTime = mediaPlayer.time?.intValue ?? 0
             
-            // Capture the frame
+            print("Attempt \(attempt): Playback time \(currentTime) ms (was \(previousTime) ms)")
+            
+           
+            
+            if currentTime > 0 && currentTime != previousTime {
+                // Time is progressing, video is playing
+                print("Video is playing")
+                
+                
+//                // Seek to 3 seconds
+//                mediaPlayer.time = VLCTime(int: 3000)
+//                
+                
+                // Wait for seek to complete
+                try await Task.sleep(nanoseconds: UInt64(1 * 1_000_000_000))
+            } else if currentTime > 0 && currentTime == previousTime {
+                // Time is stable, count consecutive stable readings
+                stableCount += 1
+                
+                if stableCount >= 3 && currentTime >= 3000 {
+                    // If we have 3 consecutive stable readings at or after 3 seconds,
+                    // we're likely paused at our target position
+                    print("Stable position detected at \(currentTime) ms")
+                    break
+                }
+            }
+            
+            // Try to capture the frame
             UIGraphicsBeginImageContextWithOptions(containerView.bounds.size, false, 0.0)
             containerView.drawHierarchy(in: containerView.bounds, afterScreenUpdates: true)
             let capturedImage = UIGraphicsGetImageFromCurrentImageContext()
             UIGraphicsEndImageContext()
             
             // Check if this capture is valid
-            if let image = capturedImage, !self.isEmptyImage(image) {
+            if let image = capturedImage, !isEmptyImage(image) {
                 thumbnailImage = image
                 break
             }
             
-            print("Attempt \(index + 1) at capturing frame after \(waitTime)s wait was unsuccessful")
+            print("Attempt \(attempt) at capturing frame was unsuccessful")
+            
+            // Update previous time for next check
+            previousTime = currentTime
+            
+            // If progress is detected, try adjusting the video position
+            if attempt > 2 && currentTime > 0 {
+                // Try to position at different points in the video
+                let positions: [Float] = [0.05, 0.15, 0.25, 0.35] // Try different positions
+                let positionIndex = min(attempt - 3, positions.count - 1)
+                mediaPlayer.position = positions[positionIndex]
+                try await Task.sleep(nanoseconds: UInt64(0.5 * 1_000_000_000))
+            }
+            
+            // If we've reached the last attempt, try to seek anyway as a last resort
+            if attempt == maxAttempts {
+                print("Last attempt, forcing seek to 3 seconds")
+                mediaPlayer.time = VLCTime(int: 3000)
+                try await Task.sleep(nanoseconds: UInt64(1 * 1_000_000_000))
+                
+                // Try one final capture
+                UIGraphicsBeginImageContextWithOptions(containerView.bounds.size, false, 0.0)
+                containerView.drawHierarchy(in: containerView.bounds, afterScreenUpdates: true)
+                thumbnailImage = UIGraphicsGetImageFromCurrentImageContext()
+                UIGraphicsEndImageContext()
+            }
         }
         
         // Stop playback
         mediaPlayer.stop()
         
         // Check if we got a valid image
-        guard let image = thumbnailImage, !self.isEmptyImage(image) else {
+        guard let image = thumbnailImage, !isEmptyImage(image) else {
             throw NSError(domain: "ThumbnailManager", code: -4, userInfo: [NSLocalizedDescriptionKey: "Failed to generate valid thumbnail"])
         }
         
         // Process and cache the thumbnail
-        let thumb = self.processThumbnail(uiImage: image, isVideo: true)
-        try? self.saveToCache(image: image, for: path)
+        let thumb = processThumbnail(uiImage: image, isVideo: true)
+        try? saveToCache(image: image, for: path)
         return thumb
     }
+    
 
     // Helper function to set up VLC player on the main thread
     private func setupVLCPlayerOnMainThread(with url: URL) async throws -> (VLCMediaPlayer, UIView) {

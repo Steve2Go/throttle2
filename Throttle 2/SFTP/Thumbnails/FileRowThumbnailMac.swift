@@ -112,28 +112,56 @@ class ThumbnailManager: NSObject {
             throw NSError(domain: "ThumbnailManager", code: -1)
         }
         
-        let outputURL = cachePath.appendingPathComponent(UUID().uuidString + ".jpg")
+        // Use the same cache file URL pattern as other thumbnails
+        guard let cacheFile = cacheFileURL(for: path) else {
+            throw NSError(domain: "ThumbnailManager", code: -2)
+        }
         
+        // If cached version exists, return it
+        if fileManager.fileExists(atPath: cacheFile.path),
+           let cachedImage = NSImage(contentsOf: cacheFile) {
+            return cachedImage
+        }
+        
+        let tempOutput = cachePath.appendingPathComponent(UUID().uuidString + ".jpg")
+        
+        // Try at 6 seconds first
+        if let image = try? await extractFrame(from: path, at: "00:00:06", output: tempOutput) {
+            // Save to cache and return
+            if let tiffData = image.tiffRepresentation {
+                try? tiffData.write(to: cacheFile)
+            }
+            return image
+        }
+        
+        // Fall back to 1 second if 6 seconds fails
+        return try await extractFrame(from: path, at: "00:00:01", output: tempOutput)
+    }
+
+    private func extractFrame(from path: String, at timestamp: String, output: URL) async throws -> NSImage {
         let ffmpegArgs = [
             "-y",
-            "-ss", "00:00:01", // Changed from 5 seconds to 1 second for faster extraction
+            "-ss", timestamp,
             "-i", path,
             "-vframes", "1",
             "-s", "120x120",
             "-f", "image2",
-            outputURL.path
+            output.path
         ]
         
         return try await withCheckedThrowingContinuation { continuation in
             FFmpegKit.execute(withArgumentsAsync: ffmpegArgs) { session in
                 guard let session = session,
                       session.getReturnCode().isValueSuccess(),
-                      let image = NSImage(contentsOf: outputURL) else {
+                      let image = NSImage(contentsOf: output) else {
+                    try? FileManager.default.removeItem(at: output)
                     continuation.resume(throwing: NSError(domain: "FFmpegKit", code: -1))
                     return
                 }
                 
-                try? FileManager.default.removeItem(at: outputURL)
+                // Clean up temp file
+                try? FileManager.default.removeItem(at: output)
+                
                 continuation.resume(returning: image)
             }
         }

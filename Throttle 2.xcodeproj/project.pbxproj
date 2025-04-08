@@ -7,10 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E706AFF82D9A5F1D005825F4 /* NIOHTTP1 in Frameworks */ = {isa = PBXBuildFile; productRef = E706AFF72D9A5F1D005825F4 /* NIOHTTP1 */; };
+		E70D09CA2D9CC9DD00C9CB48 /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */; platformFilter = ios; };
+		E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = E70D0AD42D9E84DD00C9CB48 /* Citadel */; };
 		E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = E7150E522D631F8B009C4217 /* KeychainAccess */; };
-		E759AE0A2D9C113E00E4B4CA /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */; };
-		E76257282D97B0060049E9EF /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = E76257272D97B0060049E9EF /* Citadel */; };
 		E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */ = {isa = PBXBuildFile; productRef = E76AA8B52D8423E00009CA6F /* SimpleToast */; };
 		E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */ = {isa = PBXBuildFile; productRef = E7F5F3EF2D718B2700079054 /* FilePicker */; };
 		E7F968992D884B5C00A19857 /* mft.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E742621A2D6EFB9A00E4D181 /* mft.xcframework */; };
@@ -72,10 +71,6 @@
 		E742621B2D6EFB9A00E4D181 /* mft_ios.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_ios.xcarchive; sourceTree = "<group>"; };
 		E742621C2D6EFB9A00E4D181 /* mft_macos.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_macos.xcarchive; sourceTree = "<group>"; };
 		E742621D2D6EFB9A00E4D181 /* mft_sim.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_sim.xcarchive; sourceTree = "<group>"; };
-		E74262462D6F521600E4D181 /* mft.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = mft.xcframework; sourceTree = "<group>"; };
-		E74262472D6F521600E4D181 /* mft_ios.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_ios.xcarchive; sourceTree = "<group>"; };
-		E74262482D6F521600E4D181 /* mft_macos.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_macos.xcarchive; sourceTree = "<group>"; };
-		E74262492D6F521600E4D181 /* mft_sim.xcarchive */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = mft_sim.xcarchive; sourceTree = "<group>"; };
 		E7BEDF612D6EF03300E72E6F /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
 		E7F968E72D89307700A19857 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		E7F96D8C2D8F611800A19857 /* QuickLookThumbnailing.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuickLookThumbnailing.framework; path = System/Library/Frameworks/QuickLookThumbnailing.framework; sourceTree = SDKROOT; };
@@ -97,17 +92,17 @@
 			);
 			platformFiltersByRelativePath = {
 				SFTP/Browser/SFTPBrowser.swift = (ios, );
-				SFTP/MountManager.swift = (macos, );
-				SFTP/ServerManager.swift = (macos, );
-				SFTP/ThumbnailManager.swift = (ios, );
-				ffmpeg/ffmpegkit.xcframework = (macos, );
-				ffmpeg/libavcodec.xcframework = (macos, );
-				ffmpeg/libavdevice.xcframework = (macos, );
-				ffmpeg/libavfilter.xcframework = (macos, );
-				ffmpeg/libavformat.xcframework = (macos, );
-				ffmpeg/libavutil.xcframework = (macos, );
-				ffmpeg/libswresample.xcframework = (macos, );
-				ffmpeg/libswscale.xcframework = (macos, );
+				SFTP/Mounting/MountManager.swift = (macos, );
+				SFTP/Mounting/MountServerManager.swift = (macos, );
+				SFTP/Thumbnails/ThumbnailManager.swift = (ios, );
+				ffmpeg/macOS/ffmpegkit.xcframework = (macos, );
+				ffmpeg/macOS/libavcodec.xcframework = (macos, );
+				ffmpeg/macOS/libavdevice.xcframework = (macos, );
+				ffmpeg/macOS/libavfilter.xcframework = (macos, );
+				ffmpeg/macOS/libavformat.xcframework = (macos, );
+				ffmpeg/macOS/libavutil.xcframework = (macos, );
+				ffmpeg/macOS/libswresample.xcframework = (macos, );
+				ffmpeg/macOS/libswscale.xcframework = (macos, );
 			};
 			target = E7150E162D631D08009C4217 /* Throttle 2 */;
 		};
@@ -124,35 +119,35 @@
 		E771E1D92D90B9CA002F803B /* Exceptions for "Throttle 2" folder in "Embed Foundation Extensions" phase from "Throttle 2" target */ = {
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			attributesByRelativePath = {
-				ffmpeg/ffmpegkit.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/libavcodec.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/libavdevice.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/libavfilter.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/libavformat.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/libavutil.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/libswresample.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/libswscale.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/macOS/ffmpegkit.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/macOS/libavcodec.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/macOS/libavdevice.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/macOS/libavfilter.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/macOS/libavformat.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/macOS/libavutil.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/macOS/libswresample.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/macOS/libswscale.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
 			};
 			buildPhase = E7BEDF6F2D6EF03300E72E6F /* Embed Foundation Extensions */;
 			membershipExceptions = (
-				ffmpeg/ffmpegkit.xcframework,
-				ffmpeg/libavcodec.xcframework,
-				ffmpeg/libavdevice.xcframework,
-				ffmpeg/libavfilter.xcframework,
-				ffmpeg/libavformat.xcframework,
-				ffmpeg/libavutil.xcframework,
-				ffmpeg/libswresample.xcframework,
-				ffmpeg/libswscale.xcframework,
+				ffmpeg/macOS/ffmpegkit.xcframework,
+				ffmpeg/macOS/libavcodec.xcframework,
+				ffmpeg/macOS/libavdevice.xcframework,
+				ffmpeg/macOS/libavfilter.xcframework,
+				ffmpeg/macOS/libavformat.xcframework,
+				ffmpeg/macOS/libavutil.xcframework,
+				ffmpeg/macOS/libswresample.xcframework,
+				ffmpeg/macOS/libswscale.xcframework,
 			);
 			platformFiltersByRelativePath = {
-				ffmpeg/ffmpegkit.xcframework = (macos, );
-				ffmpeg/libavcodec.xcframework = (macos, );
-				ffmpeg/libavdevice.xcframework = (macos, );
-				ffmpeg/libavfilter.xcframework = (macos, );
-				ffmpeg/libavformat.xcframework = (macos, );
-				ffmpeg/libavutil.xcframework = (macos, );
-				ffmpeg/libswresample.xcframework = (macos, );
-				ffmpeg/libswscale.xcframework = (macos, );
+				ffmpeg/macOS/ffmpegkit.xcframework = (macos, );
+				ffmpeg/macOS/libavcodec.xcframework = (macos, );
+				ffmpeg/macOS/libavdevice.xcframework = (macos, );
+				ffmpeg/macOS/libavfilter.xcframework = (macos, );
+				ffmpeg/macOS/libavformat.xcframework = (macos, );
+				ffmpeg/macOS/libavutil.xcframework = (macos, );
+				ffmpeg/macOS/libswresample.xcframework = (macos, );
+				ffmpeg/macOS/libswscale.xcframework = (macos, );
 			};
 		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
@@ -182,11 +177,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E759AE0A2D9C113E00E4B4CA /* MobileVLCKit.xcframework in Frameworks */,
-				E76257282D97B0060049E9EF /* Citadel in Frameworks */,
+				E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */,
 				E7F968992D884B5C00A19857 /* mft.xcframework in Frameworks */,
-				E706AFF82D9A5F1D005825F4 /* NIOHTTP1 in Frameworks */,
 				E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */,
+				E70D09CA2D9CC9DD00C9CB48 /* MobileVLCKit.xcframework in Frameworks */,
 				E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */,
 				E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */,
 			);
@@ -252,25 +246,12 @@
 			path = "../mft 2025-02-26 17-26-39";
 			sourceTree = "<group>";
 		};
-		E742624A2D6F521600E4D181 /* mft 2025-02-26 17-26-39 */ = {
-			isa = PBXGroup;
-			children = (
-				E74262462D6F521600E4D181 /* mft.xcframework */,
-				E74262472D6F521600E4D181 /* mft_ios.xcarchive */,
-				E74262482D6F521600E4D181 /* mft_macos.xcarchive */,
-				E74262492D6F521600E4D181 /* mft_sim.xcarchive */,
-			);
-			name = "mft 2025-02-26 17-26-39";
-			path = "../mft 2025-02-26 17-26-39";
-			sourceTree = "<group>";
-		};
 		E7BEDF602D6EF03300E72E6F /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				E706AFEF2D9993D6005825F4 /* Pods_Throttle_2.framework */,
 				E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */,
 				E742621E2D6EFB9A00E4D181 /* mft 2025-02-26 17-26-39 */,
-				E742624A2D6F521600E4D181 /* mft 2025-02-26 17-26-39 */,
 				E7BEDF612D6EF03300E72E6F /* UniformTypeIdentifiers.framework */,
 				2DA01AB29F5FBAAE606649AE /* Pods_Throttle_2.framework */,
 				E7F96D8C2D8F611800A19857 /* QuickLookThumbnailing.framework */,
@@ -307,8 +288,7 @@
 				E7150E522D631F8B009C4217 /* KeychainAccess */,
 				E7F5F3EF2D718B2700079054 /* FilePicker */,
 				E76AA8B52D8423E00009CA6F /* SimpleToast */,
-				E76257272D97B0060049E9EF /* Citadel */,
-				E706AFF72D9A5F1D005825F4 /* NIOHTTP1 */,
+				E70D0AD42D9E84DD00C9CB48 /* Citadel */,
 			);
 			productName = "Throttle 2";
 			productReference = E7150E172D631D08009C4217 /* Throttle 2.app */;
@@ -386,8 +366,7 @@
 				E7150E512D631F8B009C4217 /* XCRemoteSwiftPackageReference "KeychainAccess" */,
 				E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */,
 				E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */,
-				E76257262D97B0060049E9EF /* XCRemoteSwiftPackageReference "Citadel" */,
-				E706AFF62D9A5F1D005825F4 /* XCRemoteSwiftPackageReference "swift-nio" */,
+				E70D0AD32D9E84DD00C9CB48 /* XCRemoteSwiftPackageReference "Citadel" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E7150E182D631D08009C4217 /* Products */;
@@ -457,9 +436,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Throttle 2/Pods-Throttle 2-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Throttle 2/Pods-Throttle 2-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -524,7 +507,49 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/FFMpeg/iOS";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/FFMpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Throttle 2/Info.plist";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
@@ -616,7 +641,6 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				XROS_DEPLOYMENT_TARGET = 2.2;
@@ -641,7 +665,49 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				FRAMEWORK_SEARCH_PATHS = "$(PROJECT_DIR)/FFMpeg/iOS";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/FFMpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Throttle 2/Info.plist";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
@@ -733,7 +799,6 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				XROS_DEPLOYMENT_TARGET = 2.2;
@@ -992,12 +1057,12 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		E706AFF62D9A5F1D005825F4 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
+		E70D0AD32D9E84DD00C9CB48 /* XCRemoteSwiftPackageReference "Citadel" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/swift-nio.git";
+			repositoryURL = "https://github.com/orlandos-nl/Citadel";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.81.0;
+				minimumVersion = 0.9.2;
 			};
 		};
 		E7150E512D631F8B009C4217 /* XCRemoteSwiftPackageReference "KeychainAccess" */ = {
@@ -1006,14 +1071,6 @@
 			requirement = {
 				branch = master;
 				kind = branch;
-			};
-		};
-		E76257262D97B0060049E9EF /* XCRemoteSwiftPackageReference "Citadel" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/orlandos-nl/Citadel";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.9.2;
 			};
 		};
 		E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */ = {
@@ -1035,20 +1092,15 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		E706AFF72D9A5F1D005825F4 /* NIOHTTP1 */ = {
+		E70D0AD42D9E84DD00C9CB48 /* Citadel */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E706AFF62D9A5F1D005825F4 /* XCRemoteSwiftPackageReference "swift-nio" */;
-			productName = NIOHTTP1;
+			package = E70D0AD32D9E84DD00C9CB48 /* XCRemoteSwiftPackageReference "Citadel" */;
+			productName = Citadel;
 		};
 		E7150E522D631F8B009C4217 /* KeychainAccess */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E7150E512D631F8B009C4217 /* XCRemoteSwiftPackageReference "KeychainAccess" */;
 			productName = KeychainAccess;
-		};
-		E76257272D97B0060049E9EF /* Citadel */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E76257262D97B0060049E9EF /* XCRemoteSwiftPackageReference "Citadel" */;
-			productName = Citadel;
 		};
 		E76AA8B52D8423E00009CA6F /* SimpleToast */ = {
 			isa = XCSwiftPackageProductDependency;

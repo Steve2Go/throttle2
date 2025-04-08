@@ -6,6 +6,7 @@
 //
 #if os(iOS)
 import SwiftUI
+import AVKit
 
 // MARK: - File Browser View Model Extension
 extension SFTPFileBrowserViewModel {
@@ -22,7 +23,8 @@ extension SFTPFileBrowserViewModel {
                 @AppStorage("preferVLC") var preferVLC: Bool = false
              if preferVLC && isVLCInstalled() {
                    openVideoInVLC(item: item, server: server)
-              } else {
+             } 
+                else {
                   openVideo(item: item, server: server)
                }
             case .image:

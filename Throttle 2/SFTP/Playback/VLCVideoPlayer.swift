@@ -14,6 +14,10 @@ class VideoPlayerViewController: UIViewController {
     private var isControlsVisible = true
     private var controlsTimer: Timer?
     
+    private var isSliderBeingTouched = false
+    private var externalWindow: UIWindow?
+    
+    
     private lazy var videoView: UIView = {
         let view = UIView()
         view.backgroundColor = .black
@@ -72,6 +76,7 @@ class VideoPlayerViewController: UIViewController {
         return button
     }()
     
+    
     private lazy var timeSlider: UISlider = {
         let slider = UISlider()
         slider.translatesAutoresizingMaskIntoConstraints = false
@@ -93,8 +98,6 @@ class VideoPlayerViewController: UIViewController {
         return label
     }()
     
-    private var isSliderBeingTouched = false
-    
     override func viewDidLoad() {
         super.viewDidLoad()
         print("ViewDidLoad called")
@@ -107,11 +110,46 @@ class VideoPlayerViewController: UIViewController {
         mediaPlayer.drawable = videoView
     }
     
+    
     private func setupUI() {
         print("Setting up UI")
         view.backgroundColor = .black
         
-        view.addSubview(videoView)
+        if let externalSession = UIApplication.shared.openSessions.first(where: { session in
+            guard let windowScene = session.scene as? UIWindowScene else { return false }
+            return windowScene.screen != UIScreen.main
+        }) {
+            guard let windowScene = externalSession.scene as? UIWindowScene else {
+                view.addSubview(videoView)
+                NSLayoutConstraint.activate([
+                    videoView.topAnchor.constraint(equalTo: view.topAnchor),
+                    videoView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                    videoView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                    videoView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+                ])
+                return
+            }
+            let externalScreen = windowScene.screen
+            externalWindow = UIWindow(windowScene: windowScene)
+            externalWindow?.frame = externalScreen.bounds
+            let externalVC = UIViewController()
+            externalVC.view.backgroundColor = .black
+            externalVC.view.addSubview(videoView)
+            videoView.frame = externalVC.view.bounds
+            videoView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            externalWindow?.rootViewController = externalVC
+            externalWindow?.isHidden = false
+        } else {
+            view.addSubview(videoView)
+            NSLayoutConstraint.activate([
+                videoView.topAnchor.constraint(equalTo: view.topAnchor),
+                videoView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                videoView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                videoView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            ])
+        }
+        
+        
         view.addSubview(controlsView)
         
         controlsView.addSubview(playPauseButton)
@@ -122,11 +160,6 @@ class VideoPlayerViewController: UIViewController {
         controlsView.addSubview(timeLabel)
         
         NSLayoutConstraint.activate([
-            videoView.topAnchor.constraint(equalTo: view.topAnchor),
-            videoView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            videoView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            videoView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            
             controlsView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             controlsView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             controlsView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -15),
@@ -158,20 +191,24 @@ class VideoPlayerViewController: UIViewController {
             timeSlider.trailingAnchor.constraint(equalTo: controlsView.trailingAnchor, constant: -20),
             
             timeLabel.topAnchor.constraint(equalTo: timeSlider.bottomAnchor, constant: 8),
-            timeLabel.centerXAnchor.constraint(equalTo: timeSlider.centerXAnchor)
+            timeLabel.centerXAnchor.constraint(equalTo: timeSlider.centerXAnchor),
+        
         ])
         
         startControlsTimer()
     }
     
     private func startControlsTimer() {
+        // If an external display is active, do not auto-hide controls
+        guard externalWindow == nil else { return }
         controlsTimer?.invalidate()
         controlsTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
             self?.hideControls()
         }
     }
-    
-            private func hideControls() {
+    private func hideControls() {
+        // If an external display is active, keep the controls visible
+        guard externalWindow == nil else { return }
         guard isControlsVisible else { return }
         isControlsVisible = false
         UIView.animate(withDuration: 0.3) {
@@ -242,6 +279,8 @@ class VideoPlayerViewController: UIViewController {
         print("VideoPlayerViewController is being deinitialized")
         controlsTimer?.invalidate()
         mediaPlayer.stop()
+        externalWindow?.isHidden = true
+        externalWindow = nil
     }
     
     func configure(with url: URL) {

@@ -461,7 +461,7 @@ class TorrentManager: ObservableObject {
             print("Number of torrents: \(decodedResponse.arguments.torrents.count)")
             for torrent in decodedResponse.arguments.torrents {
                 if let hash = torrent.hashString {
-                    print("Got hash: \(hash)")
+                   // print("Got hash: \(hash)")
                     print("Files data type: \(type(of: torrent.dynamicFields["files"]?.value ?? "none"))")
                     if let filesData = torrent.dynamicFields["files"]?.value as? [[String: Any]] {
                         print("Cast succeeded: \(filesData.count) files")
@@ -495,14 +495,19 @@ class TorrentManager: ObservableObject {
     }
 
 
-    func startPeriodicUpdates( selectedId: Int? = nil) {
+    func startPeriodicUpdates(selectedId: Int? = nil) {
+        // First, stop any existing timer to avoid duplicates
+        stopPeriodicUpdates()
+        
+        // Initial fetch
         Task {
-            try? await fetchUpdates()
+            try? await fetchUpdates(selectedId: selectedId)
         }
         
+        // Create new timer
         fetchTimer = Timer.scheduledTimer(withTimeInterval: Double(refreshRate), repeats: true) { [weak self] _ in
             Task {
-                if selectedId != nil {
+                if let selectedId = selectedId {
                     try? await self?.fetchUpdates(selectedId: selectedId)
                 } else {
                     try? await self?.fetchUpdates()

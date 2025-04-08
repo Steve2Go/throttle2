@@ -1,7 +1,8 @@
 import Foundation
 import Citadel
 import NIOCore
-
+// tunnel via ssh for rpc.
+//also attempted a pythoin server for file streaming running on the server, but it would crash the app every time we stopped a download in progress. 
 class SSHConnection {
     private let host: String
     private let port: Int

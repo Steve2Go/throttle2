@@ -16,10 +16,11 @@ let videoExtensionsPlayable: Set<String> = ["mp4", "mov", "mpeg", "m4v"]
 
 
 
+
 @main
 struct Throttle_2App: App {
     let dataManager = DataManager.shared
-    private var tunnelManager: SSHTunnelManager?
+    var tunnelManager: SSHTunnelManager?
     // Monitor the scene phase so we can restart the proxy when needed.
     @Environment(\.scenePhase) private var scenePhase
     
@@ -28,6 +29,10 @@ struct Throttle_2App: App {
     @ObservedObject var presenting = Presenting()
     @ObservedObject var filter = TorrentFilters()
     @ObservedObject var store = Store()
+    @StateObject var networkMonitor = NetworkMonitor()
+    @State var isBackground: Timer?
+    @State var tunnelClosed = false
+    @State var isTunneling = false
 
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
     
@@ -39,36 +44,25 @@ struct Throttle_2App: App {
             ContentView(presenting: presenting,manager: manager, filter: filter, store: store)
                 .environment(\.managedObjectContext, DataManager.shared.viewContext)
                 .handlesExternalEvents(preferring: Set(arrayLiteral: "*"), allowing: Set(arrayLiteral: "*"))
-                
+                .environmentObject(networkMonitor)
                 //.environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .background(colorScheme == .dark ? Color.black : Color.white)
                 .onAppear {
                     presenting.didStart = true
-                    
                 }
-                .onChange(of: scenePhase) { oldValue, newValue in
-                    if newValue == .background {
-                        manager.stopPeriodicUpdates()
-                    }else if newValue == .active {
-                        //check tunnel health
-                        Task{
-                            if ((store.selection?.sftpRpc) == true) {
-                                //if !tunnel.isHealthy() {
-                                    setupServer(store: store, torrentManager: manager)
-                               // }
-                            } else{
-                                Task{
-                                    manager.startPeriodicUpdates()
-                                }
+                .onChange(of: networkMonitor.gateways){
+                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                        if networkMonitor.isConnected {
+                            Task {
+                                setupServer(store: store, torrentManager: manager)
                             }
                         }
                     }
                 }
-                .onChange(of: store.selection) { oldValue, newValue in
-                    //TunnelManagerHolder.shared.tearDownAllTunnels()
-                    setupServer(store: store, torrentManager: manager)
-                    //TunnelManagerHolder.ensureTunnelHealth(tunnelManager)
-                        //print(store.connectTransmission)
+                .onChange(of: store.selection) {
+                    Task {
+                        setupServer(store: store, torrentManager: manager)
+                    }
                     }
                    
                // }
@@ -100,153 +94,60 @@ struct Throttle_2App: App {
         WindowGroup {
             ContentView(presenting: presenting, manager: manager, filter: filter, store: store)
                 .environment(\.managedObjectContext, DataManager.shared.viewContext)
+                .environmentObject(networkMonitor)
                 //.environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .background(colorScheme == .dark ? Color.black : Color.white)
                 .onAppear {
                     presenting.didStart = true
+                    
                 }
-                .onChange(of: scenePhase) { oldValue, newValue in
-                    if newValue == .background {
-                        // stop spamming
-                        manager.stopPeriodicUpdates()
-                    } else if newValue == .active {
-                        //check tunnel health
-                        Task{
-                            if ((store.selection?.sftpRpc) == true) {
-                                    setupServer(store: store, torrentManager: manager)
-                            } else{
-                                Task{
-                                    manager.startPeriodicUpdates()
+                .onChange(of: scenePhase){
+                    #if os(iOS)
+                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                        if scenePhase == .background {
+                            isBackground = Timer.scheduledTimer(withTimeInterval: 45, repeats: false) { _ in
+                                DispatchQueue.main.async{
+                                    TunnelManagerHolder.shared.tearDownAllTunnels()
+                                    manager.stopPeriodicUpdates()
+                                    tunnelClosed = true
+                                    print("Background - stopping queue")
                                 }
+                            }
+                        } else if scenePhase == .active {
+                            if tunnelClosed && networkMonitor.isConnected{
+                                setupServer(store: store, torrentManager: manager)
+                            }
+                            isBackground?.invalidate()
+                            tunnelClosed = false
+                            print("Foreground- starting queue")
+                        }
+                    }
+                    #endif
+                }
+                .onChange(of: networkMonitor.gateways){
+                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                        if networkMonitor.isConnected {
+                            Task {
+                                setupServer(store: store, torrentManager: manager)
                             }
                         }
                     }
                 }
                 .onChange(of: store.selection) { oldValue, newValue in
-                    if store.selection != nil {
-                        //TunnelManagerHolder.shared.tearDownAllTunnels()
-                        setupServer(store: store, torrentManager: manager)
-                    }
-                   
+                            Task {
+                                if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                                    TunnelManagerHolder.shared.tearDownAllTunnels()
+                                }
+                                setupServer(store: store, torrentManager: manager)
+                            }
                 }
-               
         }
       
         #endif
     }
     
-    func setupServer (store: Store, torrentManager: TorrentManager) {
-        //Cleanup
-        TunnelManagerHolder.shared.tearDownAllTunnels()
-        store.selectedTorrentId = nil
-        
-        // url construction for server quaries
-        if store.selection != nil {
-            // load the keychain
-            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-            let server = store.selection
-            
-            // trying to keep it as clear as possible
-            let proto = (server?.protoHttps ?? false) ? "https" : "http"
-            let domain = server?.url ?? "localhost"
-            let user = server?.sftpUser ?? ""
-            let password = keychain["password" + (server?.name! ?? "")] ?? ""
-            
-            let port  = server?.port ?? 9091
-            let path = server?.rpc ?? "transmission/rpc"
-            
-            let isTunnel = server?.sftpRpc ?? false
-            //let hasKey = server?.sftpUsesKey
-            let localport = 4000 // update after tunnel logic
-            
-            var url = ""
-            var at = ""
-            
-            if isTunnel{
-                //server tunnel creation
-                if let server = server {
-                    Task {
-                        do {
-                            let tmanager = try SSHTunnelManager(server: server, localPort: localport, remoteHost: "localhost", remotePort: Int(port))
-                            try await tmanager.start()
-                            TunnelManagerHolder.shared.storeTunnel(tmanager, withIdentifier: "transmission-rpc")
-//
-                            //Now build the rpc url
-                            
-                            url += "http://"
-                            if !user.isEmpty {
-                                at = "@"
-                                url += user
-                                if !password.isEmpty {
-                                    url += ":\(password)"
-                                }
-                            }
-                            url += "\(at)localhost:\(String(localport))\(path)"
-                            
-                            store.connectTransmission = url
-                            ServerManager.shared.setServer(store.selection!)
-                            torrentManager.isLoading = true
-                            
-                            torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
-                            torrentManager.startPeriodicUpdates()
-                            try await Task.sleep(for: .milliseconds(500))
-                            if !store.magnetLink.isEmpty || store.selectedFile != nil {
-                                presenting.activeSheet = "adding"
-                            }
-                        } catch let error as SSHTunnelError {
-                            switch error {
-                            case .missingCredentials:
-                                print("Error: Missing credentials")
-                            case .connectionFailed(let underlyingError):
-                                print("Error: Connection failed: \(underlyingError)")
-                            case .portForwardingFailed(let underlyingError):
-                                print("Error: Port forwarding failed: \(underlyingError)")
-                            case .localProxyFailed(let underlyingError):
-                                print("Error: Local proxy failed: \(underlyingError)")
-                            case .reconnectFailed(let underlyingError):
-                                print("Error: Reconnect failed: \(underlyingError)")
-                            case .invalidServerConfiguration:
-                                print("Error: Invalid server configuration")
-                            case .tunnelAlreadyConnected:
-                                print("Error: Tunnel already connected")
-                            case .tunnelNotConnected:
-                                print("Error: Tunnel not connected")
-                            }
-                        } catch {
-                            print("An unexpected error occurred: \(error)")
-                        }
-                    }
-                }
-                
-                
-            }  else {
-                // just build the url
-                
-                url += "\(proto)://"
-                if !user.isEmpty {
-                    at = "@"
-                    url += user
-                    if !password.isEmpty {
-                        url += ":\(password)"
-                    }
-                }
-                url += "\(at)\(domain):\(String(port))\(path)"
-                store.connectTransmission = url
-                ServerManager.shared.setServer(store.selection!)
-                
-                torrentManager.isLoading = true
-                torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
-                torrentManager.startPeriodicUpdates()
-                Task {
-                    try await Task.sleep(for: .milliseconds(500))
-                    if !store.magnetLink.isEmpty || store.selectedFile != nil {
-                        presenting.activeSheet = "adding"
-                    }
-                }
-            }
-            
-        }
-    }
+    
+    
 }
 
 #if os(macOS)

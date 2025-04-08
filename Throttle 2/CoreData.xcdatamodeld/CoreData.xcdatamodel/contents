@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23605" systemVersion="24D70" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23788" systemVersion="24D81" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
     <entity name="ServerEntity" representedClassName=".ServerEntity" syncable="YES" codeGenerationType="class">
         <attribute name="ffThumb" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="fsBrowse" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="fsPath" optional="YES" attributeType="String"/>
         <attribute name="fsThumb" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="hasPython" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="httpBrowse" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="httpThumb" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="httpUser" optional="YES" attributeType="String"/>
@@ -18,6 +19,7 @@
         <attribute name="port" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="protoHttps" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="rpc" optional="YES" attributeType="String"/>
+        <attribute name="serverIsWindows" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="sftpBrowse" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="sftpHost" optional="YES" attributeType="String"/>
         <attribute name="sftpKey" optional="YES" attributeType="String"/>
@@ -25,6 +27,7 @@
         <attribute name="sftpRpc" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="sftpUser" optional="YES" attributeType="String"/>
         <attribute name="sftpUsesKey" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="testsPassed" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="thumbMax" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="url" optional="YES" attributeType="String"/>
         <attribute name="user" optional="YES" attributeType="String"/>

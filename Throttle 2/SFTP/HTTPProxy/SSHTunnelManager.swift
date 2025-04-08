@@ -64,7 +64,7 @@ class SSHTunnelManager {
     private let group: MultiThreadedEventLoopGroup
     private var localPort: Int
     private var remoteHost: String
-    private var remotePort: Int
+    var remotePort: Int
     private var server: ServerEntity
     private var isConnected: Bool = false
     private var localChannel: Channel?
