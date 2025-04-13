@@ -91,8 +91,10 @@ struct FilterContent: View {
                     viewModel.showThumbs.toggle()
                 } label: {
                     //Image("")
-                    Label("Thumbnails", systemImage: viewModel.showThumbs ? "photo.badge.checkmark" : "photo.badge.plus")
+                    Image(systemName: viewModel.showThumbs ? "photo.badge.checkmark" : "photo.badge.plus")
+                    Text("Thumbnails")
                         .foregroundColor(.secondary)
+                        
                 }
                 .buttonStyle(.plain)
                 

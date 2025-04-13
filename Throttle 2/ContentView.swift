@@ -94,7 +94,7 @@ struct ContentView: View {
             
             ToolbarItem (placement: .automatic) {
                     Button {
-                        isCreating = true
+                        presenting.isCreating = true
                     } label: {
                         Image(systemName: "document.badge.plus")
                     }
@@ -200,7 +200,7 @@ struct ContentView: View {
         }
         #endif
         #if os(macOS)
-        .sheet( isPresented: $isCreating) {
+        .sheet( isPresented: $presenting.isCreating) {
             CreateTorrent(store: store, presenting: presenting)
                 .frame(width: 400, height: 500)
                 .padding(20)

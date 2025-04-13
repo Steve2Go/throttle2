@@ -135,11 +135,12 @@ struct ServersListView: View {
                 try viewContext.save()
                 print("Server deleted successfully")
             } catch {
-                print("Failed to delete server: $error)")
+                print("Failed to delete server: \(error)")
             }
         }
     }
 }
+
 // MARK: - ServerEditView
 struct ServerEditView: View {
     @Environment(\.managedObjectContext) var viewContext
@@ -223,11 +224,68 @@ struct ServerEditView: View {
         _sftpKey = State(initialValue: server?.sshKeyFullPath ?? "")
         _hasPython = State(initialValue: server?.hasPython ?? true)
     }
+    
     var body: some View {
         NavigationStack {
             Form {
                 // **Torrent**
-                Section(header: Text("Torrent Server")) {
+                Section(header: Text("Transmission Connection")) {
+                    #if os(iOS)
+                    HStack {
+                        Text("Name")
+                        Spacer()
+                        TextField("Server name", text: $name)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    Toggle("RPC Over SSH Tunnel", isOn: $sftpRpc)
+                        .onChange(of: sftpRpc){
+                            if sftpRpc {
+                                sftpBrowse = true
+                            }
+                        }
+                    if !sftpRpc {
+                        Toggle("Server Uses SSL (https)", isOn: $protHttps)
+                        HStack {
+                            Text("Server")
+                            Spacer()
+                            TextField("Server address", text: $url)
+                                .multilineTextAlignment(.trailing)
+                                .autocapitalization(.none)
+                                .autocorrectionDisabled()
+                        }
+                    } else {
+                        Text("SSL not available when tunneling, tunnel should be direct to the Transmission server")
+                            .font(.caption)
+                    }
+                    HStack {
+                        Text("RPC Port")
+                        Spacer()
+                        TextField("Port number", text: $port)
+                            .multilineTextAlignment(.trailing)
+                            .keyboardType(.numberPad)
+                    }
+                    HStack {
+                        Text("RPC Path")
+                        Spacer()
+                        TextField("Path", text: $rpc)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    Toggle("Default Server", isOn: $isDefault)
+                    HStack {
+                        Text("Username")
+                        Spacer()
+                        TextField("Username", text: $user)
+                            .multilineTextAlignment(.trailing)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                    }
+                    HStack {
+                        Text("Password")
+                        Spacer()
+                        SecureField("Password", text: $password)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    #else
                     TextField("Name", text: $name)
                     Toggle("RPC Over SSH Tunnel", isOn: $sftpRpc)
                         .onChange(of: sftpRpc){
@@ -238,7 +296,7 @@ struct ServerEditView: View {
                     if !sftpRpc {
                         Toggle("Server Uses SSL (https)", isOn: $protHttps)
                         TextField("Server", text: $url)
-                    }else{
+                    } else {
                         Text("SSL not available when tunneling, tunnel should be direct to the Transmission server").font(.caption)
                     }
                     TextField("RPC Port", text: $port)
@@ -246,15 +304,16 @@ struct ServerEditView: View {
                     Toggle("Default Server", isOn: $isDefault)
                     TextField("Username", text: $user)
                     SecureField("Password", text: $password)
-                    
+                    #endif
                 }
+                
                 #if os(macOS)
                 Divider()
-#endif
+                #endif
+                
                 // **SFTP Authentication & Path Mapping**
-                Section(header: Text("SSH & SFTP")) {
-                    
-#if os(macOS)
+                Section(header: Text("SSH Connection")) {
+                    #if os(macOS)
                     let fileManager = FileManager.default
                     let fusetIsInstalled = fileManager.fileExists(atPath: "/usr/local/lib/libfuse-t.dylib")
                     let sshfsIsInstalled = fileManager.fileExists(atPath: "/usr/local/bin/sshfs")
@@ -265,19 +324,87 @@ struct ServerEditView: View {
                             installerView.toggle()
                         }
                     }
-                        Toggle("SFTP Path Mapping", isOn: $sftpBrowse)
-                            .disabled(!fusetIsInstalled || !sshfsIsInstalled)
-//                    if !qlvIsInstalled {
-//                        Text("Reccomended for media thumbnails for more file types")
-//                        Text("Quick Look Video: https://github.com/Marginal/QLVideo/releases")
-//                    }
+                    Toggle("SFTP Path Mapping", isOn: $sftpBrowse)
+                        .disabled(!fusetIsInstalled || !sshfsIsInstalled)
                     #else
                     Toggle("SFTP Path Mapping", isOn: $sftpBrowse)
-                        
-                    
-#endif
+                    #endif
                     
                     if sftpBrowse || sftpRpc {
+                        #if os(iOS)
+                        HStack {
+                            Text("SFTP Host")
+                            Spacer()
+                            TextField("Host address", text: $sftpHost)
+                                .multilineTextAlignment(.trailing)
+                                .autocapitalization(.none)
+                                .autocorrectionDisabled()
+                        }
+                        HStack {
+                            Text("SFTP Port")
+                            Spacer()
+                            TextField("Port number", text: $sftpPort)
+                                .multilineTextAlignment(.trailing)
+                                .keyboardType(.numberPad)
+                        }
+                        HStack {
+                            Text("Server Path")
+                            Spacer()
+                            TextField("Path on server", text: $pathServer)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        HStack {
+                            Text("Username")
+                            Spacer()
+                            TextField("SFTP username", text: $sftpUser)
+                                .multilineTextAlignment(.trailing)
+                                .autocapitalization(.none)
+                                .autocorrectionDisabled()
+                        }
+                        
+                        if sftpUsesKey {
+                            HStack {
+                                Text("SFTP Key")
+                                Spacer()
+                                Text(sftpKey.isEmpty ? "No key selected" : "Key selected")
+                                    .foregroundColor(.secondary)
+                                Button("Select") {
+                                    showingSFTPKeyImporter = true
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                            HStack {
+                                Text("Pass Phrase")
+                                Spacer()
+                                SecureField("Key pass phrase", text: $sftpPassword)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                        } else {
+                            HStack {
+                                Text("Password")
+                                Spacer()
+                                SecureField("SFTP password", text: $sftpPassword)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                        }
+                        
+                        HStack {
+                            Text("Max Connections")
+                            Spacer()
+                            TextField("Max connections", text: $thumbMax)
+                                .multilineTextAlignment(.trailing)
+                                .keyboardType(.numberPad)
+                        }
+                        if !ffThumb {
+                            //Text("Installing FFMpeg is required for video thumbnails on iOS").font(.caption)
+                            Button("Install FFMpeg") {
+                                installerView.toggle()
+                            }
+                        }
+                        Toggle(ffThumb ? "Server Side FFmpeg is installed" : "Installing FFMpeg is required for video thumbnails on iOS. You can Install FFMpeg above then toggle this option on", isOn: $ffThumb)
+                        
+                        
+                        #else
                         TextField("SFTP Host", text: $sftpHost)
                         TextField("SFTP Port", text: $sftpPort)
                         TextField("Server Path", text: $pathServer)
@@ -296,19 +423,10 @@ struct ServerEditView: View {
                             SecureField("Password", text: $sftpPassword)
                         }
                         //Text("Torrent creation depends on Transmission-create").font(.caption)
-#if os(iOS)
-                        TextField("Max Connections for Thumbs", text: $thumbMax)
-                        Text("Installing FFMpeg is required for video thumnails on iOS").font(.caption)
-                        Button("Install FFMpeg"){
-                            installerView.toggle()
-                        }
-                        //Toggle("Client streams with Python", isOn: $hasPython)
-                        Toggle("Server Side FFmpeg is installed", isOn: $ffThumb)
-                       
-#endif
+                        #endif
                     }
-                   
                 }
+                
                 #if os(macOS)
                 if sftpBrowse == false {
                     Divider()
@@ -332,11 +450,10 @@ struct ServerEditView: View {
                     case .success(let url):
                         handleSSHKey(keyFileURL: url)
                     case .failure(let error):
-                        print("File selection error: $error)")
+                        print("File selection error: \(error)")
                     }
                 }
             )
-            Spacer()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -359,24 +476,18 @@ struct ServerEditView: View {
                     }
                 }
             }
-        }.navigationBarBackButtonHidden(true)
-       
-            .sheet(isPresented: $installerView){
-//#if os(macOS)
-//                InstallerView()
-//                    .frame(width: 500, height: 500)
-//                #else
-                #if os(iOS)
-                if server != nil {
-                    DependencyInstallerView(server: server!)
-                } else {
-                    Text("Please Save this server first.")
-                }
-#endif
+        }
+        .navigationBarBackButtonHidden(true)
+        .sheet(isPresented: $installerView) {
+            #if os(iOS)
+            if server != nil {
+                DependencyInstallerView(server: server!)
+            } else {
+                Text("Please Save this server first.")
             }
-     
+            #endif
+        }
     }
-    
     
     // MARK: - SSH Key Handling
     private func handleSSHKey(keyFileURL: URL) {
@@ -384,7 +495,7 @@ struct ServerEditView: View {
             let keyContent = try String(contentsOf: keyFileURL)
             
             // Generate a unique name for the key
-            let keyName = "throttle_$sftpHost)_$sftpUser)".replacingOccurrences(of: ".", with: "_")
+            let keyName = "throttle_\(sftpHost)_\(sftpUser)".replacingOccurrences(of: ".", with: "_")
             
             // Set up paths for both platforms
             #if os(macOS)
@@ -415,204 +526,207 @@ struct ServerEditView: View {
             #endif
             
         } catch {
-            print("Failed to process SSH key: $error)")
-        }
-    }
-#if os(macOS)
-private func updateSSHConfig(keyPath: String) {
-    let sshDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
-    let sshConfigPath = sshDir.appendingPathComponent("config").path
-    
-    var configContent = """
-    Host $sftpHost)
-        HostName $sftpHost)
-        User $sftpUser)
-        Port $sftpPort)
-        IdentityFile $keyPath)
-        IdentitiesOnly yes
-    
-    """
-    
-    if FileManager.default.fileExists(atPath: sshConfigPath) {
-        if let existing = try? String(contentsOfFile: sshConfigPath) {
-            let lines = existing.components(separatedBy: .newlines)
-            var newConfig = [String]()
-            var skip = false
-            
-            for line in lines {
-                if line.starts(with: "Host $sftpHost)") {
-                    skip = true
-                    continue
-                }
-                if skip && line.starts(with: "Host ") {
-                    skip = false
-                }
-                if !skip {
-                    newConfig.append(line)
-                }
-            }
-            
-            configContent = newConfig.joined(separator: "\n") + "\n" + configContent
+            print("Failed to process SSH key: \(error)")
         }
     }
     
-    try? configContent.write(toFile: sshConfigPath, atomically: true, encoding: .utf8)
-    try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: sshConfigPath)
-}
-#endif
-
-func saveServer() {
-    withAnimation {
-        // Update default status if needed
-        if isDefault {
-            for server in allServers where server.isDefault {
-                server.isDefault = false
+    #if os(macOS)
+    private func updateSSHConfig(keyPath: String) {
+        let sshDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
+        let sshConfigPath = sshDir.appendingPathComponent("config").path
+        
+        var configContent = """
+        Host \(sftpHost)
+            HostName \(sftpHost)
+            User \(sftpUser)
+            Port \(sftpPort)
+            IdentityFile \(keyPath)
+            IdentitiesOnly yes
+        
+        """
+        
+        if FileManager.default.fileExists(atPath: sshConfigPath) {
+            if let existing = try? String(contentsOfFile: sshConfigPath) {
+                let lines = existing.components(separatedBy: .newlines)
+                var newConfig = [String]()
+                var skip = false
+                
+                for line in lines {
+                    if line.starts(with: "Host \(sftpHost)") {
+                        skip = true
+                        continue
+                    }
+                    if skip && line.starts(with: "Host ") {
+                        skip = false
+                    }
+                    if !skip {
+                        newConfig.append(line)
+                    }
+                }
+                
+                configContent = newConfig.joined(separator: "\n") + "\n" + configContent
             }
         }
-        // Make sure we have at least one default server
-        if !allServers.contains(where: { $0.isDefault }) {
-            isDefault = true
-        }
-        // remove trailing slash
-        if pathServer.hasSuffix("/") {
-            pathServer.removeLast()
-        }
-        if pathFilesystem.hasSuffix("/") {
-            pathFilesystem.removeLast()
-        }
         
-        if !pathFilesystem.hasPrefix("/") {
-            pathFilesystem = "/" + pathFilesystem
-        }
-        //ensure starting slash
-        if !isWindowsFilePath(pathServer) {
-            if !pathServer.hasPrefix("/") {
-                pathServer = "/" + pathServer
+        try? configContent.write(toFile: sshConfigPath, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: sshConfigPath)
+    }
+    #endif
+    
+    func isWindowsFilePath(_ path: String) -> Bool {
+        return path.contains(":") || path.contains("\\")
+    }
+    
+    func saveServer() {
+        withAnimation {
+            // Update default status if needed
+            if isDefault {
+                for server in allServers where server.isDefault {
+                    server.isDefault = false
+                }
             }
-        }
-        
-        if let existingServer = server {
-            // Update existing server
-            existingServer.name = name
-            existingServer.url = url
-            existingServer.port = Int32(Int(port) ?? 443)
-            existingServer.rpc = rpc
-            existingServer.user = user
-            existingServer.isDefault = isDefault
-            existingServer.sftpBrowse = sftpBrowse
-            existingServer.sftpRpc = sftpRpc
-            existingServer.sftpHost = sftpHost
-            existingServer.sftpPort = Int32(Int(sftpPort) ?? 22)
-            existingServer.sftpUser = sftpUser
-            existingServer.pathServer = pathServer
-            existingServer.pathFilesystem = pathFilesystem
-            existingServer.fsPath = fsPath
-            existingServer.fsThumb = fsThumb
-            existingServer.ffThumb = ffThumb
-            existingServer.fsBrowse = fsBrowse
-            existingServer.sftpUsesKey = sftpUsesKey
-            existingServer.protoHttps = protHttps
-            existingServer.thumbMax = Int32(thumbMax) ?? 9
-            existingServer.hasPython = hasPython
-            saveToKeychain()
-            store.selection = nil
-            store.selection = existingServer
+            // Make sure we have at least one default server
+            if !allServers.contains(where: { $0.isDefault }) {
+                isDefault = true
+            }
+            // remove trailing slash
+            if pathServer.hasSuffix("/") {
+                pathServer.removeLast()
+            }
+            if pathFilesystem.hasSuffix("/") {
+                pathFilesystem.removeLast()
+            }
             
-            onSave?(existingServer)
+            if !pathFilesystem.hasPrefix("/") {
+                pathFilesystem = "/" + pathFilesystem
+            }
+            //ensure starting slash
+            if !isWindowsFilePath(pathServer) {
+                if !pathServer.hasPrefix("/") {
+                    pathServer = "/" + pathServer
+                }
+            }
+            
+            if let existingServer = server {
+                // Update existing server
+                existingServer.name = name
+                existingServer.url = url
+                existingServer.port = Int32(Int(port) ?? 443)
+                existingServer.rpc = rpc
+                existingServer.user = user
+                existingServer.isDefault = isDefault
+                existingServer.sftpBrowse = sftpBrowse
+                existingServer.sftpRpc = sftpRpc
+                existingServer.sftpHost = sftpHost
+                existingServer.sftpPort = Int32(Int(sftpPort) ?? 22)
+                existingServer.sftpUser = sftpUser
+                existingServer.pathServer = pathServer
+                existingServer.pathFilesystem = pathFilesystem
+                existingServer.fsPath = fsPath
+                existingServer.fsThumb = fsThumb
+                existingServer.ffThumb = ffThumb
+                existingServer.fsBrowse = fsBrowse
+                existingServer.sftpUsesKey = sftpUsesKey
+                existingServer.protoHttps = protHttps
+                existingServer.thumbMax = Int32(thumbMax) ?? 9
+                existingServer.hasPython = hasPython
+                saveToKeychain()
+                store.selection = nil
+                store.selection = existingServer
+                
+                onSave?(existingServer)
+            } else {
+                // Create new server
+                let newServer = ServerEntity(context: viewContext)
+                newServer.id = UUID()
+                newServer.name = name
+                newServer.isDefault = isDefault
+                newServer.url = url
+                newServer.port = Int32(Int(port) ?? 443)
+                newServer.rpc = rpc
+                newServer.user = user
+                newServer.sftpRpc = sftpRpc
+                newServer.sftpBrowse = sftpBrowse
+                newServer.protoHttps = protHttps
+                newServer.sftpHost = sftpHost
+                newServer.sftpPort = Int32(Int(sftpPort) ?? 22)
+                newServer.sftpUser = sftpUser
+                newServer.pathServer = pathServer
+                newServer.pathFilesystem = pathFilesystem
+                newServer.fsPath = fsPath
+                newServer.fsThumb = fsThumb
+                newServer.ffThumb = ffThumb
+                newServer.fsBrowse = fsBrowse
+                newServer.sftpUsesKey = sftpUsesKey
+                newServer.thumbMax = Int32(thumbMax) ?? 9
+                newServer.hasPython = hasPython
+                
+                saveToKeychain()
+                store.selection = nil
+                store.selection = newServer
+                onSave?(newServer)
+            }
+            
+            // Save context
+            do {
+                try viewContext.save()
+                print("Server saved successfully")
+            } catch {
+                print("Failed to save server: \(error)")
+            }
+            
+            DispatchQueue.main.async {
+                dismiss()
+            }
+        }
+    }
+    
+    func saveToKeychain() {
+        keychain["password" + name] = password
+        
+        if sftpUsesKey {
+            if !sftpPassword.isEmpty {
+                #if os(macOS)
+                let sshKeychain = Keychain(service: "com.apple.ssh.passphrases")
+                try? sshKeychain.set(sftpPassword, key: sftpKey)
+                #else
+                let keyName = URL(fileURLWithPath: sftpKey).lastPathComponent
+                try? keychain.set(sftpPassword, key: "passphrase-\(keyName)")
+                #endif
+            }
         } else {
-            // Create new server
-            let newServer = ServerEntity(context: viewContext)
-            newServer.id = UUID()
-            newServer.name = name
-            newServer.isDefault = isDefault
-            newServer.url = url
-            newServer.port = Int32(Int(port) ?? 443)
-            newServer.rpc = rpc
-            newServer.user = user
-            newServer.sftpRpc = sftpRpc
-            newServer.sftpBrowse = sftpBrowse
-            newServer.protoHttps = protHttps
-            newServer.sftpHost = sftpHost
-            newServer.sftpPort = Int32(Int(sftpPort) ?? 22)
-            newServer.sftpUser = sftpUser
-            newServer.pathServer = pathServer
-            newServer.pathFilesystem = pathFilesystem
-            newServer.fsPath = fsPath
-            newServer.fsThumb = fsThumb
-            newServer.ffThumb = ffThumb
-            newServer.fsBrowse = fsBrowse
-            newServer.sftpUsesKey = sftpUsesKey
-            newServer.thumbMax = Int32(thumbMax) ?? 9
-            newServer.hasPython = hasPython
-            
-            saveToKeychain()
-            store.selection = nil
-            store.selection = newServer
-            onSave?(newServer)
-        }
-        
-        // Save context
-        do {
-            try viewContext.save()
-            print("Server saved successfully")
-        } catch {
-            print("Failed to save server: $error)")
-        }
-        
-        DispatchQueue.main.async {
-            dismiss()
+            keychain["sftpPassword" + name] = sftpPassword
         }
     }
-}
-
-func saveToKeychain() {
-    keychain["password" + name] = password
     
-    if sftpUsesKey {
-        if !sftpPassword.isEmpty {
-            #if os(macOS)
-            let sshKeychain = Keychain(service: "com.apple.ssh.passphrases")
-            try? sshKeychain.set(sftpPassword, key: sftpKey)
-            #else
-            let keyName = URL(fileURLWithPath: sftpKey).lastPathComponent
-            try? keychain.set(sftpPassword, key: "passphrase-$keyName)")
-            #endif
-        }
-    } else {
-        keychain["sftpPassword" + name] = sftpPassword
-    }
-}
-
-private func deleteServer(_ server: ServerEntity) {
-    withAnimation {
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-            .synchronizable(true)
-        keychain["password" + (server.name ?? "")] = nil
-        keychain["httpPassword" + (server.name ?? "")] = nil
-        keychain["sftpPassword" + (server.name ?? "")] = nil
-        
-        // Clean up SSH key if it exists
-        if let keyPath = server.sshKeyFullPath,
-           FileManager.default.fileExists(atPath: keyPath) {
-            try? FileManager.default.removeItem(atPath: keyPath)
-        }
-        
-        viewContext.delete(server)
-        do {
-            try viewContext.save()
-            print("Server deleted successfully")
-        } catch {
-            print("Failed to delete server: $error)")
-        }
-        
-        //if store.selection == server {
+    private func deleteServer(_ server: ServerEntity) {
+        withAnimation {
+            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+                .synchronizable(true)
+            keychain["password" + (server.name ?? "")] = nil
+            keychain["httpPassword" + (server.name ?? "")] = nil
+            keychain["sftpPassword" + (server.name ?? "")] = nil
+            
+            // Clean up SSH key if it exists
+            if let keyPath = server.sshKeyFullPath,
+               FileManager.default.fileExists(atPath: keyPath) {
+                try? FileManager.default.removeItem(atPath: keyPath)
+            }
+            
+            viewContext.delete(server)
+            do {
+                try viewContext.save()
+                print("Server deleted successfully")
+            } catch {
+                print("Failed to delete server: \(error)")
+            }
+            
             store.selection = nil
-        store.selection = server
-        //}
-        DispatchQueue.main.async {
-            dismiss()
+            store.selection = server
+            
+            DispatchQueue.main.async {
+                dismiss()
+            }
         }
     }
 }
-}
-

@@ -82,7 +82,7 @@ struct iOSContentView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
                             Button {
-                                isCreating = true
+                                presenting.isCreating = true
                             } label: {
                                 Label("Create Torrent", systemImage: "document.badge.plus")
                             }
@@ -135,6 +135,7 @@ struct iOSContentView: View {
                 }
                 .navigationViewStyle(DoubleColumnNavigationViewStyle())
                 
+                
             } else {
                 // iPhone uses NavigationStack if available, otherwise NavigationView
                 if #available(iOS 16, *) {
@@ -160,7 +161,7 @@ struct iOSContentView: View {
 //            }
         }
         .navigationBarBackButtonHidden(true)
-        .sheet( isPresented: $isCreating) {
+        .sheet( isPresented: $presenting.isCreating) {
             //NavigationStack{
             CreateTorrent(store: store, presenting: presenting)
         //}

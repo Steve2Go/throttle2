@@ -12,6 +12,14 @@ struct iOSSidebarSettings: View {
     @ObservedObject var presenting: Presenting
     
     var body: some View {
+        
+        Section("Create"){
+            Button {
+                presenting.isCreating = true
+            } label: {
+                Label("Create Torrent", systemImage: "document.badge.plus")
+            }
+        }
     
             Section("Settings"){
                 Button("Manage Servers", systemImage: "externaldrive"){

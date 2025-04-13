@@ -39,14 +39,34 @@ struct ServerRow: View {
     @ObservedObject var store: Store
     
     var body: some View {
-        NavigationLink(value: server) {
-            HStack {
-                Image(systemName: "externaldrive")
-                    .padding(.leading, 6)
-                Text(server.isDefault ? "\(server.name ?? "") *" : server.name ?? "")
-                    .padding(.leading, 0)
-            }
-        }
+        
+        Button() {
+            store.selection = server
+        } label:{
+                    
+                        
+                        if server == store.selection {
+                            Image(systemName: "externaldrive.badge.checkmark").foregroundColor(.blue)
+                                .padding(.leading, 6)
+                                .foregroundStyle(.primary)
+                        } else {
+                            Image(systemName: "externaldrive").foregroundColor(.blue)
+                                .padding(.leading, 6)
+                                .foregroundStyle(.primary)
+                        }
+                        Text(server.isDefault ? "\(server.name ?? "") *" : server.name ?? "")
+                            .padding(.leading, 0)
+                            .foregroundColor(.primary)
+                    
+        }.buttonStyle(.borderless)
+//        NavigationLink(value: server) {
+//            HStack {
+//                Image(systemName: "externaldrive")
+//                    .padding(.leading, 6)
+//                Text(server.isDefault ? "\(server.name ?? "") *" : server.name ?? "")
+//                    .padding(.leading, 0)
+//            }
+//        }
 //        .onAppear {
 //            if presenting.didStart && server.isDefault {
 //                store.selection = server

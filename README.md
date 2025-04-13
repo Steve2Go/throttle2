@@ -18,7 +18,7 @@
 
 ## iOS
 - Built in File Browser using SFTP
-- Split Screen control - Try screen mirroring to see how it works.
+- Split Screen control when mirroring. Image & video controls remain on device.
 - Server side thumbnails for media (Requires FFMpeg on your server), falls back to client side using VlcKit
 - Video playback and Image slideshows (On external display)
 

@@ -14,6 +14,7 @@ import KeychainAccess
 class Presenting: ObservableObject {
     @Published var didStart: Bool = true
     @Published var activeSheet: String?
+    @Published var isCreating: Bool = false
 }
 
 class TorrentFilters: NSObject, ObservableObject {
