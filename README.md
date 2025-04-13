@@ -26,9 +26,7 @@
 - Server Stats & Controls
 - Local Daemon (mac)
 - Better messaging on server actions (Success, fail etc)
-- Streaming files via HTTP over SSH for ios versions (Better streaming capabilities, avplayer support)
-- Keyfile support for ssh key file authentication (More feasible once file streaming is implimented due to use of VlcKit)
-- Reduction of dependecies
+- Keyfile support for ssh key file authentication (Part implimented)
 
 Based on lessons learned from Mission for Mac & Throttle 1 (a fork of mission)
 
