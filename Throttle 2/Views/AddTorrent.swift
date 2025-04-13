@@ -137,7 +137,7 @@ struct AddTorrentView: View {
                             Text(server.name ?? "Unknown").tag(server as ServerEntity?)
                         }
                     }
-                    .onChange(of: manager.sessionId) { _ in
+                    .onChange(of: manager.sessionId) { 
                         Task {
                             await updateDownloadDirectory()
                         }

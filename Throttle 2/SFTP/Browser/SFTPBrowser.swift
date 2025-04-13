@@ -4,6 +4,7 @@ import Combine
 import Citadel
 import KeychainAccess
 import AVKit
+import SimpleToast
 
 // MARK: - FileBrowserView
 struct SFTPFileBrowserView: View {
@@ -36,6 +37,11 @@ struct SFTPFileBrowserView: View {
     //vlc playback
     @AppStorage("pendingVideoFiles") private var pendingVideoFiles: Data = Data()
     private var nextVideoTimer: Timer?
+    
+    private let toastOptions = SimpleToastOptions(
+            hideAfter: 5
+        )
+    
     
     private var uploadManager: SFTPUploadManager {
             SFTPUploadManager(uploadHandler: viewModel)
@@ -178,6 +184,14 @@ struct SFTPFileBrowserView: View {
                         SFTPUploadView(uploadManager: uploadManager)
                     .presentationDetents([.medium])
                     }
+            .simpleToast(isPresented: $viewModel.showToast, options: toastOptions) {
+                Label(viewModel.toastMessage, systemImage: "info.square")
+                .padding()
+                .background(Color.blue.opacity(0.8))
+                .foregroundColor(Color.white)
+                .cornerRadius(10)
+                .padding(.top)
+            }
             
             .fullScreenCover(isPresented: Binding(
                 get: { viewModel.showingNextVideoAlert },
@@ -249,6 +263,7 @@ struct SFTPFileBrowserView: View {
                 Button("Rename") {
                     let trimmed = newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty, let item = itemToRename else { return }
+                    viewModel.requestSent()
                     viewModel.renameItem(item, to: trimmed)
                     showRenamePrompt = false
                     itemToRename = nil
@@ -275,9 +290,10 @@ struct SFTPFileBrowserView: View {
             // Delete Confirmation
             .alert("Delete Item", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
+                    
                     showDeleteConfirmation = false
                     itemToDelete = nil
-                    
+                    viewModel.requestSent()
                 }
                 Button("Delete", role: .destructive) {
                     if let item = itemToDelete {
@@ -310,11 +326,11 @@ struct SFTPFileBrowserView: View {
             // Image browser sheet
             .fullScreenCover(isPresented: $viewModel.showingImageBrowser) {
                 if let selectedIndex = viewModel.selectedImageIndex {
-                    ImageBrowserView(
+                    ImageBrowserViewWrapper(
                         imageUrls: viewModel.imageUrls,
                         initialIndex: selectedIndex,
                         sftpConnection: viewModel
-                    )
+                    ).ignoresSafeArea()
                 }
             }
             // File action sheet
@@ -605,7 +621,8 @@ struct SFTPFileBrowserView: View {
                         viewModel.cancelDownload()
                     }
                     .padding()
-                    .background(Color.red.opacity(0.8))
+                    .background(Color.red)
+                    .foregroundColor(.white)
                     .cornerRadius(8)
                 }
                 .frame(maxWidth: 300)

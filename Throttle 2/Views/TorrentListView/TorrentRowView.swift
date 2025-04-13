@@ -22,6 +22,8 @@ struct TorrentRowView: View {
     @AppStorage("showThumbs") var showThumbs: Bool = false
     var selecting: Bool
     @Binding var selected: [Int]
+    @Binding var showToast: Bool
+    @Binding var toastMessage: String
     @AppStorage("primaryFile") var primaryFiles: Bool = false
     #if os(iOS)
     var isiPad: Bool {
@@ -215,14 +217,19 @@ struct TorrentRowView: View {
             }
             Button {
                 Task {
+                    toastMessage = "Verify Requested"
+                    showToast = true
                     try await manager.verifyTorrents(ids: [torrent.id])
                 }
             } label: {
                 Label("Verify", systemImage: "externaldrive.badge.questionmark")
+                
             }
             if torrent.status == 0 {
                 Button {
                     Task {
+                        toastMessage = "Start Requested"
+                        showToast = true
                         try await manager.startTorrents(ids: [torrent.id])
                     }
                 } label: {
@@ -231,6 +238,8 @@ struct TorrentRowView: View {
             }else {
                 Button {
                     Task {
+                        toastMessage = "Stop Requested"
+                        showToast = true
                         try await manager.stopTorrents(ids: [torrent.id])
                     }
                 } label: {
@@ -302,7 +311,7 @@ struct TorrentRowView: View {
     func get_media_path(file: TorrentFile, torrent: Torrent,  server: ServerEntity) -> String {
         let name = file.name
         if let path = torrent.dynamicFields["downloadDir"] {
-            let baseDir = server.pathServer!
+            //let baseDir = server.pathServer!
             let returnvalue = "\(path.value)/\(name)".replacingOccurrences(of: "//", with: "/")
             //print("returning path: " + returnvalue)
             return returnvalue

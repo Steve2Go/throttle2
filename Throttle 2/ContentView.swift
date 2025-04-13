@@ -239,6 +239,13 @@ struct ContentView: View {
             if url.isFileURL {
                 store.selectedFile = url
                 store.selectedFile!.startAccessingSecurityScopedResource()
+                #if os(iOS)
+                if manager.fetchTimer?.isValid == true {
+                    presenting.activeSheet = "adding"
+                }
+                #else
+                presenting.activeSheet = "adding"
+                #endif
 //                Task {
 //                    try await Task.sleep(for: .milliseconds(500))
 //                    presenting.activeSheet = "adding"
@@ -326,7 +333,7 @@ func setIpadSplitViewVisibility() {
         
         // 3. Optional: Check if directory has content (additional validation)
         let hasContent = exists && isDirectory.pointee.boolValue &&
-                       ((try? fileManager.contentsOfDirectory(atPath: mountPath).isEmpty) == false) ?? false
+                       ((try? fileManager.contentsOfDirectory(atPath: mountPath).isEmpty) == false) //?? false
         
         return exists && isDirectory.pointee.boolValue
         // Or use the stricter check: return hasContent

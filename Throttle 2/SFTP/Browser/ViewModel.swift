@@ -9,6 +9,7 @@ import SwiftUI
 import mft
 import KeychainAccess
 import Citadel
+import SimpleToast
 
 // MARK: - ViewModel
 class SFTPFileBrowserViewModel: ObservableObject {
@@ -54,9 +55,17 @@ class SFTPFileBrowserViewModel: ObservableObject {
     weak var delegate: SFTPFileBrowserViewModelDelegate?
     @Published var videoPlayerConfiguration: VideoPlayerConfiguration?
     @Published var showingVideoPlayer = false
+    @Published var showToast = false
+    @Published var toastMessage = ""
+    
     
     protocol SFTPFileBrowserViewModelDelegate: AnyObject {
         func viewModel(_ viewModel: SFTPFileBrowserViewModel, didRequestVideoPlayback configuration: VideoPlayerConfiguration)
+    }
+    
+    func requestSent() {
+        toastMessage = "Request Sent"
+        showToast = true
     }
     
     // Delete a file or directory
@@ -74,7 +83,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
                     DispatchQueue.main.async {
                         self.isLoading = false
                         self.fetchItems() // Refresh the directory after deletion
-                        
+                        self.toastMessage = "Deleted"
+                        self.showToast = true
                     }
                 } catch {
                     DispatchQueue.main.async {
@@ -161,6 +171,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
                     DispatchQueue.main.async {
                         self.isLoading = false
                         self.fetchItems() // Refresh the directory after renaming
+                        self.toastMessage = "Renamed"
+                        self.showToast = true
                     }
                 } catch {
                     DispatchQueue.main.async {
@@ -228,6 +240,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
             } catch {
                 DispatchQueue.main.async {
                     self.isLoading = false
+                    self.toastMessage = "Failed to connect to SFTP server: \(error)"
+                    self.showToast = true
                     print("SFTP Connection Error: \(error)")
                 }
             }
@@ -246,6 +260,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
                 }
             } catch {
                 DispatchQueue.main.async {
+                    self.toastMessage = "Failed to create folder: \(error)"
+                    self.showToast = true
                     print("❌ Failed to create folder: \(error)")
                 }
             }
@@ -332,6 +348,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
             } catch {
                 DispatchQueue.main.async {
                     self.isLoading = false
+                    self.toastMessage = "SFTP Directory Listing Error: \(error)"
+                    self.showToast = true
                     print("SFTP Directory Listing Error: \(error)")
                 }
             }
@@ -401,7 +419,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
                 } else {
                     // It's a file, set up the pseudo-folder with just this file
                     let filename = URL(fileURLWithPath: self.initialPath).lastPathComponent
-                    let parentPath = URL(fileURLWithPath: self.initialPath).deletingLastPathComponent().path
+                    //let parentPath = URL(fileURLWithPath: self.initialPath).deletingLastPathComponent().path
                     
                     // Get file size and date if possible
                     
@@ -425,16 +443,17 @@ class SFTPFileBrowserViewModel: ObservableObject {
                         self.updateImageUrls()
                     }
                 }
-            } catch {
-                // If we can't get attributes, try the parent directory
-                let parentPath = URL(fileURLWithPath: self.initialPath).deletingLastPathComponent().path
-                
-                DispatchQueue.main.async {
-                    self.currentPath = parentPath
-                    self.fetchItems()
-                    print("Could not determine if path is file, defaulting to parent directory: \(error)")
-                }
             }
+//            catch {
+//                // If we can't get attributes, try the parent directory
+//                let parentPath = URL(fileURLWithPath: self.initialPath).deletingLastPathComponent().path
+//                
+//                DispatchQueue.main.async {
+//                    self.currentPath = parentPath
+//                    self.fetchItems()
+//                    print("Could not determine if path is file, defaulting to parent directory: \(error)")
+//                }
+//            }
         }
     }
     
@@ -556,6 +575,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
             let path = item.url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
             print("Found Video \(path)")
             let vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
+            
             
             // Create and set the configuration
             self.videoPlayerConfiguration = VideoPlayerConfiguration(singleItem: vlcUrl)

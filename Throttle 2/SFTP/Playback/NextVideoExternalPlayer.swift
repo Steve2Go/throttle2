@@ -6,7 +6,7 @@
 //
 #if os(iOS)
 import SwiftUI
-
+// used when we were using VLC itself, an artificial "Playlist" of sorts.
 struct NextVideo: View {
     @StateObject var viewModel: SFTPFileBrowserViewModel
     var body: some View {

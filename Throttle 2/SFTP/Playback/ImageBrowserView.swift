@@ -152,7 +152,7 @@ struct WebViewImageViewer: View {
                 print("Downloading image from: \(url.path)")
                 
                 // Create a memory buffer to hold the image data
-                let imageBuffer = NSMutableData()
+                //let imageBuffer = NSMutableData()
                 
                 // Create a custom output stream that writes to our buffer
                 let outputStream = OutputStream(toMemory: ())

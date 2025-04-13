@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreData
+import SimpleToast
 #if os(iOS)
 import UIKit
 #endif
@@ -41,6 +42,11 @@ struct TorrentListView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showDetailSheet = false
     
+    @State var showToast = false
+    @State var toastMessage = ""
+    private let toastOptions = SimpleToastOptions(
+            hideAfter: 5
+        )
     
     #if os(iOS)
     var isiPad: Bool {
@@ -127,7 +133,9 @@ struct TorrentListView: View {
                             mutateTorrent?.rename()
                         },
                         selecting : selecting,
-                        selected : $selected
+                        selected : $selected,
+                        showToast: $showToast,
+                        toastMessage: $toastMessage
                     )
                     
                     
@@ -142,13 +150,41 @@ struct TorrentListView: View {
                 manager: manager
             )
         }
+        .onChange(of: showDeleteSheet){
+            if !showDeleteSheet {
+                self.toastMessage = "Deleted request sent"
+                self.showToast = true
+            }
+        }
+        .onChange(of: showMoveSheet){
+            if !showDeleteSheet {
+                self.toastMessage = "Move request sent"
+                self.showToast = true
+            }
+        }
+        .simpleToast(isPresented: $showToast, options: toastOptions) {
+            Label(toastMessage, systemImage: "info.square")
+            .padding()
+            .background(Color.blue.opacity(0.8))
+            .foregroundColor(Color.white)
+            .cornerRadius(10)
+            .padding(.top)
+        }
         .onChange(of: sortOption) {
+            toastMessage = "Sorted by: \(sortOption)"
+            showToast = true
             print("Sort option changed to: \(sortOption)")
+        }
+        .onChange(of: filterOption){
+            toastMessage = "Showing: \(filterOption)"
+            showToast = true
         }
         .refreshable {
             Task {
                 manager.reset()
                 manager.isLoading.toggle()
+//                toastMessage = "Refresh Started"
+//                showToast.toggle()
             }
         }
         
@@ -181,24 +217,32 @@ struct TorrentListView: View {
                                 Button("Start Selected", systemImage: "play") {
                                     Task{
                                         try await manager.startTorrents(ids: selected)
+                                        self.toastMessage = "Start Request Sent"
+                                        self.showToast = true
                                     }
                                     selecting.toggle()
                                 }
                                 Button("Stop Selected", systemImage: "stop") {
                                     Task{
                                         try await manager.stopTorrents(ids: selected)
+                                        self.toastMessage = "Stop Request Sent"
+                                        self.showToast = true
                                     }
                                     selecting.toggle()
                                 }
                                 Button("Verify Selected", systemImage: "externaldrive.badge.questionmark") {
                                     Task{
                                         try await manager.verifyTorrents(ids: selected)
+                                        self.toastMessage = "Verify Request Sent"
+                                        self.showToast = true
                                     }
                                     selecting.toggle()
                                 }
                                 Button("Announce Selected", systemImage: "megaphone") {
                                     Task{
                                         try await manager.reannounceTorrents(ids: selected)
+                                        self.toastMessage = "Announce Request Sent"
+                                        self.showToast = true
                                     }
                                     selecting.toggle()
                                 }

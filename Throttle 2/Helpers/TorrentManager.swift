@@ -254,7 +254,7 @@ class TorrentManager: ObservableObject {
     
     var baseURL: URL?
     var sessionId: String?
-    private var fetchTimer: Timer?
+     var fetchTimer: Timer?
     @AppStorage("refreshRate") var refreshRate = 6
     
     private let standardFields = [

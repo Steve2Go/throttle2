@@ -295,14 +295,16 @@ struct ServerEditView: View {
                         } else {
                             SecureField("Password", text: $sftpPassword)
                         }
+                        //Text("Torrent creation depends on Transmission-create").font(.caption)
 #if os(iOS)
                         TextField("Max Connections for Thumbs", text: $thumbMax)
-                        //Toggle("Client streams with Python", isOn: $hasPython)
-                        Toggle("Server Side Thumbnails with FFMpeg", isOn: $ffThumb)
-                        Text("Installing FFMpeg on the server gives faster, superior thumbnails.").font(.caption)
-                        Button("Check & Install FFMpeg"){
+                        Text("Installing FFMpeg is required for video thumnails on iOS").font(.caption)
+                        Button("Install FFMpeg"){
                             installerView.toggle()
                         }
+                        //Toggle("Client streams with Python", isOn: $hasPython)
+                        Toggle("Server Side FFmpeg is installed", isOn: $ffThumb)
+                       
 #endif
                     }
                    
@@ -360,12 +362,13 @@ struct ServerEditView: View {
         }.navigationBarBackButtonHidden(true)
        
             .sheet(isPresented: $installerView){
-#if os(macOS)
-                InstallerView()
-                    .frame(width: 500, height: 500)
-                #else
+//#if os(macOS)
+//                InstallerView()
+//                    .frame(width: 500, height: 500)
+//                #else
+                #if os(iOS)
                 if server != nil {
-                    FFmpegInstallerView(server: server!)
+                    DependencyInstallerView(server: server!)
                 } else {
                     Text("Please Save this server first.")
                 }

@@ -11,15 +11,16 @@
 - Easy intuitive managment
 - SFTP & Traditional (Usually Samba) File Managment
 - File Thumnails
-- Torrent Creation (Uses torrent-create, installed with transmission-cli from your servers package manager)
+- Torrent Creation (\*nix platform ignostic, server side)
 
 ## Mac
 - Automaticly Mount your remote drives over SFTP using SSHFS and Fuse-t for full file managment in finder
 
 ## iOS
 - Built in File Browser using SFTP
+- Split Screen control - Try screen mirroring to see how it works.
 - Server side thumbnails for media (Requires FFMpeg on your server), falls back to client side using VlcKit
-- Playback via VlcKit with a contuious play implimentation
+- Video playback and Image slideshows (On external display)
 
 ## To Come
 - Server Stats & Controls
@@ -27,31 +28,14 @@
 - Better messaging on server actions (Success, fail etc)
 - Streaming files via HTTP over SSH for ios versions (Better streaming capabilities, avplayer support)
 - Keyfile support for ssh key file authentication (More feasible once file streaming is implimented due to use of VlcKit)
-- Potential Removal of MFT Framework (In favour of Citadel)
+- Reduction of dependecies
 
 Based on lessons learned from Mission for Mac & Throttle 1 (a fork of mission)
 
-## Server Preparation
-
-### Setup for a mac server (In addition to transmission):
-Install Homebrew if not already installed:  
-`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
-`brew install transmission-cli`
-For server side Thumnails for the ios version of throttle (Reccomended)
-`brew install ffmpeg`
-Enable remote login (ssh): https://support.apple.com/lt-lt/guide/mac-help/mchlp1066/mac
-
-### Reccomended setup for a Debian or Ubuntu server (In addition to transmission):
-`sudo apt update`
-`sudo apt install transmission-cli'
-For server side Thumnails for the ios version of throttle (Reccomnded) on ubuntu or debian
-`apt install ffmpeg`
 
 ## Installation
 
 ### Mac
-On your server:
-- install transmission-cli if you want to create torrents.
 
 Download Throttle & add to your Applications folder.
 
@@ -65,8 +49,11 @@ https://github.com/Marginal/QLVideo/releases/latest
 ### iOS
 Use your sideloading method of choice - I've found https://sideloadly.io/ to work well.
 
-### Server Side Thumbnails on iOS
-Throttle has client side thumbnailing, but it's not as good as I'd like (Inprovements to come). 
-I'd reccomend installing FFmpeg on your server and enabling server side thumbnails in the Throttle server settings page.
+Throttle for iOS needs FFMpeg on the server to generate video thumbnails. 
 
-Enjoy!
+An installer is included in the iOS app to help you install this. The Mac version does not have this requirement.
+You can still use Throttle without ffmpeg, but video thumbnails will be generic play icons.
+
+*Note for windows users - due to the vast difference between windows and \*nix systems, I've made the assumption that Windows Subsystem for Linux is installed. You can install it with `wsl --install` from powershell. If anyone wants to help me test this / expand windows supprt, let me know.
+
+Enjoy! 

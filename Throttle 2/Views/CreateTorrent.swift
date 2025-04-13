@@ -1,4 +1,3 @@
-//#if os(macOS)
 import SwiftUI
 import KeychainAccess
 import CoreData
@@ -17,7 +16,7 @@ struct CreateTorrent: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     
-    // State variables remain the same
+    // State variables
     @State var filePath = ""
     @State var outputPath = ""
     @State var uploadPath = ""
@@ -32,6 +31,9 @@ struct CreateTorrent: View {
     @State var isDownloading = false
     @State var isError = false
     @AppStorage("createdOnce") var createdOnce = false
+    @State private var isPrivate = false
+    @State private var comment = ""
+    @State var progressPercentage: Double = 0.0
     
     var body: some View {
         NavigationStack {
@@ -68,20 +70,32 @@ struct CreateTorrent: View {
                                 Text(server.name ?? "Unknown").tag(server as ServerEntity?)
                             }
                         }
+                        
+                        Toggle("Private Torrent", isOn: $isPrivate)
+                        
+                        TextField("Comment (optional)", text: $comment)
+                            .textFieldStyle(.automatic)
                     }
                 }
                 
-                
                 if isProcessing {
-                    if !isCreated && !isError {
-                        ProgressView()
-                           
-                    }
+//                    if !isCreated && !isError {
+//                        ProgressView()
+//                    }
                     Section {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(commandOutput)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
+                            
+                            if isProcessing && !isCreated && !isError {
+                                Spacer().frame(height: 10)
+                                
+                                // Linear progress view
+                                ProgressView(value: progressPercentage)
+                                    .progressViewStyle(LinearProgressViewStyle())
+                                    .frame(height: 8)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     } header: {
@@ -149,7 +163,7 @@ struct CreateTorrent: View {
                         } label: {
                             Text("Build Torrent")
                         }
-                        .disabled(filePath.isEmpty || isProcessing)
+                        .disabled(filePath.isEmpty || isProcessing || tracker.isEmpty)
                     } else {
                         Button {
                             store.addPath = (filePath as NSString).deletingLastPathComponent
@@ -171,32 +185,44 @@ struct CreateTorrent: View {
             #endif
         }
     }
+    
     func openFile(path: String) {
-            store.addPath = (filePath as NSString).deletingLastPathComponent
-            if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
-               let filename = URL(string: path)?.lastPathComponent {
-                let fileURL = documentsURL.appendingPathComponent(filename)
-                
-                // First dismiss this view
-                dismiss()
-                
-                // Then trigger the URL handling after a short delay
-                Task {
-                    try await Task.sleep(for: .milliseconds(500))
-                    store.selectedFile = fileURL
-                    presenting.activeSheet = "adding"
-                }
+        store.addPath = (filePath as NSString).deletingLastPathComponent
+        if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+           let filename = URL(string: path)?.lastPathComponent {
+            let fileURL = documentsURL.appendingPathComponent(filename)
+            
+            // First dismiss this view
+            dismiss()
+            
+            // Then trigger the URL handling after a short delay
+            Task {
+                try await Task.sleep(for: .milliseconds(500))
+                store.selectedFile = fileURL
+                presenting.activeSheet = "adding"
             }
         }
+    }
+    
     func createTorrent() async throws {
         isProcessing = true
         isError = false
         commandOutput = "Connecting to server..."
         
+        // Get script from bundle
+        guard let scriptURL = Bundle.main.url(forResource: "torrent_creator", withExtension: "sh"),
+              let scriptContent = try? String(contentsOf: scriptURL) else {
+            isError = true
+            commandOutput += "\nError: Could not load torrent creator script from app bundle"
+            return
+        }
+        
         let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
         guard let username = store.selection?.sftpUser,
               let password = keychain["sftpPassword" + (store.selection?.name ?? "")],
               let hostname = store.selection?.sftpHost else {
+            isError = true
+            commandOutput += "\nError: Missing server credentials"
             return
         }
         
@@ -219,92 +245,418 @@ struct CreateTorrent: View {
         let escapedOutputFile = outputFile.replacingOccurrences(of: "'", with: "'\\''")
         let escapedPath = filePath.replacingOccurrences(of: "'", with: "'\\''")
         
-        // Build tracker arguments
-        let trackerArgs = tracker.components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .map { "-t '\($0)'" }
-            .joined(separator: " ")
-        
-        // Create torrent using transmission-create
-        let createCmd = """
-            transmission-create \
-            -o '\(escapedOutputFile)' \
-            \(trackerArgs) \
-            '\(escapedPath)'
-            """
-        
-        //commandOutput += "\nExecuting: \(createCmd)"
-        commandOutput += "\nStarting Creation"
-        
         let ssh = SSHConnection(host: hostname,
                               port: Int(store.selection!.sftpPort),
                               username: username,
                               password: password)
         try await ssh.connect()
-        defer { try? ssh.disconnect() }
+        defer { ssh.disconnect() }
         
-        let (status, output) = try await ssh.executeCommand(createCmd)
-        commandOutput += "\n\(output)"
+        // Set initial progress
+        await MainActor.run {
+            progressPercentage = 0.05 // Start with a small initial progress
+        }
         
-        // If we see "pieces" in the output, consider it successful
-        if output.contains("pieces") || output.contains("Piece") {
-            commandOutput += "\nTorrent created successfully!"
-            isCreated = true
-            outputPath = outputFile
+        // Upload the shell script to the server
+        let scriptPath = "/tmp/torrent_creator.sh"
+        
+        // Write the script to the server
+        commandOutput += "\nPreparing the server..."
+        
+        await MainActor.run {
+            progressPercentage = 0.1 // Script upload starting
+        }
+        
+        // Use cat and shell redirection to create the file
+        let createScriptCmd = "cat > '\(scriptPath)' << 'EOFSCRIPT'\n\(scriptContent)\nEOFSCRIPT"
+        let (_, _) = try await ssh.executeCommand(createScriptCmd)
+        
+        await MainActor.run {
+            progressPercentage = 0.15 // Script uploaded
+        }
+        
+        // Make the script executable
+        let (_, _) = try await ssh.executeCommand("chmod +x '\(scriptPath)'")
+        
+        await MainActor.run {
+            progressPercentage = 0.2 // Script ready
+        }
+        
+        // Build tracker arguments
+        let trackersList = tracker.components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        
+        guard let mainTracker = trackersList.first else {
+            isError = true
+            commandOutput += "\nError: At least one tracker URL is required"
+            return
+        }
+        
+        // Build the shell script command
+        var shellCmd = [scriptPath]
+        
+        // Add options
+        if isPrivate {
+            shellCmd.append("-p")
+        }
+        
+        if !comment.isEmpty {
+            shellCmd.append("-c")
+            shellCmd.append("'\(comment.replacingOccurrences(of: "'", with: "'\\''"))'")
+        }
+        
+        // Add output file
+        shellCmd.append("-o")
+        shellCmd.append("'\(escapedOutputFile)'")
+        
+        // Add source path and tracker
+        shellCmd.append("'\(escapedPath)'")
+        shellCmd.append("'\(mainTracker)'")
+        
+        // Add additional trackers if any
+        for additionalTracker in trackersList.dropFirst() {
+            shellCmd.append("-t")
+            shellCmd.append("'\(additionalTracker.replacingOccurrences(of: "'", with: "'\\''"))'")
+        }
+        
+        // Create a unique ID for this job
+        let jobId = UUID().uuidString.prefix(8)
+        let logFile = "/tmp/torrent_creation_\(jobId).log"
+        
+        // Run in background with output redirected to log file
+        let backgroundCmd = """
+        nohup bash -c "\(shellCmd.joined(separator: " "))" > \(logFile) 2>&1 &
+        echo $! > /tmp/torrent_pid_\(jobId)
+        """
+        
+        commandOutput += "\nStarting torrent creation in background..."
+        
+        await MainActor.run {
+            progressPercentage = 0.25 // Starting torrent creation
+        }
+        
+        // Execute the background command - this should return quickly
+        let (_, bgOutput) = try await ssh.executeCommand(backgroundCmd)
+        
+        // Start monitoring for the output file
+        commandOutput += "\nMonitoring for torrent file creation..."
+        
+        // Add a status line that we'll update
+        commandOutput += "\nProgress: Initializing..."
+        
+        var fileExists = false
+        var attempts = 0
+        let maxAttempts = 120 // 10 minutes at 5-second intervals
+        var lastLogSize = 0
+        var currentProgressLine = "Progress: Initializing..."
+        var lastProgressLineIndex = commandOutput.components(separatedBy: "\n").count - 1
+        
+        // Track pieces progress for the progress bar
+        var totalPieces: Int? = nil
+        var processedPieces: Int = 0
+        
+        // Size-based progress tracking
+        var totalSize: Int64? = nil
+        var pieceSize: Int64? = nil
+        var expectedPieces: Int? = nil
+        
+        while !fileExists && attempts < maxAttempts {
+            attempts += 1
             
-            // Download the torrent file
-            isDownloading = true
-#if os(macOS)
-            commandOutput += "\nDownloading torrent file to your default download location..."
-            #else
-            commandOutput += "\nDownloading torrent file to the Throttle Folder on your device..."
-            #endif
+            // 1. Check the log file for new output
+            let (_, logSizeStr) = try await ssh.executeCommand("stat -c%s \(logFile) 2>/dev/null || echo '0'")
+            let currentLogSize = Int(logSizeStr.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
             
-            do {
-                let downloadFolder = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
-                let localFileName = "\(filename).torrent"
+            var updatedProgressLine = false
+            
+            if currentLogSize > lastLogSize {
+                // Get only the new content since last check
+                let (_, newContent) = try await ssh.executeCommand("tail -c +\(lastLogSize + 1) \(logFile)")
                 
-                // Create download stream
-                let fileManager = FileManager.default
-                let outputURL: URL
-                                #if os(macOS)
-                                outputURL = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first!.appendingPathComponent(localFileName)
-                                #else
-                                outputURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent(localFileName)
-                                #endif
-                if fileManager.fileExists(atPath: outputURL.path) {
-                    try fileManager.removeItem(at: outputURL)
-                }
-                
-                if let outputStream = OutputStream(toFileAtPath: outputURL.path, append: false) {
-                    try sftp.contents(atPath: outputFile, toStream: outputStream, fromPosition: 0) { current, total in
-                        commandOutput += "\nDownloaded: \(current)/\(total) bytes"
-                        return true // Continue downloading
+                if !newContent.isEmpty {
+                    // Look for total size information
+                    if totalSize == nil {
+                        // Match pattern like "Total size: 21391999 bytes"
+                        if let sizeMatch = newContent.range(of: "[Tt]otal size:?\\s*(\\d+)\\s*bytes", options: .regularExpression) {
+                            let sizeString = newContent[sizeMatch]
+                            if let numberMatch = sizeString.range(of: "\\d+", options: .regularExpression) {
+                                totalSize = Int64(newContent[numberMatch])
+                            }
+                        }
                     }
-                    localPath = outputURL.path
-                    commandOutput += "\nDownloaded to: \(localPath)"
-                } else {
-                    isError = true
-                    throw NSError(domain: "mft", code: MFTErrorCode.local_open_error_for_writing.rawValue,
-                                userInfo: [NSLocalizedDescriptionKey: "Could not create output file"])
+                    
+                    // Look for piece size information
+                    if pieceSize == nil {
+                        // Match pattern like "Using piece size: 16 KB"
+                        if let pieceSizeMatch = newContent.range(of: "[Uu]sing piece size:?\\s*(\\d+)\\s*KB", options: .regularExpression) {
+                            let pieceSizeString = newContent[pieceSizeMatch]
+                            if let numberMatch = pieceSizeString.range(of: "\\d+", options: .regularExpression) {
+                                if let kbSize = Int64(newContent[numberMatch]) {
+                                    pieceSize = kbSize * 1024 // Convert KB to bytes
+                                    
+                                    // Calculate expected pieces
+                                    if let totalBytes = totalSize, pieceSize! > 0 {
+                                        expectedPieces = Int((totalBytes + pieceSize! - 1) / pieceSize!) // Ceiling division
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Extract total pieces information if we don't have it yet
+                    if totalPieces == nil && expectedPieces == nil {
+                        // Look for patterns like "Total pieces: 123" or similar
+                        if let totalMatch = newContent.range(of: "([Tt]otal|[Nn]umber of) pieces:?\\s*(\\d+)", options: .regularExpression) {
+                            let totalString = newContent[totalMatch]
+                            if let numberMatch = totalString.range(of: "\\d+", options: .regularExpression) {
+                                totalPieces = Int(newContent[numberMatch]) ?? 100
+                            }
+                        }
+                    }
+                    
+                    // Check for piece processing pattern (assuming format like "Processed X pieces")
+                    if let piecesMatch = newContent.range(of: "Processed\\s+(\\d+)\\s+pieces", options: .regularExpression) {
+                        let piecesInfo = newContent[piecesMatch]
+                        currentProgressLine = "Progress: \(piecesInfo)"
+                        updatedProgressLine = true
+                        
+                        // Extract the number of processed pieces for progress bar
+                        if let numberMatch = piecesInfo.range(of: "\\d+", options: .regularExpression) {
+                            if let pieces = Int(newContent[numberMatch]) {
+                                processedPieces = pieces
+                                
+                                // Update progress percentage
+                                if let expected = expectedPieces, expected > 0 {
+                                    // Calculate progress but keep it between 25-90%
+                                    // We started at 25% and want to leave room for download
+                                    let calculatedProgress = Double(processedPieces) / Double(expected)
+                                    let adjustedProgress = 0.25 + (calculatedProgress * 0.65)
+                                    
+                                    await MainActor.run {
+                                        progressPercentage = min(0.9, adjustedProgress)
+                                    }
+                                } else if let total = totalPieces, total > 0 {
+                                    // Fall back to total pieces if available
+                                    let calculatedProgress = Double(processedPieces) / Double(total)
+                                    let adjustedProgress = 0.25 + (calculatedProgress * 0.65)
+                                    
+                                    await MainActor.run {
+                                        progressPercentage = min(0.9, adjustedProgress)
+                                    }
+                                } else {
+                                    // If we don't know total, make progress "bounce"
+                                    await MainActor.run {
+                                        // Calculate a percentage that oscillates between 30% and 80%
+                                        let time = Double(attempts % 10) / 10.0
+                                        let oscillating = 0.5 + 0.25 * sin(Double.pi * 2 * time)
+                                        progressPercentage = oscillating
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Also look for other important messages we want to show (like errors or completion)
+                    else if newContent.contains("error") || newContent.contains("Error") ||
+                            newContent.contains("complete") || newContent.contains("finished") {
+                        // For important messages, add a new line
+                        commandOutput += "\n\(newContent)"
+                    }
+                    else if !updatedProgressLine {
+                        // For other log content that's not about piece processing
+                        // Check if it contains any other useful progress information
+                        let lines = newContent.components(separatedBy: "\n")
+                        for line in lines where !line.isEmpty {
+                            if line.contains("piece") || line.contains("hash") || line.contains("size") ||
+                               line.contains("progress") || line.contains("file") {
+                                currentProgressLine = "Progress: \(line)"
+                                updatedProgressLine = true
+                                break
+                            }
+                        }
+                    }
                 }
                 
-                // Clean up temp file
-                let (_, _) = try await ssh.executeCommand("rm '\(escapedOutputFile)'")
-                commandOutput += "\nCleaned up temporary file"
-            } catch {
-                isError = true
-                commandOutput += "\nError downloading torrent: \(error.localizedDescription)"
+                lastLogSize = currentLogSize
             }
             
-            isDownloading = false
-        } else {
-            isError = true
-            commandOutput += "\nError: Failed to create torrent file"
-            isCreated = false
+            // 2. Check if the output file exists
+            let (_, checkOutput) = try await ssh.executeCommand("[ -f '\(escapedOutputFile)' ] && echo 'success' || echo 'failed'")
+            
+            if checkOutput.contains("success") {
+                fileExists = true
+                commandOutput += "\nTorrent file created successfully!"
+                isCreated = true
+                outputPath = outputFile
+                
+                await MainActor.run {
+                    progressPercentage = 0.9 // Creation complete, ready to download
+                }
+                break
+            } else {
+                // 3. Check if process is still running
+                let (_, pidFileExists) = try await ssh.executeCommand("[ -f /tmp/torrent_pid_\(jobId) ] && echo 'yes' || echo 'no'")
+                
+                if pidFileExists.contains("yes") {
+                    let (_, pidContent) = try await ssh.executeCommand("cat /tmp/torrent_pid_\(jobId)")
+                    let pid = pidContent.trimmingCharacters(in: .whitespacesAndNewlines)
+                    
+                    let (_, processCheck) = try await ssh.executeCommand("ps -p \(pid) -o pid= || echo 'NOT_RUNNING'")
+                    if processCheck.contains("NOT_RUNNING") {
+                        // Process ended but no file found - check log for errors
+                        let (_, finalLog) = try await ssh.executeCommand("cat \(logFile)")
+                        if !finalLog.contains("success") && !finalLog.contains("pieces") {
+                            isError = true
+                            commandOutput += "\nProcess completed but no torrent file was created."
+                            commandOutput += "\nError details from log:\n\(finalLog)"
+                            
+                            await MainActor.run {
+                                progressPercentage = 0 // Error state
+                            }
+                            return
+                        }
+                        
+                        // Re-check for file one last time
+                        let (_, finalCheck) = try await ssh.executeCommand("[ -f '\(escapedOutputFile)' ] && echo 'success' || echo 'failed'")
+                        if finalCheck.contains("success") {
+                            fileExists = true
+                            commandOutput += "\nTorrent file created successfully!"
+                            isCreated = true
+                            outputPath = outputFile
+                            
+                            await MainActor.run {
+                                progressPercentage = 0.9 // Creation complete, ready to download
+                            }
+                            break
+                        } else {
+                            isError = true
+                            commandOutput += "\nError: Process completed but no torrent file was found"
+                            
+                            await MainActor.run {
+                                progressPercentage = 0 // Error state
+                            }
+                            return
+                        }
+                    }
+                }
+                
+                // Only update the progress indication every check
+                if !updatedProgressLine {
+                    // If no new log content for progress, update with time elapsed
+                    currentProgressLine = "Progress: Working... (\(attempts * 5) seconds elapsed)"
+                    
+                    // If we don't have specific progress info, make the progress bar oscillate
+                    if totalPieces == nil && expectedPieces == nil {
+                        await MainActor.run {
+                            // Calculate a percentage that oscillates between 30% and 80%
+                            let time = Double(attempts % 10) / 10.0
+                            let oscillating = 0.5 + 0.25 * sin(Double.pi * 2 * time)
+                            progressPercentage = oscillating
+                        }
+                    }
+                }
+                
+                // Update the progress line in-place
+                var lines = commandOutput.components(separatedBy: "\n")
+                if lastProgressLineIndex < lines.count {
+                    lines[lastProgressLineIndex] = currentProgressLine
+                    commandOutput = lines.joined(separator: "\n")
+                }
+                
+                // Wait 5 seconds before checking again
+                try await Task.sleep(for: .seconds(5))
+            }
         }
+        
+        if !fileExists {
+            isError = true
+            commandOutput += "\nError: Torrent creation timed out after \(attempts * 5) seconds"
+            
+            await MainActor.run {
+                progressPercentage = 0 // Error state
+            }
+            return
+        }
+        
+        // Download the torrent file
+        isDownloading = true
+    #if os(macOS)
+        commandOutput += "\nDownloading torrent file to your default download location..."
+    #else
+        commandOutput += "\nDownloading torrent file to the Throttle Folder on your device..."
+    #endif
+        
+        // Add a download progress line that we'll update
+        commandOutput += "\nDownload: Starting..."
+        let downloadLineIndex = commandOutput.components(separatedBy: "\n").count - 1
+        
+        do {
+            let fileManager = FileManager.default
+            let outputURL: URL
+    #if os(macOS)
+            outputURL = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first!.appendingPathComponent("\(filename).torrent")
+    #else
+            outputURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("\(filename).torrent")
+    #endif
+            if fileManager.fileExists(atPath: outputURL.path) {
+                try fileManager.removeItem(at: outputURL)
+            }
+            
+            if let outputStream = OutputStream(toFileAtPath: outputURL.path, append: false) {
+                try sftp.contents(atPath: outputFile, toStream: outputStream, fromPosition: 0) { current, total in
+                    if current % 10240 == 0 || current == total {  // Only update every 10KB to reduce UI updates
+                        let percentage = total > 0 ? Int(Double(current) / Double(total) * 100) : 0
+                        let downloadProgressLine = "Download: \(formatBytes(current))/\(formatBytes(total)) (\(percentage)%)"
+                        
+                        // Update progress bar for download (90-100%)
+                        let downloadProgress = total > 0 ? Double(current) / Double(total) : 0
+                        let adjustedProgress = 0.9 + (downloadProgress * 0.1) // 90-100% range
+                        
+                        Task { @MainActor in
+                            progressPercentage = min(1.0, adjustedProgress)
+                        }
+                        
+                        // Update the download line in-place
+                        var lines = commandOutput.components(separatedBy: "\n")
+                        if downloadLineIndex < lines.count {
+                            lines[downloadLineIndex] = downloadProgressLine
+                            commandOutput = lines.joined(separator: "\n")
+                        }
+                    }
+                    return true // Continue downloading
+                }
+                localPath = outputURL.path
+                commandOutput += "\nDownloaded to: \(localPath)"
+                
+                await MainActor.run {
+                    progressPercentage = 1.0 // Complete
+                }
+            } else {
+                isError = true
+                throw NSError(domain: "mft", code: MFTErrorCode.local_open_error_for_writing.rawValue,
+                            userInfo: [NSLocalizedDescriptionKey: "Could not create output file"])
+            }
+            
+            // Clean up temp files
+            let (_, _) = try await ssh.executeCommand("rm -f '\(escapedOutputFile)' '\(scriptPath)' /tmp/torrent_pid_\(jobId) \(logFile)")
+            commandOutput += "\nCleaned up temporary files"
+        } catch {
+            isError = true
+            commandOutput += "\nError downloading torrent: \(error.localizedDescription)"
+            
+            await MainActor.run {
+                progressPercentage = 0 // Error state
+            }
+        }
+        
+        isDownloading = false
+    }
+    
+    // Helper function to format file sizes nicely
+    private func formatBytes(_ bytes: UInt64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
     }
 }
-
-//#endif

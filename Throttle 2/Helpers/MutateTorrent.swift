@@ -48,12 +48,13 @@ struct MutateTorrentView: View {
                     Button("Move") {
                         Task {
                             do {
-                                try await torrentManager.moveTorrents(
+                                if try await torrentManager.moveTorrents(
                                     ids: [torrent.id],
                                     to: moveLocation,
                                     move: true
-                                )
-                                showMoveSheet = false
+                                ) {
+                                    showMoveSheet = false
+                                }
                             } catch {
                                 print("Error moving torrent:", error)
                             }

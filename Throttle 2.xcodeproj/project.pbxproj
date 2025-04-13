@@ -11,6 +11,7 @@
 		E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = E70D0AD42D9E84DD00C9CB48 /* Citadel */; };
 		E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = E7150E522D631F8B009C4217 /* KeychainAccess */; };
 		E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */ = {isa = PBXBuildFile; productRef = E76AA8B52D8423E00009CA6F /* SimpleToast */; };
+		E77951022DA8DF7A001B6CC7 /* FlyingFox in Frameworks */ = {isa = PBXBuildFile; productRef = E77951012DA8DF7A001B6CC7 /* FlyingFox */; };
 		E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */ = {isa = PBXBuildFile; productRef = E7F5F3EF2D718B2700079054 /* FilePicker */; };
 		E7F968992D884B5C00A19857 /* mft.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E742621A2D6EFB9A00E4D181 /* mft.xcframework */; };
 		E7F9689A2D884B5C00A19857 /* mft.xcframework in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E742621A2D6EFB9A00E4D181 /* mft.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -83,6 +84,7 @@
 			membershipExceptions = (
 				Info.plist,
 				"Preview Content/Preview Assets.xcassets",
+				SFTP/Thumbnails/LocalVideoThumbnail.swift,
 				"transmission-mac/transmission-cli",
 				"transmission-mac/transmission-create",
 				"transmission-mac/transmission-daemon",
@@ -106,16 +108,29 @@
 			};
 			target = E7150E162D631D08009C4217 /* Throttle 2 */;
 		};
-		E7F96B862D8BF87300A19857 /* Exceptions for "Installers" folder in "Throttle 2" target */ = {
+		E7F96B862D8BF87300A19857 /* Exceptions for "Resources" folder in "Throttle 2" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"install-mktorrent.sh",
+				simple_stream_server.py,
+			);
 			platformFiltersByRelativePath = {
 				"fuse-t-macos-installer-1.0.44.pkg" = (macos, );
+				"install-ffmpeg-static.sh" = (ios, );
+				"sshfs-macos-installer-1.0.2.pkg" = (macos, );
 			};
 			target = E7150E162D631D08009C4217 /* Throttle 2 */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		E73DFB062DAA38560003BFDD /* Exceptions for "Resources" folder in "Compile Sources" phase from "Throttle 2" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = E7150E132D631D08009C4217 /* Sources */;
+			membershipExceptions = (
+				simple_stream_server.py,
+			);
+		};
 		E771E1D92D90B9CA002F803B /* Exceptions for "Throttle 2" folder in "Embed Foundation Extensions" phase from "Throttle 2" target */ = {
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			attributesByRelativePath = {
@@ -162,12 +177,13 @@
 			path = "Throttle 2";
 			sourceTree = "<group>";
 		};
-		E7F96B7A2D8BC88600A19857 /* Installers */ = {
+		E7F96B7A2D8BC88600A19857 /* Resources */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				E7F96B862D8BF87300A19857 /* Exceptions for "Installers" folder in "Throttle 2" target */,
+				E7F96B862D8BF87300A19857 /* Exceptions for "Resources" folder in "Throttle 2" target */,
+				E73DFB062DAA38560003BFDD /* Exceptions for "Resources" folder in "Compile Sources" phase from "Throttle 2" target */,
 			);
-			path = Installers;
+			path = Resources;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -177,6 +193,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E77951022DA8DF7A001B6CC7 /* FlyingFox in Frameworks */,
 				E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */,
 				E7F968992D884B5C00A19857 /* mft.xcframework in Frameworks */,
 				E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */,
@@ -215,7 +232,7 @@
 		E7150E0E2D631D08009C4217 = {
 			isa = PBXGroup;
 			children = (
-				E7F96B7A2D8BC88600A19857 /* Installers */,
+				E7F96B7A2D8BC88600A19857 /* Resources */,
 				E77CF62C2D704F40002705A5 /* Throttle 2 */,
 				E7BEDF602D6EF03300E72E6F /* Frameworks */,
 				E7150E182D631D08009C4217 /* Products */,
@@ -281,7 +298,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				E77CF62C2D704F40002705A5 /* Throttle 2 */,
-				E7F96B7A2D8BC88600A19857 /* Installers */,
+				E7F96B7A2D8BC88600A19857 /* Resources */,
 			);
 			name = "Throttle 2";
 			packageProductDependencies = (
@@ -289,6 +306,7 @@
 				E7F5F3EF2D718B2700079054 /* FilePicker */,
 				E76AA8B52D8423E00009CA6F /* SimpleToast */,
 				E70D0AD42D9E84DD00C9CB48 /* Citadel */,
+				E77951012DA8DF7A001B6CC7 /* FlyingFox */,
 			);
 			productName = "Throttle 2";
 			productReference = E7150E172D631D08009C4217 /* Throttle 2.app */;
@@ -338,7 +356,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1620;
-				LastUpgradeCheck = 1620;
+				LastUpgradeCheck = 1630;
 				TargetAttributes = {
 					E7150E162D631D08009C4217 = {
 						CreatedOnToolsVersion = 16.2;
@@ -367,6 +385,7 @@
 				E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */,
 				E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */,
 				E70D0AD32D9E84DD00C9CB48 /* XCRemoteSwiftPackageReference "Citadel" */,
+				E77951002DA8DF7A001B6CC7 /* XCRemoteSwiftPackageReference "FlyingFox" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E7150E182D631D08009C4217 /* Products */;
@@ -503,12 +522,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Throttle 2/Preview Content\"";
-				DEVELOPMENT_TEAM = 93C9M7982M;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/FFMpeg/iOS",
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
@@ -635,7 +652,7 @@
 				OTHER_MODULE_VERIFIER_FLAGS = "$(inherited) \"[sdk=iphoneos*]\\\"-Fbuild/Debug/MobileVLCKit\\\" [sdk=iphonesimulator*]\\\"-Fbuild/Debug/MobileVLCKit\\\"\"";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.srgim.Throttle-2";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = NO;
+				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
@@ -661,12 +678,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Throttle 2/Preview Content\"";
-				DEVELOPMENT_TEAM = 93C9M7982M;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/FFMpeg/iOS",
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
@@ -793,7 +808,7 @@
 				OTHER_MODULE_VERIFIER_FLAGS = "$(inherited) \"[sdk=iphoneos*]\\\"-Fbuild/Debug/MobileVLCKit\\\" [sdk=iphonesimulator*]\\\"-Fbuild/Debug/MobileVLCKit\\\"\"";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.srgim.Throttle-2";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = NO;
+				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SUPPORTS_MACCATALYST = NO;
@@ -841,6 +856,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 93C9M7982M;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -903,6 +919,7 @@
 				COPY_PHASE_STRIP = NO;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 93C9M7982M;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -928,7 +945,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 93C9M7982M;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -952,7 +968,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 93C9M7982M;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -975,7 +990,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 93C9M7982M;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -998,7 +1012,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 93C9M7982M;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
@@ -1081,6 +1094,14 @@
 				minimumVersion = 0.10.1;
 			};
 		};
+		E77951002DA8DF7A001B6CC7 /* XCRemoteSwiftPackageReference "FlyingFox" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swhitty/FlyingFox.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.22.0;
+			};
+		};
 		E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/markrenaud/FilePicker";
@@ -1106,6 +1127,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */;
 			productName = SimpleToast;
+		};
+		E77951012DA8DF7A001B6CC7 /* FlyingFox */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E77951002DA8DF7A001B6CC7 /* XCRemoteSwiftPackageReference "FlyingFox" */;
+			productName = FlyingFox;
 		};
 		E7F5F3EF2D718B2700079054 /* FilePicker */ = {
 			isa = XCSwiftPackageProductDependency;

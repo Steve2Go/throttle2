@@ -218,7 +218,7 @@ extension TorrentManager {
     /// - Returns: True if the stop operation was successful
     func stopTorrents(ids: [Int]) async throws -> Bool {
         struct StopRequest: Codable {
-            let method = "torrent-stop"
+            var method = "torrent-stop"
             let arguments: Arguments
             
             struct Arguments: Codable {
@@ -264,7 +264,7 @@ extension TorrentManager {
     /// - Returns: True if the start operation was successful
     func startTorrents(ids: [Int]) async throws -> Bool {
         struct StartRequest: Codable {
-            let method = "torrent-start"
+            var method = "torrent-start"
             let arguments: Arguments
             
             struct Arguments: Codable {
@@ -310,7 +310,7 @@ extension TorrentManager {
     /// - Returns: True if the reannounce operation was successful
     func reannounceTorrents(ids: [Int]) async throws -> Bool {
         struct ReannounceRequest: Codable {
-            let method = "torrent-reannounce"
+            var method = "torrent-reannounce"
             let arguments: Arguments
             
             struct Arguments: Codable {
@@ -356,7 +356,7 @@ extension TorrentManager {
     /// - Returns: True if the verify operation was successful
     func verifyTorrents(ids: [Int]) async throws -> Bool {
         struct VerifyRequest: Codable {
-            let method = "torrent-verify"
+            var method = "torrent-verify"
             let arguments: Arguments
             
             struct Arguments: Codable {

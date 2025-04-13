@@ -199,7 +199,7 @@ struct SettingsView: View {
                 .frame(width: 500, height: 500)
             #else
             if ServerManager.shared.selectedServer != nil {
-                FFmpegInstallerView(server: ServerManager.shared.selectedServer!)
+                DependencyInstallerView(server: ServerManager.shared.selectedServer!)
             } else {
                 Text("Please select a server first.")
             }

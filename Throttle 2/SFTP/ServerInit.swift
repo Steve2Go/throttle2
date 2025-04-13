@@ -11,7 +11,27 @@ import Network
 // created to unclutter the main app
 extension Throttle_2App {
     
-    
+    func refeshTunnel(store: Store, torrentManager: TorrentManager){
+        TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+      // TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
+        guard let server = store.selection else {return}
+        let localport = 4000 // update after tunnel logic
+        let port  = server.port
+        
+        Task{
+//            if store.selection != nil {
+//                setupStreamingServer(server: store.selection!)
+//            }
+            let tmanager = try SSHTunnelManager(server: server, localPort: localport, remoteHost: "127.0.0.1", remotePort: Int(port))
+            try await tmanager.start()
+            TunnelManagerHolder.shared.storeTunnel(tmanager, withIdentifier: "transmission-rpc")
+            torrentManager.startPeriodicUpdates()
+            if !store.magnetLink.isEmpty || store.selectedFile != nil {
+                presenting.activeSheet = "adding"
+            }
+        }
+        
+    }
     
     func setupServer (store: Store, torrentManager: TorrentManager) {
     
@@ -19,6 +39,10 @@ extension Throttle_2App {
             store.selectedTorrentId = nil
             
             if store.selection != nil {
+                
+                TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
+         //       setupStreamingServer(server: store.selection!)
+                
                 // load the keychain
                 let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
                 let server = store.selection
@@ -114,6 +138,7 @@ extension Throttle_2App {
                     
                     torrentManager.isLoading = true
                     torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
+                    torrentManager.reset()
                     torrentManager.startPeriodicUpdates()
                     Task {
                         try await Task.sleep(for: .milliseconds(500))
@@ -126,6 +151,43 @@ extension Throttle_2App {
 
             }
     }
+    #if os(iOS)
+    func setupExternalDisplayManager() {
+           // This will start monitoring for external displays and create a black screen when needed
+           ExternalDisplayManager.shared.startMonitoring()
+       }
+    // In Throttle_2App.swift, add this near your setupServer function:
+
+    
+    #endif
+    
+//    func setupStreamingServer(server: ServerEntity) {
+//        Task {
+//            do {
+//                
+//                // Check if the server is running, start if needed
+//                
+//                if !(try await HttpStreamingManager.shared.isServerRunning(server: server)) {
+//                    try await HttpStreamingManager.shared.startStreamingServer(server: server)
+//                    print("HTTP streaming server started successfully")
+//                } else {
+//                    print("HTTP streaming server is already running")
+//                }
+//                
+//                // Create the tunnel if needed
+//                //store.streamingUrl =  try await HttpStreamingManager.shared.getStreamingURL(for: "", server: server).absoluteString
+//                @AppStorage("StreamingServerPort") var serverPort = 8723 // Remote port for Python HTTP server
+//                @AppStorage("StreamingServerLocalPort") var localStreamPort = 8080 // Local port for streaming
+//                let htunnel = try SSHTunnelManager(server: server, localPort: localStreamPort, remoteHost: "127.0.0.1", remotePort: Int(serverPort))
+//                try await htunnel.start()
+//                TunnelManagerHolder.shared.storeTunnel(htunnel, withIdentifier: "http-streamer")
+//                
+//                print("HTTP streaming tunnel established")
+//            } catch {
+//                print("Failed to setup streaming server: \(error)")
+//            }
+//        }
+//    }
 }
 
 

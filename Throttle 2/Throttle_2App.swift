@@ -35,7 +35,12 @@ struct Throttle_2App: App {
     @State var isTunneling = false
 
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-    
+#if os(iOS)
+    init() {
+            // Initialize external display manager at app startup
+            setupExternalDisplayManager()
+        }
+    #endif
     
     var body: some Scene {
         #if os(macOS)
@@ -95,6 +100,7 @@ struct Throttle_2App: App {
             ContentView(presenting: presenting, manager: manager, filter: filter, store: store)
                 .environment(\.managedObjectContext, DataManager.shared.viewContext)
                 .environmentObject(networkMonitor)
+                .environment(\.externalDisplayManager, ExternalDisplayManager.shared)
                 //.environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .background(colorScheme == .dark ? Color.black : Color.white)
                 .onAppear {
@@ -105,21 +111,25 @@ struct Throttle_2App: App {
                     #if os(iOS)
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                         if scenePhase == .background {
-                            isBackground = Timer.scheduledTimer(withTimeInterval: 45, repeats: false) { _ in
+                            isBackground = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { _ in
                                 DispatchQueue.main.async{
-                                    TunnelManagerHolder.shared.tearDownAllTunnels()
+                                    //TunnelManagerHolder.shared.tearDownAllTunnels()
                                     manager.stopPeriodicUpdates()
+                                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
                                     tunnelClosed = true
                                     print("Background - stopping queue")
                                 }
                             }
                         } else if scenePhase == .active {
+                            
                             if tunnelClosed && networkMonitor.isConnected{
-                                setupServer(store: store, torrentManager: manager)
+                                //setupServer(store: store, torrentManager: manager)
+                                refeshTunnel(store: store, torrentManager: manager)
                             }
                             isBackground?.invalidate()
                             tunnelClosed = false
                             print("Foreground- starting queue")
+                            ExternalDisplayManager.shared.startMonitoring()
                         }
                     }
                     #endif
@@ -128,7 +138,8 @@ struct Throttle_2App: App {
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                         if networkMonitor.isConnected {
                             Task {
-                                setupServer(store: store, torrentManager: manager)
+                                //setupServer(store: store, torrentManager: manager)
+                                refeshTunnel(store: store, torrentManager: manager)
                             }
                         }
                     }

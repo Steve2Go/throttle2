@@ -39,11 +39,11 @@ class Store: NSObject, ObservableObject {
                 }
             } else {
                 selectedServerId = nil
-                if let oldServer = oldValue {
-                    Task {
-                       // await tunnelManager.closeTunnel(
-                    }
-                }
+//                if let oldServer = oldValue {
+//                    Task {
+//                       // await tunnelManager.closeTunnel(
+//                    }
+//                }
             }
         }
     }
@@ -57,6 +57,8 @@ class Store: NSObject, ObservableObject {
     @Published var magnetLink = ""
     @Published var selectedFile: URL?
     @Published var selectedTorrentId: Int?
+    
+    @Published var streamingUrl = ""
     
     //Sidebar
 //    @AppStorage("sideBar") private var sideBar = false
