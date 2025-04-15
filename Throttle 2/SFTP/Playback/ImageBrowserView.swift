@@ -1,10 +1,7 @@
-//
-//  WebViewImageBrowser.swift
-//  Throttle 2
-//
 #if os(iOS)
 import SwiftUI
 import WebKit
+import Citadel
 
 // MARK: - Image Browser View
 struct ImageBrowserView: View {
@@ -21,7 +18,6 @@ struct ImageBrowserView: View {
     }
     
     var body: some View {
-        #if os(iOS)
         // iOS implementation with TabView for swiping
         ZStack {
             Color.black.ignoresSafeArea()
@@ -50,7 +46,7 @@ struct ImageBrowserView: View {
                     ForEach(0..<imageUrls.count, id: \.self) { index in
                         WebViewImageViewer(
                             url: imageUrls[index],
-                            sftpConnection: sftpConnection
+                            connectionManager: sftpConnection.connectionManager
                         )
                         .tag(index)
                     }
@@ -93,18 +89,18 @@ struct ImageBrowserView: View {
             }
         }
         .statusBar(hidden: true)
-        #endif
     }
 }
 
 // MARK: - WebView Image Viewer
 struct WebViewImageViewer: View {
     let url: URL
-    let sftpConnection: SFTPFileBrowserViewModel
+    let connectionManager: SFTPConnectionManager
     @State private var isLoading = true
     @State private var loadedImageURL: URL?
     @State private var errorMessage: String?
     @State private var imageData: Data?
+    @State private var downloadTask: Task<Void, Never>?
     
     var body: some View {
         ZStack {
@@ -112,12 +108,12 @@ struct WebViewImageViewer: View {
                 ImageWebView(imageData: imageData)
             } else if isLoading {
                 VStack {
-                    ProgressView()
-                        .foregroundColor(.white)
-                    Text("Loading image...")
-                        .padding(.top, 8)
-                        .font(.caption)
-                        .foregroundColor(.white)
+                    ProgressView().tint(.white)
+                        
+//                    Text("Loading image...")
+//                        .padding(.top, 8)
+//                        .font(.caption)
+//                        .foregroundColor(.white)
                 }
             } else if let error = errorMessage {
                 VStack {
@@ -140,56 +136,65 @@ struct WebViewImageViewer: View {
         .onAppear {
             loadImage()
         }
+        .onDisappear {
+            // Cancel download if view disappears
+            downloadTask?.cancel()
+        }
     }
     
     private func loadImage() {
         isLoading = true
         errorMessage = nil
         
-        Task {
+        // Cancel previous task if exists
+        downloadTask?.cancel()
+        
+        downloadTask = Task {
             do {
-                // Use memory instead of file system
                 print("Downloading image from: \(url.path)")
                 
-                // Create a memory buffer to hold the image data
-                //let imageBuffer = NSMutableData()
+                // Create a temporary file for downloading
+                let tempDir = FileManager.default.temporaryDirectory
+                let tempURL = tempDir.appendingPathComponent(UUID().uuidString + ".img")
                 
-                // Create a custom output stream that writes to our buffer
-                let outputStream = OutputStream(toMemory: ())
-                outputStream.open()
-                
-                // Progress adapter for image download
-                let progressAdapter: ((UInt64, UInt64) -> Bool) = { bytesReceived, totalBytes in
-                    // Just continue the download
-                    return !Task.isCancelled
+                // Clean up when done
+                defer {
+                    try? FileManager.default.removeItem(at: tempURL)
                 }
                 
-                // Download the file using the contents method
-                try sftpConnection.sftpConnection.contents(
-                    atPath: url.path,
-                    toStream: outputStream,
-                    fromPosition: 0,
-                    progress: progressAdapter
+                // Progress adapter that always continues unless task is cancelled
+                let progressHandler: (Double) -> Bool = { _ in return !Task.isCancelled }
+                
+                // Ensure connection is established
+                try await connectionManager.connect()
+                
+                // Download the file using Citadel
+                try await connectionManager.downloadFile(
+                    remotePath: url.path,
+                    localURL: tempURL,
+                    progress: progressHandler
                 )
                 
-                outputStream.close()
+                // Check if task was cancelled
+                try Task.checkCancellation()
                 
-                // Get the data from the output stream
-                if let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data {
-                    await MainActor.run {
-                        self.imageData = data
-                        self.isLoading = false
-                    }
-                    print("✅ Image downloaded successfully to memory, size: \(data.count) bytes")
-                } else {
-                    throw NSError(domain: "Image", code: -1,
-                                 userInfo: [NSLocalizedDescriptionKey: "Failed to get image data from stream"])
-                }
-            } catch {
-                print("❌ Failed to load image: \(error)")
+                // Load the data from the temp file
+                let data = try Data(contentsOf: tempURL)
+                
                 await MainActor.run {
+                    self.imageData = data
                     self.isLoading = false
-                    self.errorMessage = error.localizedDescription
+                }
+                print("✅ Image downloaded successfully, size: \(data.count) bytes")
+            } catch {
+                if error is CancellationError {
+                    print("Image download cancelled")
+                } else {
+                    print("❌ Failed to load image: \(error)")
+                    await MainActor.run {
+                        self.isLoading = false
+                        self.errorMessage = error.localizedDescription
+                    }
                 }
             }
         }
@@ -228,8 +233,8 @@ struct ImageWebView: UIViewRepresentable {
         // Convert image data to base64
         let base64String = imageData.base64EncodedString()
         
-        // Determine mime type (assuming JPEG for simplicity, but could be enhanced)
-        let mimeType = "image/jpeg"
+        // Try to determine mime type based on image data
+        let mimeType = determineMimeType(from: imageData)
         
         // Use HTML with embedded base64 image data
         let htmlString = """
@@ -263,6 +268,42 @@ struct ImageWebView: UIViewRepresentable {
         """
         
         webView.loadHTMLString(htmlString, baseURL: nil)
+    }
+    
+    // Helper function to determine the MIME type from image data
+    private func determineMimeType(from data: Data) -> String {
+        var headerData = data.prefix(12)
+        let headerBytes = [UInt8](headerData)
+        
+        // Check for common image format signatures
+        if headerBytes.count >= 2 {
+            // JPEG: Starts with 0xFF 0xD8
+            if headerBytes[0] == 0xFF && headerBytes[1] == 0xD8 {
+                return "image/jpeg"
+            }
+            
+            // PNG: Starts with 0x89 0x50 0x4E 0x47 0x0D 0x0A 0x1A 0x0A
+            if headerBytes.count >= 8 && headerBytes[0] == 0x89 && headerBytes[1] == 0x50
+                && headerBytes[2] == 0x4E && headerBytes[3] == 0x47 {
+                return "image/png"
+            }
+            
+            // GIF: Starts with "GIF87a" or "GIF89a"
+            if headerBytes.count >= 6 && headerBytes[0] == 0x47 && headerBytes[1] == 0x49 && headerBytes[2] == 0x46 {
+                return "image/gif"
+            }
+            
+            // WebP: Starts with "RIFF" followed by 4 bytes then "WEBP"
+            if headerBytes.count >= 12 && headerBytes[0] == 0x52 && headerBytes[1] == 0x49
+                && headerBytes[2] == 0x46 && headerBytes[3] == 0x46
+                && headerBytes[8] == 0x57 && headerBytes[9] == 0x45
+                && headerBytes[10] == 0x42 && headerBytes[11] == 0x50 {
+                return "image/webp"
+            }
+        }
+        
+        // Default to JPEG if we can't determine the type
+        return "image/jpeg"
     }
     
     func makeCoordinator() -> Coordinator {

@@ -28,6 +28,7 @@ struct SFTPFileBrowserView: View {
     @State private var itemToDelete: FileItem?
     @State private var showUploadView = false
     @State var showingFFmpegPlayer = false
+    @State var showAirplay = false
     
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -78,9 +79,8 @@ struct SFTPFileBrowserView: View {
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         HStack {
-                            
                             Button(action: {
-                               // clearThumbnailOperations()
+                             clearThumbnailOperations()
                                 dismiss()
                             }) {
                                 Text("Close")
@@ -192,6 +192,10 @@ struct SFTPFileBrowserView: View {
                 .cornerRadius(10)
                 .padding(.top)
             }
+            .sheet(isPresented: $showAirplay) {
+                        AirplayInfo()
+                    .presentationDetents([.large])
+                    }
             
             .fullScreenCover(isPresented: Binding(
                 get: { viewModel.showingNextVideoAlert },

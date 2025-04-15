@@ -1,22 +1,7 @@
-//
-//  ImageBrowserViewController.swift
-//  Throttle 2
-//
-//  Created by Stephen Grigg on 11/4/2025.
-//
-
-
-//
-//  ImageBrowserViewController.swift
-//  Throttle 2
-//
-//  UIKit wrapper for the ImageBrowserView that can handle external displays
-//
-
 #if os(iOS)
 import UIKit
 import SwiftUI
-import UIKit
+import Citadel
 
 struct ImageBrowserViewWrapper: UIViewControllerRepresentable {
     let imageUrls: [URL]
@@ -36,7 +21,6 @@ struct ImageBrowserViewWrapper: UIViewControllerRepresentable {
         // Nothing to update
     }
 }
-
 
 // A shared state object to coordinate between views
 class ImageBrowserSharedState: ObservableObject {
@@ -61,7 +45,7 @@ class ImageBrowserSharedState: ObservableObject {
 struct ExternalImageBrowserView: View {
     let imageUrls: [URL]
     @ObservedObject var sharedState: ImageBrowserSharedState
-    let sftpConnection: SFTPFileBrowserViewModel
+    let connectionManager: SFTPConnectionManager
     
     var body: some View {
         ZStack {
@@ -72,7 +56,7 @@ struct ExternalImageBrowserView: View {
                 ForEach(0..<imageUrls.count, id: \.self) { index in
                     ExternalWebViewImageViewer(
                         url: imageUrls[index],
-                        sftpConnection: sftpConnection,
+                        connectionManager: connectionManager,
                         sharedState: sharedState
                     )
                     .tag(index)
@@ -95,7 +79,6 @@ struct ExternalImageBrowserView: View {
         .statusBar(hidden: true)
     }
 }
-
 
 // A simplified control view for when the main content is on the external display
 struct ImageBrowserControlView: View {
@@ -434,7 +417,7 @@ class ImageBrowserViewController: UIViewController {
         let imageBrowserView = ExternalImageBrowserView(
             imageUrls: imageUrls,
             sharedState: sharedState,
-            sftpConnection: sftpConnection
+            connectionManager: sftpConnection.connectionManager
         )
         
         // Create a host controller for the external display
@@ -491,16 +474,14 @@ class ImageBrowserViewController: UIViewController {
     }
 }
 
-
-
 struct ExternalWebViewImageViewer: View {
     let url: URL
-    let sftpConnection: SFTPFileBrowserViewModel
+    let connectionManager: SFTPConnectionManager
     @ObservedObject var sharedState: ImageBrowserSharedState
     @State private var isLoading = true
-    @State private var loadedImageURL: URL?
     @State private var errorMessage: String?
     @State private var imageData: Data?
+    @State private var downloadTask: Task<Void, Never>?
     
     var body: some View {
         ZStack {
@@ -513,11 +494,8 @@ struct ExternalWebViewImageViewer: View {
             } else if isLoading {
                 VStack {
                     ProgressView()
-                        .foregroundColor(.white)
-                    Text("Loading image...")
-                        .padding(.top, 8)
-                        .font(.caption)
-                        .foregroundColor(.white)
+                        .tint(.white)
+
                 }
                 .onAppear {
                     // Make sure we mark as not loaded during loading
@@ -548,6 +526,10 @@ struct ExternalWebViewImageViewer: View {
         .onAppear {
             loadImage()
         }
+        .onDisappear {
+            // Cancel any ongoing tasks
+            downloadTask?.cancel()
+        }
     }
     
     private func loadImage() {
@@ -555,57 +537,64 @@ struct ExternalWebViewImageViewer: View {
         errorMessage = nil
         sharedState.imageWillChange()
         
-        Task {
+        // Cancel any existing download task
+        downloadTask?.cancel()
+        
+        downloadTask = Task {
             do {
-                // Use memory instead of file system
                 print("Downloading image from: \(url.path)")
                 
-                // Create a memory buffer to hold the image data
-                let outputStream = OutputStream(toMemory: ())
-                outputStream.open()
+                // Create a temporary file for downloading
+                let tempDir = FileManager.default.temporaryDirectory
+                let tempURL = tempDir.appendingPathComponent(UUID().uuidString + ".img")
                 
-                // Progress adapter for image download
-                let progressAdapter: ((UInt64, UInt64) -> Bool) = { bytesReceived, totalBytes in
-                    // Just continue the download
-                    return !Task.isCancelled
+                // Clean up when done
+                defer {
+                    try? FileManager.default.removeItem(at: tempURL)
                 }
                 
-                // Download the file using the contents method
-                try sftpConnection.sftpConnection.contents(
-                    atPath: url.path,
-                    toStream: outputStream,
-                    fromPosition: 0,
-                    progress: progressAdapter
+                // Progress handler that always continues unless task is cancelled
+                let progressHandler: (Double) -> Bool = { _ in return !Task.isCancelled }
+                
+                // Ensure connection is established
+                try await connectionManager.connect()
+                
+                // Download the file using Citadel
+                try await connectionManager.downloadFile(
+                    remotePath: url.path,
+                    localURL: tempURL,
+                    progress: progressHandler
                 )
                 
-                outputStream.close()
+                // Check if task was cancelled
+                try Task.checkCancellation()
                 
-                // Get the data from the output stream
-                if let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data {
+                // Load the data from the temp file
+                let data = try Data(contentsOf: tempURL)
+                
+                await MainActor.run {
+                    self.imageData = data
+                    self.isLoading = false
+                    // Image is now loaded
+                    sharedState.imageDidLoad()
+                }
+                print("✅ Image downloaded successfully, size: \(data.count) bytes")
+            } catch {
+                if error is CancellationError {
+                    print("Image download cancelled")
+                } else {
+                    print("❌ Failed to load image: \(error)")
                     await MainActor.run {
-                        self.imageData = data
                         self.isLoading = false
-                        // Image is now loaded
+                        self.errorMessage = error.localizedDescription
+                        // Mark as loaded even on error, so slideshow can continue
                         sharedState.imageDidLoad()
                     }
-                    print("✅ Image downloaded successfully to memory, size: \(data.count) bytes")
-                } else {
-                    throw NSError(domain: "Image", code: -1,
-                                 userInfo: [NSLocalizedDescriptionKey: "Failed to get image data from stream"])
-                }
-            } catch {
-                print("❌ Failed to load image: \(error)")
-                await MainActor.run {
-                    self.isLoading = false
-                    self.errorMessage = error.localizedDescription
-                    // Mark as loaded even on error, so slideshow can continue
-                    sharedState.imageDidLoad()
                 }
             }
         }
     }
 }
-
 
 // Extension to help with creating a SwiftUI image browser view controller
 extension UIViewController {
@@ -621,4 +610,145 @@ extension UIViewController {
         )
     }
 }
+
+// Reusing ImageWebView component from previous implementation
+//import WebKit
+//
+//struct ImageWebView: UIViewRepresentable {
+//    let imageData: Data
+//    
+//    func makeUIView(context: Context) -> WKWebView {
+//        // Create a configuration with appropriate preferences
+//        let configuration = WKWebViewConfiguration()
+//        
+//        let webView = WKWebView(frame: .zero, configuration: configuration)
+//        webView.backgroundColor = .black
+//        webView.scrollView.backgroundColor = .black
+//        webView.isOpaque = false
+//        
+//        // Configure for image viewing
+//        webView.scrollView.minimumZoomScale = 1.0
+//        webView.scrollView.maximumZoomScale = 5.0
+//        webView.scrollView.showsHorizontalScrollIndicator = false
+//        webView.scrollView.showsVerticalScrollIndicator = false
+//        webView.scrollView.bounces = true
+//        
+//        // Important: Handle double-tap to zoom
+//        let doubleTapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleTap(_:)))
+//        doubleTapGesture.numberOfTapsRequired = 2
+//        webView.addGestureRecognizer(doubleTapGesture)
+//        
+//        return webView
+//    }
+//    
+//    func updateUIView(_ webView: WKWebView, context: Context) {
+//        // Convert image data to base64
+//        let base64String = imageData.base64EncodedString()
+//        
+//        // Try to determine mime type based on image data
+//        let mimeType = determineMimeType(from: imageData)
+//        
+//        // Use HTML with embedded base64 image data
+//        let htmlString = """
+//        <!DOCTYPE html>
+//        <html>
+//        <head>
+//            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+//            <style>
+//                html, body {
+//                    margin: 0;
+//                    padding: 0;
+//                    background-color: black;
+//                    width: 100%;
+//                    height: 100%;
+//                    display: flex;
+//                    justify-content: center;
+//                    align-items: center;
+//                    overflow: hidden;
+//                }
+//                img {
+//                    max-width: 100%;
+//                    max-height: 100vh;
+//                    object-fit: contain;
+//                }
+//            </style>
+//        </head>
+//        <body>
+//            <img src="data:\(mimeType);base64,\(base64String)" alt="Image" />
+//        </body>
+//        </html>
+//        """
+//        
+//        webView.loadHTMLString(htmlString, baseURL: nil)
+//    }
+//    
+//    // Helper function to determine the MIME type from image data
+//    private func determineMimeType(from data: Data) -> String {
+//        var headerData = data.prefix(12)
+//        let headerBytes = [UInt8](headerData)
+//        
+//        // Check for common image format signatures
+//        if headerBytes.count >= 2 {
+//            // JPEG: Starts with 0xFF 0xD8
+//            if headerBytes[0] == 0xFF && headerBytes[1] == 0xD8 {
+//                return "image/jpeg"
+//            }
+//            
+//            // PNG: Starts with 0x89 0x50 0x4E 0x47 0x0D 0x0A 0x1A 0x0A
+//            if headerBytes.count >= 8 && headerBytes[0] == 0x89 && headerBytes[1] == 0x50
+//                && headerBytes[2] == 0x4E && headerBytes[3] == 0x47 {
+//                return "image/png"
+//            }
+//            
+//            // GIF: Starts with "GIF87a" or "GIF89a"
+//            if headerBytes.count >= 6 && headerBytes[0] == 0x47 && headerBytes[1] == 0x49 && headerBytes[2] == 0x46 {
+//                return "image/gif"
+//            }
+//            
+//            // WebP: Starts with "RIFF" followed by 4 bytes then "WEBP"
+//            if headerBytes.count >= 12 && headerBytes[0] == 0x52 && headerBytes[1] == 0x49
+//                && headerBytes[2] == 0x46 && headerBytes[3] == 0x46
+//                && headerBytes[8] == 0x57 && headerBytes[9] == 0x45
+//                && headerBytes[10] == 0x42 && headerBytes[11] == 0x50 {
+//                return "image/webp"
+//            }
+//        }
+//        
+//        // Default to JPEG if we can't determine the type
+//        return "image/jpeg"
+//    }
+//    
+//    func makeCoordinator() -> Coordinator {
+//        Coordinator(self)
+//    }
+//    
+//    class Coordinator: NSObject {
+//        var parent: ImageWebView
+//        
+//        init(_ parent: ImageWebView) {
+//            self.parent = parent
+//        }
+//        
+//        @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+//            if let webView = gesture.view as? WKWebView {
+//                let scrollView = webView.scrollView
+//                
+//                if scrollView.zoomScale > scrollView.minimumZoomScale {
+//                    // If zoomed in, zoom out
+//                    scrollView.setZoomScale(scrollView.minimumZoomScale, animated: true)
+//                } else {
+//                    // If zoomed out, zoom in to the tap location
+//                    let location = gesture.location(in: webView)
+//                    let zoomRect = CGRect(
+//                        x: location.x - 50,
+//                        y: location.y - 50,
+//                        width: 100,
+//                        height: 100
+//                    )
+//                    scrollView.zoom(to: zoomRect, animated: true)
+//                }
+//            }
+//        }
+//    }
+//}
 #endif

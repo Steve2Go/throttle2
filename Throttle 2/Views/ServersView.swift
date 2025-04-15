@@ -179,7 +179,7 @@ struct ServerEditView: View {
     @State private var fsPath: String = ""
     @State private var fsThumb: Bool
     @State private var ffThumb: Bool
-    @State private var thumbMax: String = "3"
+    @State private var thumbMax: String = "4"
     @State private var hasPython: Bool
     
     // Updated SFTP Authentication
@@ -220,7 +220,8 @@ struct ServerEditView: View {
         _ffThumb = State(initialValue: server?.ffThumb ?? false)
         // Initialize SFTP authentication states
         _sftpUsesKey = State(initialValue: server?.sftpUsesKey ?? false)
-        _thumbMax = State(initialValue: String(server?.thumbMax ?? 9))
+        ///Leaving a spare connection for the video player 
+        _thumbMax = State(initialValue: String((Int(server?.thumbMax ?? 8) + 1)))
         _sftpKey = State(initialValue: server?.sshKeyFullPath ?? "")
         _hasPython = State(initialValue: server?.hasPython ?? true)
     }
@@ -391,7 +392,7 @@ struct ServerEditView: View {
                         HStack {
                             Text("Max Connections")
                             Spacer()
-                            TextField("Max connections", text: $thumbMax)
+                            TextField("Max SSH connections", text: $thumbMax)
                                 .multilineTextAlignment(.trailing)
                                 .keyboardType(.numberPad)
                         }
@@ -628,7 +629,7 @@ struct ServerEditView: View {
                 existingServer.fsBrowse = fsBrowse
                 existingServer.sftpUsesKey = sftpUsesKey
                 existingServer.protoHttps = protHttps
-                existingServer.thumbMax = Int32(thumbMax) ?? 9
+                existingServer.thumbMax = Int32(Int(thumbMax)! - 1)
                 existingServer.hasPython = hasPython
                 saveToKeychain()
                 store.selection = nil
@@ -658,7 +659,7 @@ struct ServerEditView: View {
                 newServer.ffThumb = ffThumb
                 newServer.fsBrowse = fsBrowse
                 newServer.sftpUsesKey = sftpUsesKey
-                newServer.thumbMax = Int32(thumbMax) ?? 9
+                newServer.thumbMax = Int32(Int(thumbMax)! - 1)
                 newServer.hasPython = hasPython
                 
                 saveToKeychain()

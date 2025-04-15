@@ -33,6 +33,7 @@ struct Throttle_2App: App {
     @State var isBackground: Timer?
     @State var tunnelClosed = false
     @State var isTunneling = false
+    @AppStorage("canAirplay") var canAirplay = false
 
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
 #if os(iOS)
@@ -111,7 +112,7 @@ struct Throttle_2App: App {
                     #if os(iOS)
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                         if scenePhase == .background {
-                            isBackground = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { _ in
+                            isBackground = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
                                 DispatchQueue.main.async{
                                     //TunnelManagerHolder.shared.tearDownAllTunnels()
                                     manager.stopPeriodicUpdates()
@@ -138,7 +139,6 @@ struct Throttle_2App: App {
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                         if networkMonitor.isConnected {
                             Task {
-                                //setupServer(store: store, torrentManager: manager)
                                 refeshTunnel(store: store, torrentManager: manager)
                             }
                         }

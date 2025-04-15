@@ -1,9 +1,8 @@
 import SwiftUI
 import KeychainAccess
 import CoreData
-import NIOSSH
+import Citadel
 import NIOCore
-import mft
 
 struct CreateTorrent: View {
     @ObservedObject var store: Store
@@ -79,9 +78,6 @@ struct CreateTorrent: View {
                 }
                 
                 if isProcessing {
-//                    if !isCreated && !isError {
-//                        ProgressView()
-//                    }
                     Section {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(commandOutput)
@@ -226,16 +222,15 @@ struct CreateTorrent: View {
             return
         }
         
-        // Create SFTP connection
-        let sftp = MFTSftpConnection(hostname: hostname,
-                                    port: Int(store.selection!.sftpPort),
-                                    username: username,
-                                    password: password)
+        // Create connection manager
+        let connectionManager = SFTPConnectionManager(server: store.selection)
         
-        try sftp.connect()
-        try sftp.authenticate()
-        defer {
-            sftp.disconnect()
+        // Connect to the server
+        try await connectionManager.connect()
+        
+        // Set initial progress
+        await MainActor.run {
+            progressPercentage = 0.05 // Start with a small initial progress
         }
         
         // Get just the filename from the path
@@ -245,17 +240,12 @@ struct CreateTorrent: View {
         let escapedOutputFile = outputFile.replacingOccurrences(of: "'", with: "'\\''")
         let escapedPath = filePath.replacingOccurrences(of: "'", with: "'\\''")
         
+        // Create SSH connection
         let ssh = SSHConnection(host: hostname,
                               port: Int(store.selection!.sftpPort),
                               username: username,
                               password: password)
         try await ssh.connect()
-        defer { ssh.disconnect() }
-        
-        // Set initial progress
-        await MainActor.run {
-            progressPercentage = 0.05 // Start with a small initial progress
-        }
         
         // Upload the shell script to the server
         let scriptPath = "/tmp/torrent_creator.sh"
@@ -602,39 +592,41 @@ struct CreateTorrent: View {
                 try fileManager.removeItem(at: outputURL)
             }
             
-            if let outputStream = OutputStream(toFileAtPath: outputURL.path, append: false) {
-                try sftp.contents(atPath: outputFile, toStream: outputStream, fromPosition: 0) { current, total in
-                    if current % 10240 == 0 || current == total {  // Only update every 10KB to reduce UI updates
-                        let percentage = total > 0 ? Int(Double(current) / Double(total) * 100) : 0
-                        let downloadProgressLine = "Download: \(formatBytes(current))/\(formatBytes(total)) (\(percentage)%)"
-                        
-                        // Update progress bar for download (90-100%)
-                        let downloadProgress = total > 0 ? Double(current) / Double(total) : 0
-                        let adjustedProgress = 0.9 + (downloadProgress * 0.1) // 90-100% range
-                        
-                        Task { @MainActor in
-                            progressPercentage = min(1.0, adjustedProgress)
-                        }
-                        
-                        // Update the download line in-place
-                        var lines = commandOutput.components(separatedBy: "\n")
-                        if downloadLineIndex < lines.count {
-                            lines[downloadLineIndex] = downloadProgressLine
-                            commandOutput = lines.joined(separator: "\n")
-                        }
-                    }
-                    return true // Continue downloading
-                }
-                localPath = outputURL.path
-                commandOutput += "\nDownloaded to: \(localPath)"
+            // Download using Citadel connection
+            let progressHandler: (Double) -> Bool = { progress in
+                let current = UInt64(progress * 100000) // Estimate of bytes for progress display
+                let total = UInt64(100000)
+                let percentage = Int(progress * 100)
+                let downloadProgressLine = "Download: \(formatBytes(current))/\(formatBytes(total)) (\(percentage)%)"
                 
-                await MainActor.run {
-                    progressPercentage = 1.0 // Complete
+                // Update progress bar for download (90-100%)
+                let adjustedProgress = 0.9 + (progress * 0.1) // 90-100% range
+                
+                Task { @MainActor in
+                    progressPercentage = min(1.0, adjustedProgress)
                 }
-            } else {
-                isError = true
-                throw NSError(domain: "mft", code: MFTErrorCode.local_open_error_for_writing.rawValue,
-                            userInfo: [NSLocalizedDescriptionKey: "Could not create output file"])
+                
+                // Update the download line in-place
+                var lines = commandOutput.components(separatedBy: "\n")
+                if downloadLineIndex < lines.count {
+                    lines[downloadLineIndex] = downloadProgressLine
+                    commandOutput = lines.joined(separator: "\n")
+                }
+                
+                return true // Continue downloading
+            }
+            
+            try await connectionManager.downloadFile(
+                remotePath: outputFile,
+                localURL: outputURL,
+                progress: progressHandler
+            )
+            
+            localPath = outputURL.path
+            commandOutput += "\nDownloaded to: \(localPath)"
+            
+            await MainActor.run {
+                progressPercentage = 1.0 // Complete
             }
             
             // Clean up temp files
@@ -650,6 +642,12 @@ struct CreateTorrent: View {
         }
         
         isDownloading = false
+        
+        // Clean up connections
+        Task {
+            try? await connectionManager.disconnect()
+            try? await ssh.disconnect()
+        }
     }
     
     // Helper function to format file sizes nicely

@@ -140,22 +140,22 @@ struct SettingsView: View {
                         Stepper("", value: $refreshRate, in: 1...60)
                     }
                 )
-                #if os(macOS)
-                settingRow(
-                    title: "Use system generated thumbnails for all video",
-                    description: "Reccomended if you have QL Video installed.",
-                    control: Toggle("", isOn: $qlVideo)
-                )
-                VStack{
-                    HStack{
-                        Button("Get QL Video") {
-                            openURL(URL(string:"https://github.com/Marginal/QLVideo/releases/latest")!)
-                        }
-                        Text("Enables video thumnails in Finder & improves Throttle thumbnails")
-                    }
-                    Text("Restart you Mac then clear cache below after installation.").font(.caption)
-                }
-#endif
+//                #if os(macOS)
+//                settingRow(
+//                    title: "Use system generated thumbnails for all video",
+//                    description: "Reccomended if you have QL Video installed.",
+//                    control: Toggle("", isOn: $qlVideo)
+//                )
+////                VStack{
+////                    HStack{
+////                        Button("Get QL Video") {
+////                            openURL(URL(string:"https://github.com/Marginal/QLVideo/releases/latest")!)
+////                        }
+////                        Text("Enables video thumnails in Finder & improves Throttle thumbnails")
+////                    }
+////                    Text("Restart you Mac then clear cache below after installation.").font(.caption)
+////                }
+//#endif
                 
                     Button("Clear Cache (Restart Required)"){
                         ThumbnailManager.shared.clearCache()

@@ -4,6 +4,7 @@ import KeychainAccess
 import UIKit
 import AVFoundation
 import Citadel
+import NIO
 
 public class ThumbnailManager: NSObject {
     public static let shared = ThumbnailManager()
@@ -18,6 +19,10 @@ public class ThumbnailManager: NSObject {
     
     // Memory cache to complement file cache
     private let memoryCache = NSCache<NSString, UIImage>()
+    
+    // Connection managers by server
+    private var connectionManagers = [String: SFTPConnectionManager]()
+    private let connectionManagersLock = NSLock()
     
     // Cache directory for saved thumbnails
     private var cacheDirectory: URL? {
@@ -38,6 +43,22 @@ public class ThumbnailManager: NSObject {
     private func createCacheDirectoryIfNeeded() {
         if let cacheDir = cacheDirectory, !fileManager.fileExists(atPath: cacheDir.path) {
             try? fileManager.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        }
+    }
+    
+    // Get or create a connection manager for a server
+    private func getConnectionManager(for server: ServerEntity) -> SFTPConnectionManager {
+        let serverKey = server.name ?? server.sftpHost ?? "default"
+        
+        connectionManagersLock.lock()
+        defer { connectionManagersLock.unlock() }
+        
+        if let manager = connectionManagers[serverKey] {
+            return manager
+        } else {
+            let newManager = SFTPConnectionManager(server: server)
+            connectionManagers[serverKey] = newManager
+            return newManager
         }
     }
     
@@ -143,25 +164,12 @@ public class ThumbnailManager: NSObject {
                             do {
                                 thumbnail = try await generateFFmpegThumbnail(for: path, server: server)
                             } catch {
-                                print("FFmpeg thumbnail failed, trying VLC: \(error.localizedDescription)")
-                                // Try to use VLC as fallback
-                                do {
-                                    //thumbnail = try await generateVideoThumbnail(for: path, server: server)
-                                    thumbnail = defaultThumbnail(for: path)
-                                } catch let vlcError {
-                                    print("VLC thumbnail also failed: \(vlcError.localizedDescription)")
-                                    thumbnail = defaultThumbnail(for: path)
-                                }
+                                print("FFmpeg thumbnail failed, using default: \(error.localizedDescription)")
+                                thumbnail = defaultThumbnail(for: path)
                             }
                         } else {
-                            // Use VLC directly for videos when server-side FFmpeg is not enabled
-                            do {
-                                thumbnail = defaultThumbnail(for: path)
-                                //thumbnail = try await generateVideoThumbnail(for: path, server: server)
-                            } catch let error {
-                                print("VLC thumbnail failed, using placeholder: \(error.localizedDescription)")
-                                thumbnail = defaultThumbnail(for: path)
-                            }
+                            // Use default for videos when server-side FFmpeg is not enabled
+                            thumbnail = defaultThumbnail(for: path)
                         }
                     } else {
                         thumbnail = defaultThumbnail(for: path)
@@ -198,40 +206,28 @@ public class ThumbnailManager: NSObject {
     // MARK: - Image Thumbnail Generation
     
     private func generateImageThumbnail(for path: String, server: ServerEntity) async throws -> Image {
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-        guard let username = server.sftpUser,
-              let password = keychain["sftpPassword" + (server.name ?? "")],
-              let hostname = server.sftpHost else {
-            throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing SFTP credentials"])
+        // Get the connection manager for this server
+        let connectionManager = getConnectionManager(for: server)
+        
+        // Ensure connection is established
+        try await connectionManager.connect()
+        
+        // Create a temporary file for downloading
+        let tempDir = FileManager.default.temporaryDirectory
+        let tempURL = tempDir.appendingPathComponent(UUID().uuidString + ".img")
+        
+        // Clean up temp file when done
+        defer {
+            try? FileManager.default.removeItem(at: tempURL)
         }
         
-        // Create SSH client
-        let client = try await SSHClient.connect(
-            host: hostname,
-            port: Int(server.sftpPort),
-            authenticationMethod: .passwordBased(username: username, password: password),
-            hostKeyValidator: .acceptAnything(),
-            reconnect: .never
-        )
+        // Download the file with a progress handler that always returns true to continue
+        let progressHandler: (Double) -> Bool = { _ in return true }
+        try await connectionManager.downloadFile(remotePath: path, localURL: tempURL, progress: progressHandler)
         
-        // Open an SFTP session
-        let sftp = try await client.openSFTP()
-        
-        // Read the file data
-        let buffer = try await sftp.withFile(
-            filePath: path,
-            flags: .read
-        ) { file in
-            try await file.readAll()
-        }
-        
-        // Close the SFTP session
-        try await sftp.close()
-        
-        // Convert ByteBuffer to Data
-        let imageData = Data(buffer: buffer)
-        
-        guard let uiImage = UIImage(data: imageData) else {
+        // Load the image data
+        guard let imageData = try? Data(contentsOf: tempURL),
+              let uiImage = UIImage(data: imageData) else {
             throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to load image data"])
         }
         
@@ -246,6 +242,7 @@ public class ThumbnailManager: NSObject {
     // MARK: - Video thumbs via FFmpeg (server-side)
     
     private func generateFFmpegThumbnail(for path: String, server: ServerEntity) async throws -> Image {
+        // Using SSH commands directly for FFmpeg thumbnail generation
         let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
         guard let username = server.sftpUser,
               let password = keychain["sftpPassword" + (server.name ?? "")],
@@ -261,6 +258,13 @@ public class ThumbnailManager: NSObject {
             hostKeyValidator: .acceptAnything(),
             reconnect: .never
         )
+        
+        // Clean up when done
+        defer {
+            Task {
+                try? await client.close()
+            }
+        }
         
         // Generate a unique temp filename
         let tempThumbPath = "/tmp/thumb_\(UUID().uuidString).jpg"
@@ -282,9 +286,9 @@ public class ThumbnailManager: NSObject {
                 let catCmd = "cat \(escapedThumbPath)"
                 let imageBuffer = try await client.executeCommand(catCmd)
                 
-                // Clean up regardless of success
+                // Clean up temp file regardless of success
                 let cleanupCmd = "rm -f \(escapedThumbPath)"
-                _ = try await client.executeCommand(cleanupCmd)
+                _ = try? await client.executeCommand(cleanupCmd)
                 
                 // Convert buffer to UIImage
                 if let uiImage = UIImage(data: Data(buffer: imageBuffer)) {
@@ -299,14 +303,12 @@ public class ThumbnailManager: NSObject {
             
             // Clean up if this attempt failed
             let cleanupCmd = "rm -f \(escapedThumbPath)"
-            _ = try await client.executeCommand(cleanupCmd)
+            _ = try? await client.executeCommand(cleanupCmd)
         }
         
         throw NSError(domain: "ThumbnailManager", code: -3,
             userInfo: [NSLocalizedDescriptionKey: "Failed to generate thumbnail with FFmpeg"])
     }
-    
-   
     
     // Helper function to check if image is empty (solid color)
     private func isEmptyImage(_ image: UIImage) -> Bool {
@@ -493,8 +495,38 @@ public class ThumbnailManager: NSObject {
         visiblePaths.removeAll()
         visiblePathsLock.unlock()
         
+        // Close all connection managers
+        connectionManagersLock.lock()
+        let managers = connectionManagers.values
+        connectionManagers.removeAll()
+        connectionManagersLock.unlock()
+        
+        // Close each manager without capturing self
+        for manager in managers {
+            let weakManager = manager
+            Task {
+                await weakManager.disconnect()
+            }
+        }
+        
         // Log the cleanup action
         print("All thumbnail operations canceled and connections reset")
+    }
+    
+    deinit {
+        // Properly clean up connection managers without capturing self
+        connectionManagersLock.lock()
+        let managers = connectionManagers.values
+        connectionManagers.removeAll()
+        connectionManagersLock.unlock()
+        
+        // Note: We're not awaiting these disconnects since this is deinit
+        for manager in managers {
+            let weakManager = manager
+            Task {
+                await weakManager.disconnect()
+            }
+        }
     }
 }
 
@@ -503,7 +535,7 @@ public func clearThumbnailOperations() {
     ThumbnailManager.shared.clearAllConnections()
 }
 
-// Updated PathThumbnailView with visibility tracking
+// Unchanged PathThumbnailView
 public struct PathThumbnailView: View {
     let path: String
     let server: ServerEntity
@@ -626,7 +658,4 @@ public struct FileRowThumbnail: View {
         PathThumbnailView(path: item.url.path, server: server)
     }
 }
-
-
-
 #endif

@@ -224,23 +224,11 @@ struct ContentView: View {
         }
         
         .onOpenURL { url in
-            // Check if it's a VLC callback
-#if os(iOS)
-            if url.scheme == "throttle" && url.host == "x-callback-url" {
-                // Let the store handle it
-                //removed for now, internal player used
-                if UserDefaults.standard.bool(forKey: "usePlaylist") {
-                    store.handleVLCCallback(url)
-                }
-                
-                return
-            }
-            #endif
             if url.isFileURL {
                 store.selectedFile = url
                 store.selectedFile!.startAccessingSecurityScopedResource()
                 #if os(iOS)
-                if manager.fetchTimer?.isValid == true {
+                if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true  {
                     presenting.activeSheet = "adding"
                 }
                 #else
@@ -253,10 +241,9 @@ struct ContentView: View {
             }
             else if url.absoluteString.lowercased().hasPrefix("magnet:") {
                 store.magnetLink = url.absoluteString
-//                Task {
-//                    try await Task.sleep(for: .milliseconds(500))
-//                    presenting.activeSheet = "adding"
-//                }
+                if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true {
+                    presenting.activeSheet = "adding"
+                }
             }
             else {
                 print("URL ignored: Not a file or magnet link")

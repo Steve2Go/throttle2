@@ -22,8 +22,11 @@ struct TorrentRowView: View {
     @AppStorage("showThumbs") var showThumbs: Bool = false
     var selecting: Bool
     @Binding var selected: [Int]
-    @Binding var showToast: Bool
-    @Binding var toastMessage: String
+    let doToast: (String, String, Color) -> Void
+//    @Binding var showToast: Bool
+//    @Binding var toastMessage: String
+//    @Binding var toastIcon: String
+//    @Binding var toastColor: ColorResource
     @AppStorage("primaryFile") var primaryFiles: Bool = false
     #if os(iOS)
     var isiPad: Bool {
@@ -129,14 +132,6 @@ struct TorrentRowView: View {
                             ProgressView(value: torrent.progress)
                                 .tint(.gray)
                         }
-                        
-                        
-                        
-                        
-                    
-                    
-                        
-                   // }
              
             if (store.selection?.sftpBrowse == true || store.selection?.fsBrowse == true) && torrent.dynamicFields["downloadDir"] != nil {
                         if ((store.selection?.sftpBrowse) != nil){
@@ -155,22 +150,15 @@ struct TorrentRowView: View {
                                     //macos, mounted via fuse
                                     if store.selection?.sftpBrowse == true {
                                         let pathName = get_fuse_path(torrent: torrent, downloadDir: torrentU)
-                                        //NSWorkspace.shared.activateFileViewerSelecting([pathName])
                                         openInFinder(url: pathName)
                                     }
                                     else if store.selection?.pathServer != nil && store.selection?.pathFilesystem != nil {
                                         let pathName = URL(string :"file://" + torrentU.replacingOccurrences(of: (store.selection?.pathServer!)!, with: store.selection?.pathFilesystem! ?? "/") + "/" + torrent.name!)
                                         if pathName != nil{
                                             print(pathName!.absoluteString)
-                                            //NSWorkspace.shared.activateFileViewerSelecting([pathName!])
                                             openInFinder(url: pathName!)
                                         }
                                     }
-                                        
-                                    
-                                    // macos, traditional mapping, to come
-                                    
-                                    
                                     
 #endif
                                 }
@@ -185,6 +173,7 @@ struct TorrentRowView: View {
                     Button {
                         Task {
                             try? await manager.toggleStar(for: torrent)
+                            doToast(manager.isStarred(torrent) ? "Removing Star" : "Starring" , manager.isStarred(torrent) ? "star.slash.fill" : "star.fill", Color.yellow)
                         }
                     } label: {
                         Image(systemName: manager.isStarred(torrent) ? "star.fill" : "star")
@@ -217,56 +206,66 @@ struct TorrentRowView: View {
             }
             Button {
                 Task {
-                    toastMessage = "Verify Requested"
-                    showToast = true
+                    doToast("Verifying" , "externaldrive.badge.questionmark", Color.yellow)
                     try await manager.verifyTorrents(ids: [torrent.id])
                 }
             } label: {
-                Label("Verify", systemImage: "externaldrive.badge.questionmark")
-                
+                Text("Verify")
+                Image(systemName: "externaldrive.badge.questionmark")
+            }
+            Button {
+                Task {
+                    doToast("Announcing" , "megaphone.fill", Color.blue)
+                    try await manager.reannounceTorrents(ids: [torrent.id])
+                }
+            } label: {
+                Text("Announce")
+                Image(systemName: "externaldrive.badge.questionmark")
             }
             if torrent.status == 0 {
                 Button {
                     Task {
-                        toastMessage = "Start Requested"
-                        showToast = true
+                        doToast( "Starting" ,"play", Color.green)
                         try await manager.startTorrents(ids: [torrent.id])
                     }
                 } label: {
-                    Label("Start", systemImage: "play")
+                    Text("Start")
+                    Image(systemName: "play")
                 }
             }else {
                 Button {
                     Task {
-                        toastMessage = "Stop Requested"
-                        showToast = true
+                        doToast( "Stopping" , "stop", Color.green)
                         try await manager.stopTorrents(ids: [torrent.id])
                     }
                 } label: {
-                    Label("Stop", systemImage: "stop")
+                    Text("Stop")
+                    Image(systemName: "stop")
                 }
             }
             
             Button {
                 onMove()
             } label: {
-                Label("Move", systemImage: "folder")
+                Text("Move")
+                Image(systemName: "rectangle.portrait.and.arrow.forward")
             }
             
             Button {
                 onRename()
             } label: {
-                Label("Rename", systemImage: "pencil")
+                Text("rename")
+                Image(systemName: "dots.and.line.vertical.and.cursorarrow.rectangle")
             }
             
-            if torrent.progress < 1.0 {
-                Divider()
-                Button {
-                    // Priority actions - to be implemented
-                } label: {
-                    Label("Set Priority", systemImage: "arrow.up.arrow.down")
-                }
-            }
+//            if torrent.progress < 1.0 {
+//                Divider()
+//                Button {
+//                    // Priority actions - to be implemented
+//                } label: {
+//                    Label("Set Priority", systemImage: "arrow.up.arrow.down")
+//                }
+//            }
         }.onTapGesture {
             
             store.selectedTorrentId = torrent.id

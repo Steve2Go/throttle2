@@ -1,32 +1,27 @@
-//
-//  SFTPFileBrowserViewModel.swift
-//  Throttle 2
-//
-//  Created by Stephen Grigg on 21/3/2025.
-//
 #if os(iOS)
 import SwiftUI
-import mft
+//import mft
 import KeychainAccess
 import Citadel
 import SimpleToast
+import NIO
 
 // MARK: - ViewModel
 class SFTPFileBrowserViewModel: ObservableObject {
     @Published private(set) var items: [FileItem] = []
-       @Published var isLoading = false
-       @Published var currentPath: String
-       @Published var downloadProgress: Double = 0
-       @Published var isDownloading = false
-       @Published var activeDownload: FileItem?
-       @Published var downloadDestination: URL?
-       @Published var showingImageBrowser = false
-       @Published var selectedImageIndex: Int?
-       @Published var imageUrls: [URL] = []
-       @Published var isInitialPathAFile = false
-       @Published var initialFileItem: FileItem?
-       @Published var showVideoPlayer = false
-       @Published var selectedFile: FileItem?
+    @Published var isLoading = false
+    @Published var currentPath: String
+    @Published var downloadProgress: Double = 0
+    @Published var isDownloading = false
+    @Published var activeDownload: FileItem?
+    @Published var downloadDestination: URL?
+    @Published var showingImageBrowser = false
+    @Published var selectedImageIndex: Int?
+    @Published var imageUrls: [URL] = []
+    @Published var isInitialPathAFile = false
+    @Published var initialFileItem: FileItem?
+    @Published var showVideoPlayer = false
+    @Published var selectedFile: FileItem?
     @Published var upOne = ""
     @Published var showingFFmpegPlayer = false
 
@@ -40,7 +35,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
     @Published var showVLCDownload = false
     @AppStorage("currentServer") private var currentServerName: String = ""
     
-    //vlc queue
+    // VLC queue
     @AppStorage("pendingVideoFiles") private var pendingVideoFiles: Data = Data()
     // Use regular properties instead of @Published for these
     var showingNextVideoAlert = false
@@ -50,7 +45,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     let basePath: String
     let initialPath: String
-    var sftpConnection: MFTSftpConnection!
+    // Keep both connection methods for gradual transition
+    //var sftpConnection: MFTSftpConnection!
+    var connectionManager: SFTPConnectionManager
+    
     var downloadTask: Task<Void, Error>?
     weak var delegate: SFTPFileBrowserViewModelDelegate?
     @Published var videoPlayerConfiguration: VideoPlayerConfiguration?
@@ -58,6 +56,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
     @Published var showToast = false
     @Published var toastMessage = ""
     
+    private var activeThumbnailOperations: [URL: Task<Void, Never>] = [:]
     
     protocol SFTPFileBrowserViewModelDelegate: AnyObject {
         func viewModel(_ viewModel: SFTPFileBrowserViewModel, didRequestVideoPlayback configuration: VideoPlayerConfiguration)
@@ -68,177 +67,32 @@ class SFTPFileBrowserViewModel: ObservableObject {
         showToast = true
     }
     
-    // Delete a file or directory
-        func deleteItem(_ item: FileItem) {
-            isLoading = true
-            
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    if item.isDirectory {
-                        try self.recursiveDelete(atPath: item.url.path)
-                    } else {
-                        try self.sftpConnection.removeFile(atPath: item.url.path)
-                    }
-                    
-                    DispatchQueue.main.async {
-                        self.isLoading = false
-                        self.fetchItems() // Refresh the directory after deletion
-                        self.toastMessage = "Deleted"
-                        self.showToast = true
-                    }
-                } catch {
-                    DispatchQueue.main.async {
-                        self.isLoading = false
-                        print("❌ Failed to delete item: \(error)")
-                    }
-                }
-            }
-        }
-    
-    private func recursiveDelete(atPath path: String) throws {
-        // Collect all files and directories under the given path
-        var allPaths: [(path: String, isDirectory: Bool)] = []
-        
-        func collectPaths(currentPath: String) throws {
-            let entries = try sftpConnection.contentsOfDirectory(atPath: currentPath, maxItems: 0)
-            for entry in entries {
-                // Skip special entries
-                if entry.filename == "." || entry.filename == ".." { continue }
-                let entryPath = "\(currentPath)/\(entry.filename)".replacingOccurrences(of: "//", with: "/")
-                allPaths.append((path: entryPath, isDirectory: entry.isDirectory))
-                if entry.isDirectory {
-                    try collectPaths(currentPath: entryPath)
-                }
-            }
-        }
-        
-        try collectPaths(currentPath: path)
-        
-        // Sort paths by depth (deepest paths first)
-        allPaths.sort { (first, second) -> Bool in
-            return first.path.components(separatedBy: "/").count > second.path.components(separatedBy: "/").count
-        }
-        
-        // Delete all collected entries: files first, then directories
-        for (entryPath, isDirectory) in allPaths {
-            if isDirectory {
-                do {
-                    try sftpConnection.removeDirectory(atPath: entryPath)
-                } catch let error as NSError {
-                    if error.domain == "sftp" && error.code == 2 {
-                        // Ignore error if file/directory doesn't exist
-                    } else {
-                        throw error
-                    }
-                }
-            } else {
-                do {
-                    try sftpConnection.removeFile(atPath: entryPath)
-                } catch let error as NSError {
-                    if error.domain == "sftp" && error.code == 2 {
-                        // Ignore error if file doesn't exist
-                    } else {
-                        throw error
-                    }
-                }
-            }
-        }
-        
-        // Finally, remove the root directory
-        do {
-            try sftpConnection.removeDirectory(atPath: path)
-        } catch let error as NSError {
-            if error.domain == "sftp" && error.code == 2 {
-                // Ignore error if the directory doesn't exist
-            } else {
-                throw error
-            }
-        }
-    }
-        
-        // Rename a file or directory
-        func renameItem(_ item: FileItem, to newName: String) {
-            isLoading = true
-            
-            // Get the parent directory path
-            let parentPath = URL(fileURLWithPath: item.url.path).deletingLastPathComponent().path
-            let newPath = "\(parentPath)/\(newName)".replacingOccurrences(of: "//", with: "/")
-            
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    try self.sftpConnection.moveItem(atPath: item.url.path, toPath: newPath)
-                    
-                    DispatchQueue.main.async {
-                        self.isLoading = false
-                        self.fetchItems() // Refresh the directory after renaming
-                        self.toastMessage = "Renamed"
-                        self.showToast = true
-                    }
-                } catch {
-                    DispatchQueue.main.async {
-                        self.isLoading = false
-                        print("❌ Failed to rename item: \(error)")
-                    }
-                }
-            }
-        }
+    // MARK: - Initialization and Connection
     
     init(currentPath: String, basePath: String, server: ServerEntity?) {
         self.currentPath = currentPath
         self.basePath = basePath
         self.initialPath = currentPath
         self.isInitialPathAFile = false // Will be determined after connection
-        connectSFTP(server: server)
+        
+        // Initialize the connection manager
+        self.connectionManager = SFTPConnectionManager(server: server)
+        // The connection manager initializes the MFT connection, so we can reference it
+       // self.sftpConnection = connectionManager.mftConnection
+        
+        // Connect to the server
+        connectToServer()
     }
     
-    
-    func isVLCInstalled() -> Bool {
-            #if os(iOS)
-            // Use a simple vlc:// URL to test if VLC is installed
-            guard let vlcUrl = URL(string: "vlc://") else { return false }
-            return UIApplication.shared.canOpenURL(vlcUrl)
-            #else
-            // For macOS, you might want to check differently or always return true
-            return false
-            #endif
-        }
-    
-    private func connectSFTP(server: ServerEntity?) {
-        guard let server = server else {
-            print("❌ No server selected for SFTP connection")
-            return
-        }
-        
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-        DispatchQueue.global(qos: .userInitiated).async {
+    private func connectToServer() {
+        Task {
             do {
-                if server.sftpUsesKey {
-                    // Retrieve the key from the keychain and use it for authentication
-                    let key = keychain["sftpKey" + (server.name ?? "")] ?? ""
-                    let password = keychain["sftpPassword" + (server.name ?? "")] ?? ""
-                    self.sftpConnection = MFTSftpConnection(
-                        hostname: server.sftpHost ?? "",
-                        port: Int(server.sftpPort),
-                        username: server.sftpUser ?? "",
-                        prvKey: key,
-                        passphrase: password
-                    )
-                } else {
-                    // Use password-based authentication
-                    let password = keychain["sftpPassword" + (server.name ?? "")] ?? ""
-                    self.sftpConnection = MFTSftpConnection(
-                        hostname: server.sftpHost ?? "",
-                        port: Int(server.sftpPort),
-                        username: server.sftpUser ?? "",
-                        password: password
-                    )
-                }
+                try await connectionManager.connect()
                 
-                try self.sftpConnection.connect()
-                try self.sftpConnection.authenticate()
-                self.checkIfInitialPathIsFile()
+                // Check if the initial path is a file
+                await checkIfInitialPathIsFile()
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.isLoading = false
                     self.toastMessage = "Failed to connect to SFTP server: \(error)"
                     self.showToast = true
@@ -248,18 +102,20 @@ class SFTPFileBrowserViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Directory Operations
+    
     func createFolder(name: String) {
         let newFolderPath = "\(currentPath)/\(name)".replacingOccurrences(of: "//", with: "/")
         
-        DispatchQueue.global(qos: .userInitiated).async {
+        Task {
             do {
-                try self.sftpConnection.createDirectory(atPath: newFolderPath)
+                try await connectionManager.createDirectory(atPath: newFolderPath)
                 
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.fetchItems() // Refresh directory after creation
                 }
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.toastMessage = "Failed to create folder: \(error)"
                     self.showToast = true
                     print("❌ Failed to create folder: \(error)")
@@ -270,50 +126,29 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     func fetchItems() {
         guard !isLoading else { return }
-       
-            DispatchQueue.main.async {
-                self.isLoading = true
-            }
-            
-        func refreshView() {
-            DispatchQueue.main.async {
-                self.refreshTrigger = UUID()
-                self.fetchItems()
-            }
-        }
         
-        DispatchQueue.global(qos: .userInitiated).async {
+        Task { @MainActor in
+            self.isLoading = true
+            
             do {
-                let entries = try self.sftpConnection.contentsOfDirectory(atPath: self.currentPath, maxItems: 0)
-                DispatchQueue.main.async {
-                    let upOneValue = NSString(string: NSString(string: self.currentPath).deletingLastPathComponent).lastPathComponent
-                    self.upOne = upOneValue.count > 10 ? String(upOneValue.prefix(10)) + "..." : upOneValue
-                }
-                let fileItems = entries.map { entry -> FileItem in
-                    let isDir = entry.isDirectory
-                    let url = URL(fileURLWithPath: self.currentPath).appendingPathComponent(entry.filename)
-                    let fileSize = entry.isDirectory ? nil : Int(truncatingIfNeeded: entry.size)
-                    return FileItem(
-                        name: entry.filename,
-                        url: url,
-                        isDirectory: isDir,
-                        size: fileSize,
-                        modificationDate: entry.mtime
-                    )
-                }
+                // Get directory contents using the connection manager
+                let fileItems = try await connectionManager.contentsOfDirectory(atPath: currentPath)
                 
-                // ✅ Sort: Folders First, Then Sort by Modification Date (Newest First)
-                //sort everything
-                var sortedItems: [FileItem] = []
+                // Calculate "up one" display text
+                let upOneValue = NSString(string: NSString(string: self.currentPath).deletingLastPathComponent).lastPathComponent
+                self.upOne = upOneValue.count > 10 ? String(upOneValue.prefix(10)) + "..." : upOneValue
+                
+                // Sort items
+                var sortedItems = fileItems
                 
                 if self.sftpSortOrder == "date" {
                     sortedItems = fileItems.sorted {
-                            return $0.modificationDate > $1.modificationDate
-                        }
-                } else{
+                        return $0.modificationDate > $1.modificationDate
+                    }
+                } else {
                     sortedItems = fileItems.sorted {
-                        return $0.name > $1.name
-                        }
+                        return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                    }
                 }
                 
                 if self.sftpFoldersFirst {
@@ -321,37 +156,24 @@ class SFTPFileBrowserViewModel: ObservableObject {
                         return $0.isDirectory && !$1.isDirectory // Folders first
                     }
                 }
+                
+                // Apply search filter if needed
                 if !self.searchQuery.isEmpty {
                     sortedItems = sortedItems.filter { item in
                         item.name.localizedCaseInsensitiveContains(self.searchQuery)
-                        
                     }
                 }
                 
-                
-                
-                
-                /// sorted by date
-//                let sortedItems = fileItems.sorted {
-//                    if $0.isDirectory == $1.isDirectory {
-//                        return $0.modificationDate > $1.modificationDate // Sort by date within each group
-//                    }
-//                    return $0.isDirectory && !$1.isDirectory // Folders first
-//                }
-
-                DispatchQueue.main.async {
-                    self.items = sortedItems
-                    self.isLoading = false
-                    self.updateImageUrls()
-                    self.refreshTrigger = UUID()
-                }
+                // Update the UI
+                self.items = sortedItems
+                self.isLoading = false
+                self.updateImageUrls()
+                self.refreshTrigger = UUID()
             } catch {
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                    self.toastMessage = "SFTP Directory Listing Error: \(error)"
-                    self.showToast = true
-                    print("SFTP Directory Listing Error: \(error)")
-                }
+                self.isLoading = false
+                self.toastMessage = "SFTP Directory Listing Error: \(error)"
+                self.showToast = true
+                print("SFTP Directory Listing Error: \(error)")
             }
         }
     }
@@ -360,26 +182,26 @@ class SFTPFileBrowserViewModel: ObservableObject {
         imageUrls = items.filter { !$0.isDirectory && FileType.determine(from: $0.url) == .image }.map { $0.url }
     }
     
-    /// ✅ Navigate into a folder and refresh UI
     func navigateToFolder(_ folderName: String) {
         clearThumbnailOperations()
         let newPath = "\(currentPath)/\(folderName)".replacingOccurrences(of: "//", with: "/")
-        DispatchQueue.main.async {
+        
+        Task { @MainActor in
             self.currentPath = newPath
             self.fetchItems()
         }
     }
     
-    /// ✅ Navigate up one directory and refresh UI
     func navigateUp() {
         clearThumbnailOperations()
+        
         // Special handling for initial file path
-        if isInitialPathAFile { //}&& currentPath == initialPath {
+        if isInitialPathAFile {
             // Get the parent directory path
             let url = URL(fileURLWithPath: initialPath)
             let parentPath = url.deletingLastPathComponent().path
             
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.isInitialPathAFile = false
                 self.currentPath = parentPath
                 self.fetchItems()
@@ -388,6 +210,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
         }
         
         guard currentPath != basePath else { return } // Prevent navigating beyond root
+        
         // Trim the last directory from the path
         let trimmedPath = currentPath
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -395,71 +218,151 @@ class SFTPFileBrowserViewModel: ObservableObject {
             .dropLast()
             .joined(separator: "/")
         let newPath = trimmedPath.isEmpty ? basePath : "/" + trimmedPath
-        DispatchQueue.main.async {
+        
+        Task { @MainActor in
             self.currentPath = newPath
             self.fetchItems()
         }
     }
     
     // Check if the initial path points to a file rather than a directory
-    func checkIfInitialPathIsFile() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                // First try to get attributes of the path
-                // Using fileExistsAtPath instead of attributesOfItem
-                //let isDir = try self.sftpConnection.infoForFile(atPath: self.initialPath).isDirectory
-                let fileInfo = try? self.sftpConnection.infoForFile(atPath: self.initialPath)
+    private func checkIfInitialPathIsFile() async {
+        do {
+            // Get file info
+            let fileInfo = try await connectionManager.infoForFile(atPath: initialPath)
+            
+            if !fileInfo.isDirectory {
+                // It's a file, set up the pseudo-folder with just this file
+                let filename = URL(fileURLWithPath: initialPath).lastPathComponent
                 
-                if fileInfo?.isDirectory != false {
-                    // It's a directory, proceed normally
-                    DispatchQueue.main.async {
-                        self.isInitialPathAFile = false
-                        self.fetchItems()
-                    }
-                } else {
-                    // It's a file, set up the pseudo-folder with just this file
-                    let filename = URL(fileURLWithPath: self.initialPath).lastPathComponent
-                    //let parentPath = URL(fileURLWithPath: self.initialPath).deletingLastPathComponent().path
-                    
-                    // Get file size and date if possible
-                    
-                    let fileSize = fileInfo?.size != nil ? Int(fileInfo!.size) : 0
-                    let modDate = fileInfo?.mtime ?? Date()
-                    
-                    // Create a FileItem for the single file
-                    let fileItem = FileItem(
-                        name: filename,
-                        url: URL(fileURLWithPath: self.initialPath),
-                        isDirectory: false,
-                        size: fileSize,
-                        modificationDate: modDate
-                    )
-                    
-                    DispatchQueue.main.async {
-                        self.isInitialPathAFile = true
-                        self.initialFileItem = fileItem
-                        self.items = [fileItem] // Set items to contain only this file
-                        self.isLoading = false
-                        self.updateImageUrls()
-                    }
+                // Create a FileItem for the single file
+                let fileItem = FileItem(
+                    name: filename,
+                    url: URL(fileURLWithPath: initialPath),
+                    isDirectory: false,
+                    size: Int(fileInfo.size),
+                    modificationDate: fileInfo.mtime
+                )
+                
+                await MainActor.run {
+                    self.isInitialPathAFile = true
+                    self.initialFileItem = fileItem
+                    self.items = [fileItem] // Set items to contain only this file
+                    self.isLoading = false
+                    self.updateImageUrls()
+                }
+            } else {
+                // It's a directory, proceed normally
+                await MainActor.run {
+                    self.isInitialPathAFile = false
+                    self.fetchItems()
                 }
             }
-//            catch {
-//                // If we can't get attributes, try the parent directory
-//                let parentPath = URL(fileURLWithPath: self.initialPath).deletingLastPathComponent().path
-//                
-//                DispatchQueue.main.async {
-//                    self.currentPath = parentPath
-//                    self.fetchItems()
-//                    print("Could not determine if path is file, defaulting to parent directory: \(error)")
-//                }
-//            }
+        } catch {
+            // If there's an error, assume it's a directory and proceed normally
+            await MainActor.run {
+                self.isInitialPathAFile = false
+                self.fetchItems()
+            }
         }
     }
     
-    // MARK: - File Handling
+    // MARK: - File Operations
     
-
+    // Delete a file or directory
+    func deleteItem(_ item: FileItem) {
+        Task { @MainActor in
+            self.isLoading = true
+            
+            do {
+                if item.isDirectory {
+                    try await recursiveDelete(atPath: item.url.path)
+                } else {
+                    try await connectionManager.removeFile(atPath: item.url.path)
+                }
+                
+                self.isLoading = false
+                self.fetchItems() // Refresh the directory after deletion
+                self.toastMessage = "Deleted"
+                self.showToast = true
+            } catch {
+                self.isLoading = false
+                print("❌ Failed to delete item: \(error)")
+            }
+        }
+    }
+    
+    private func recursiveDelete(atPath path: String) async throws {
+        // Collect all files and directories under the given path
+        var allPaths: [(path: String, isDirectory: Bool)] = []
+        
+        func collectPaths(currentPath: String) async throws {
+            let entries = try await connectionManager.contentsOfDirectory(atPath: currentPath)
+            for entry in entries {
+                // Skip special entries
+                if entry.name == "." || entry.name == ".." { continue }
+                allPaths.append((path: entry.url.path, isDirectory: entry.isDirectory))
+                if entry.isDirectory {
+                    try await collectPaths(currentPath: entry.url.path)
+                }
+            }
+        }
+        
+        try await collectPaths(currentPath: path)
+        
+        // Sort paths by depth (deepest paths first)
+        allPaths.sort { (first, second) -> Bool in
+            return first.path.components(separatedBy: "/").count > second.path.components(separatedBy: "/").count
+        }
+        
+        // Delete all collected entries: files first, then directories
+        for (entryPath, isDirectory) in allPaths {
+            if isDirectory {
+                try await connectionManager.removeDirectory(atPath: entryPath)
+            } else {
+                try await connectionManager.removeFile(atPath: entryPath)
+            }
+        }
+        
+        // Finally, remove the root directory
+        try await connectionManager.removeDirectory(atPath: path)
+    }
+    
+    // Rename a file or directory
+    func renameItem(_ item: FileItem, to newName: String) {
+        Task { @MainActor in
+            self.isLoading = true
+            
+            // Get the parent directory path
+            let parentPath = URL(fileURLWithPath: item.url.path).deletingLastPathComponent().path
+            let newPath = "\(parentPath)/\(newName)".replacingOccurrences(of: "//", with: "/")
+            
+            do {
+                try await connectionManager.moveItem(atPath: item.url.path, toPath: newPath)
+                
+                self.isLoading = false
+                self.fetchItems() // Refresh the directory after renaming
+                self.toastMessage = "Renamed"
+                self.showToast = true
+            } catch {
+                self.isLoading = false
+                print("❌ Failed to rename item: \(error)")
+            }
+        }
+    }
+    
+    // MARK: - Video Playback
+    
+    func isVLCInstalled() -> Bool {
+        #if os(iOS)
+        // Use a simple vlc:// URL to test if VLC is installed
+        guard let vlcUrl = URL(string: "vlc://") else { return false }
+        return UIApplication.shared.canOpenURL(vlcUrl)
+        #else
+        // For macOS, you might want to check differently or always return true
+        return false
+        #endif
+    }
     
     func openVideoInVLC(item: FileItem, server: ServerEntity) {
         // Check if VLC is installed
@@ -522,11 +425,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
         
         // Properly encode the password for URL
         let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
-       // VideoPlayerManager.playVideoWithHTTPStreaming(path: path, server: server)
         
-       let vlcUrl = URL(string: //"vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=http://localhost:8080\(path)")
-                          "vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")
-        
+        let vlcUrl = URL(string: "vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")
         
         if let url = vlcUrl {
             DispatchQueue.main.async {
@@ -538,9 +438,6 @@ class SFTPFileBrowserViewModel: ObservableObject {
             }
         }
     }
-    // Usage from SFTPFileBrowserViewModel:
-    //
-     
     
     func openVideo(item: FileItem, server: ServerEntity) {
         // Get all video files from current directory
@@ -576,7 +473,6 @@ class SFTPFileBrowserViewModel: ObservableObject {
             print("Found Video \(path)")
             let vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
             
-            
             // Create and set the configuration
             self.videoPlayerConfiguration = VideoPlayerConfiguration(singleItem: vlcUrl)
             self.showingVideoPlayer = true
@@ -593,6 +489,21 @@ class SFTPFileBrowserViewModel: ObservableObject {
             self.showingVideoPlayer = true
         }
     }
+    
+//    func openFile(item: FileItem, server: ServerEntity) {
+//        let fileType = FileType.determine(from: item.url)
+//        
+//        switch fileType {
+//        case .video:
+//            openVideo(item: item, server: server)
+//        case .image:
+//            openImageBrowser(item)
+//        case .other:
+//            downloadFile(item)
+//        }
+//    }
+    
+    // MARK: - VLC Playlist Handling
     
     func handleVLCCallback(server: ServerEntity) {
         print("📲 Received VLC callback with server: \(server.name ?? "unknown")")
@@ -690,7 +601,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
             }
         }
     }
-
+    
     // Function to play the next video
     func playNextVideo(server: ServerEntity) {
         guard let item = nextVideoItem else {
@@ -709,7 +620,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
         nextVideoTimer?.invalidate()
         nextVideoTimer = nil
     }
-
+    
     // Function to cancel next video playback
     func cancelNextVideo() {
         // Close the alert
@@ -724,136 +635,6 @@ class SFTPFileBrowserViewModel: ObservableObject {
         nextVideoTimer = nil
     }
     
-//    // Update the existing openVideoInVLC function
-//    func openVideoInVLC(item: FileItem, server: ServerEntity) {
-//        // Check if VLC is installed
-//        if !isVLCInstalled() {
-//            showVLCDownload.toggle()
-//            return
-//        }
-//
-//        // Get all video files from current directory
-//        let videoItems = items.filter { item in
-//            !item.isDirectory && FileType.determine(from: item.url) == .video
-//        }
-//
-//        if videoItems.isEmpty {
-//            print("❌ No video files found in the current directory")
-//            return
-//        }
-//
-//        // Find the selected video's index
-//        guard let selectedIndex = videoItems.firstIndex(where: { $0.url.path == item.url.path }) else {
-//            print("❌ Selected video not found in filtered list")
-//            return
-//        }
-//
-//        // Save remaining videos to AppStorage
-//        let remainingVideos = Array(videoItems[(selectedIndex + 1)...] + videoItems[..<selectedIndex])
-//
-//        do {
-//            // Create a simple array of file paths
-//            let videoPaths = remainingVideos.map { $0.url.path }
-//            // Encode and save to AppStorage
-//            let data = try JSONEncoder().encode(videoPaths)
-//            pendingVideoFiles = data
-//            // Save server name for later use
-//            currentServerName = server.name ?? ""
-//        } catch {
-//            print("❌ Failed to encode video list: \(error)")
-//        }
-//
-//        // Open the selected video in VLC
-//        sendToVLC(item: item, server: server)
-//    }
-
-    // Function to send a video to VLC
-    private func sendToVLC(item: FileItem, server: ServerEntity) {
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-        guard let username = server.sftpUser,
-              let password = keychain["sftpPassword" + (server.name ?? "")],
-              let hostname = server.sftpHost else {
-            print("❌ Missing server credentials")
-            return
-        }
-        
-        let port = server.sftpPort
-        let path = item.url.path
-        
-        // Properly encode the password for URL
-        let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
-        
-        let vlcUrl = URL(string: "vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")
-        
-        if let url = vlcUrl {
-            DispatchQueue.main.async {
-                #if os(iOS)
-                UIApplication.shared.open(url)
-                #else
-                NSWorkspace.shared.open(url)
-                #endif
-            }
-        }
-    }
-
-    // Function to handle VLC callback
-    func handleVLCCallback() {
-        print("📲 Received VLC callback")
-        
-        // Check if we have pending videos
-        guard !pendingVideoFiles.isEmpty else {
-            print("✅ No more videos in queue")
-            return
-        }
-        
-        do {
-            // Decode the list of video paths
-            let videoPaths = try JSONDecoder().decode([String].self, from: pendingVideoFiles)
-            
-            guard !videoPaths.isEmpty else {
-                print("✅ No more videos in queue")
-                pendingVideoFiles = Data() // Clear the storage
-                return
-            }
-            
-            // Get the next video path
-            let nextVideoPath = videoPaths[0]
-            
-            // Create a FileItem for the next video
-            let nextVideoName = URL(fileURLWithPath: nextVideoPath).lastPathComponent
-            let nextVideoItem = FileItem(
-                name: nextVideoName,
-                url: URL(fileURLWithPath: nextVideoPath),
-                isDirectory: false,
-                size: nil,
-                modificationDate: Date()
-            )
-            
-            // Remove this video from the list and update storage
-            let remainingVideos = Array(videoPaths.dropFirst())
-            pendingVideoFiles = try JSONEncoder().encode(remainingVideos)
-            
-            // Find the server by name
-            if let server = findServerByName(currentServerName) {
-                // Show alert with countdown before playing next video
-                showNextVideoAlert(item: nextVideoItem, server: server)
-            }
-        } catch {
-            print("❌ Failed to decode video list: \(error)")
-            pendingVideoFiles = Data() // Clear on error
-        }
-    }
-
-    // Find server by name (implement this based on your app structure)
-    private func findServerByName(_ name: String) -> ServerEntity? {
-        // This would need to be implemented based on how your app stores servers
-        // This is a placeholder
-        return nil
-    }
-
-
-    
-    
     func openImageBrowser(_ item: FileItem) {
         if let index = imageUrls.firstIndex(of: item.url) {
             DispatchQueue.main.async {
@@ -863,77 +644,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
         }
     }
     
-    // Modified downloadFileAsync that uses streams instead of direct file writing
-    func downloadFileAsync(remotePath: String,
-                          localURL: URL,
-                          progressHandler: @escaping (Double) -> Void) async throws {
-        return try await withCheckedThrowingContinuation { continuation in
-            do {
-                print("Starting download from: \(remotePath) to: \(localURL.path)")
-                
-                // Create the directory if it doesn't exist
-                try FileManager.default.createDirectory(
-                    at: localURL.deletingLastPathComponent(),
-                    withIntermediateDirectories: true
-                )
-                
-                // First create an output stream to the file
-                guard let outputStream = OutputStream(url: localURL, append: false) else {
-                    throw NSError(domain: "Download", code: -1,
-                                 userInfo: [NSLocalizedDescriptionKey: "Failed to create output stream"])
-                }
-                
-                // Create a progress handler that matches the sftpConnection.contents() method requirement
-                let progressAdapter: ((UInt64, UInt64) -> Bool) = { bytesReceived, totalBytes in
-                    let progress = totalBytes > 0 ? Double(bytesReceived) / Double(totalBytes) : 0
-                    
-                    // Debug progress
-                    if bytesReceived % 1024000 == 0 {
-                        print("Download progress: \(bytesReceived)/\(totalBytes) bytes (\(Int(progress * 100))%)")
-                    }
-                    
-                    // Report progress on main thread
-                    DispatchQueue.main.async {
-                        progressHandler(progress)
-                    }
-                    
-                    // Check for cancellation
-                    if Task.isCancelled {
-                        print("Download cancelled by user")
-                        return false // Signal to stop download
-                    }
-                    
-                    return true // Continue download
-                }
-                
-                // Use the contents method to download to the stream
-                try self.sftpConnection.contents(
-                    atPath: remotePath,
-                    toStream: outputStream,
-                    fromPosition: 0,
-                    progress: progressAdapter
-                )
-                
-                // Verify the file exists
-                if FileManager.default.fileExists(atPath: localURL.path) {
-                    let fileSize = (try? FileManager.default.attributesOfItem(atPath: localURL.path)[.size] as? UInt64) ?? 0
-                    print("✅ Download completed successfully: \(localURL.path) (\(fileSize) bytes)")
-                    continuation.resume()
-                } else {
-                    print("❌ File does not exist after download")
-                    throw NSError(domain: "Download", code: -1,
-                                 userInfo: [NSLocalizedDescriptionKey: "File not found after download"])
-                }
-            } catch {
-                print("❌ Download error: \(error)")
-                // Clean up partial download if there was an error
-                try? FileManager.default.removeItem(at: localURL)
-                continuation.resume(throwing: error)
-            }
-        }
-    }
-
-    // Updated downloadFile function to use the new approach
+    // MARK: - File Download
+    
     func downloadFile(_ item: FileItem) {
         // Cancel any ongoing download
         cancelDownload()
@@ -950,7 +662,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
         do {
             // Create the directory if it doesn't exist
             try FileManager.default.createDirectory(at: downloadDirectory,
-                                                  withIntermediateDirectories: true)
+                                                   withIntermediateDirectories: true)
         } catch {
             print("❌ Could not create Downloads directory: \(error)")
         }
@@ -958,7 +670,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
         let localURL = downloadDirectory.appendingPathComponent(item.name)
         
         // Update UI to show download is starting
-        DispatchQueue.main.async {
+        Task { @MainActor in
             self.activeDownload = item
             self.downloadDestination = localURL
             self.isDownloading = true
@@ -967,10 +679,13 @@ class SFTPFileBrowserViewModel: ObservableObject {
         
         downloadTask = Task {
             do {
-                let progressHandler: ((Double) -> Void) = { progress in
-                    DispatchQueue.main.async {
+                // Create a progress handler
+                let progressHandler: (Double) -> Bool = { progress in
+                    Task { @MainActor in
                         self.downloadProgress = progress
                     }
+                    // Return false to cancel the download
+                    return !Task.isCancelled
                 }
                 
                 // Remove existing file if needed
@@ -978,16 +693,16 @@ class SFTPFileBrowserViewModel: ObservableObject {
                     try FileManager.default.removeItem(at: localURL)
                 }
                 
-                // Download using our stream-based method
-                try await self.downloadFileAsync(
+                // Download the file
+                try await connectionManager.downloadFile(
                     remotePath: item.url.path,
                     localURL: localURL,
-                    progressHandler: progressHandler
+                    progress: progressHandler
                 )
                 
                 // Verify download succeeded
                 if FileManager.default.fileExists(atPath: localURL.path) {
-                    DispatchQueue.main.async {
+                    await MainActor.run {
                         self.downloadProgress = 1.0
                         self.isDownloading = false
                         
@@ -999,21 +714,24 @@ class SFTPFileBrowserViewModel: ObservableObject {
                                  userInfo: [NSLocalizedDescriptionKey: "File not found after download"])
                 }
             } catch {
-                DispatchQueue.main.async {
+                if error is CancellationError {
+                    print("Download cancelled by user")
+                } else {
                     print("❌ Download error: \(error)")
-                    self.isDownloading = false
-                    self.activeDownload = nil
+                    await MainActor.run {
+                        self.isDownloading = false
+                        self.activeDownload = nil
+                    }
                 }
             }
         }
     }
-
     
     func cancelDownload() {
         downloadTask?.cancel()
         downloadTask = nil
         
-        DispatchQueue.main.async {
+        Task { @MainActor in
             self.isDownloading = false
             self.activeDownload = nil
             self.downloadProgress = 0
@@ -1040,5 +758,29 @@ class SFTPFileBrowserViewModel: ObservableObject {
         }
         #endif
     }
+    
+    // MARK: - Thumbnail Management
+    
+    func clearThumbnailOperations() {
+        for (_, operation) in activeThumbnailOperations {
+            operation.cancel()
+        }
+        activeThumbnailOperations.removeAll()
+    }
 }
+
+//// MARK: - SFTPUploadHandler Conformance
+//extension SFTPFileBrowserViewModel: SFTPUploadHandler {
+//    func getConnection() -> MFTSftpConnection {
+//        return sftpConnection
+//    }
+//    
+//    func getConnectionManager() -> SFTPConnectionManager? {
+//        return connectionManager
+//    }
+//    
+//    func refreshItems() {
+//        self.fetchItems()
+//    }
+//}
 #endif

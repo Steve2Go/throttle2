@@ -44,9 +44,18 @@ struct TorrentListView: View {
     
     @State var showToast = false
     @State var toastMessage = ""
+    @State var toastColor = Color.blue
+    @State var toastIcon = "info.square"
     private let toastOptions = SimpleToastOptions(
             hideAfter: 5
         )
+    
+    public func doToast(msg: String, icon: String, color: Color){
+        toastMessage = msg
+        toastIcon = icon
+        toastColor = color
+        showToast = true
+    }
     
     #if os(iOS)
     var isiPad: Bool {
@@ -134,11 +143,8 @@ struct TorrentListView: View {
                         },
                         selecting : selecting,
                         selected : $selected,
-                        showToast: $showToast,
-                        toastMessage: $toastMessage
+                        doToast: doToast
                     )
-                    
-                    
                 }
             }
         }
@@ -150,41 +156,25 @@ struct TorrentListView: View {
                 manager: manager
             )
         }
-        .onChange(of: showDeleteSheet){
-            if !showDeleteSheet {
-                self.toastMessage = "Deleted request sent"
-                self.showToast = true
-            }
-        }
-        .onChange(of: showMoveSheet){
-            if !showDeleteSheet {
-                self.toastMessage = "Move request sent"
-                self.showToast = true
-            }
-        }
         .simpleToast(isPresented: $showToast, options: toastOptions) {
-            Label(toastMessage, systemImage: "info.square")
+            Label(toastMessage, systemImage: toastIcon)
             .padding()
-            .background(Color.blue.opacity(0.8))
+            .background(toastColor)
             .foregroundColor(Color.white)
             .cornerRadius(10)
             .padding(.top)
         }
         .onChange(of: sortOption) {
-            toastMessage = "Sorted by: \(sortOption)"
-            showToast = true
+            doToast(msg: "Sorted by: \(sortOption)", icon: "arrow.down.app", color: Color.blue)
             print("Sort option changed to: \(sortOption)")
         }
         .onChange(of: filterOption){
-            toastMessage = "Showing: \(filterOption)"
-            showToast = true
+            doToast(msg: "Showing: \(filterOption)", icon: "line.3.horizontal.decrease", color: Color.blue)
         }
         .refreshable {
             Task {
                 manager.reset()
                 manager.isLoading.toggle()
-//                toastMessage = "Refresh Started"
-//                showToast.toggle()
             }
         }
         

@@ -247,7 +247,7 @@ struct AnyCodable: Codable {
 @MainActor
 class TorrentManager: ObservableObject {
     @Published var torrents: [Torrent] = []
-    private var fileCache: [String: [[String: Any]]] = [:]
+    var fileCache: [String: [[String: Any]]] = [:]
     private var downloadingCount: Int = 0
     @Published var isLoading = false
     private var nextFull = 0

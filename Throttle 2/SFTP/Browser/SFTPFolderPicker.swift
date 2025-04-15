@@ -1,10 +1,8 @@
 import SwiftUI
 import Combine
-import mft
 import KeychainAccess
-
-
-
+import Citadel
+import NIO
 
 // MARK: - ViewModel
 class FileBrowserViewModel: ObservableObject {
@@ -13,50 +11,31 @@ class FileBrowserViewModel: ObservableObject {
     @Published var currentPath: String  // ✅ Ensure changes are detected by SwiftUI
     @Published var upOne = ""
     let basePath: String
-    var sftpConnection: MFTSftpConnection!
+    
+    // Keep both connection methods for gradual transition
+    //var sftpConnection: MFTSftpConnection!
+    private var connectionManager: SFTPConnectionManager
 
     init(currentPath: String, basePath: String, server: ServerEntity?) {
         self.currentPath = currentPath
         self.basePath = basePath
-        connectSFTP(server: server)
+        
+        // Initialize the connection manager
+        self.connectionManager = SFTPConnectionManager(server: server)
+        // The connection manager initializes the MFT connection, so we can reference it
+        //self.sftpConnection = connectionManager.mftConnection
+        
+        // Connect to the server
+        connectToServer()
     }
     
-    private func connectSFTP(server: ServerEntity?) {
-        guard let server = server else {
-            print("❌ No server selected for SFTP connection")
-            return
-        }
-        
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-        DispatchQueue.global(qos: .userInitiated).async {
+    private func connectToServer() {
+        Task {
             do {
-                if server.sftpUsesKey {
-                    // Retrieve the key from the keychain and use it for authentication
-                    let key = keychain["sftpKey" + (server.name ?? "")] ?? ""
-                    let password = keychain["sftpPassword" + (server.name ?? "")] ?? ""
-                    self.sftpConnection = MFTSftpConnection(
-                        hostname: server.sftpHost ?? "",
-                        port: Int(server.sftpPort),
-                        username: server.sftpUser ?? "",
-                        prvKey: key,
-                        passphrase: password// Using key-based initializer
-                    )
-                } else {
-                    // Use password-based authentication
-                    let password = keychain["sftpPassword" + (server.name ?? "")] ?? ""
-                    self.sftpConnection = MFTSftpConnection(
-                        hostname: server.sftpHost ?? "",
-                        port: Int(server.sftpPort),
-                        username: server.sftpUser ?? "",
-                        password: password
-                    )
-                }
-                
-                try self.sftpConnection.connect()
-                try self.sftpConnection.authenticate()
-                self.fetchItems()
+                try await connectionManager.connect()
+                await fetchItems()
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.isLoading = false
                     print("SFTP Connection Error: \(error)")
                 }
@@ -67,68 +46,50 @@ class FileBrowserViewModel: ObservableObject {
     func createFolder(name: String) {
         let newFolderPath = "\(currentPath)/\(name)".replacingOccurrences(of: "//", with: "/")
         
-        DispatchQueue.global(qos: .userInitiated).async {
+        Task {
             do {
-                try self.sftpConnection.createDirectory(atPath: newFolderPath)
-                
-                DispatchQueue.main.async {
-                    self.fetchItems() // Refresh directory after creation
-                }
+                try await connectionManager.createDirectory(atPath: newFolderPath)
+                await fetchItems() // Refresh directory after creation
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run {
                     print("❌ Failed to create folder: \(error)")
                 }
             }
         }
     }
     
-    func fetchItems() {
+    func fetchItems() async {
+        // Skip if already loading
         guard !isLoading else { return }
-       
-            DispatchQueue.main.async {
-                self.isLoading = true
+        
+        await MainActor.run {
+            self.isLoading = true
+        }
+        
+        do {
+            // Get directory contents using the connection manager
+            let fileItems = try await connectionManager.contentsOfDirectory(atPath: currentPath)
+            
+            // Calculate "up one" display text
+            let upOneValue = NSString(string: NSString(string: currentPath).deletingLastPathComponent).lastPathComponent
+            
+            // Sort items: Folders first, then by modification date (newest first)
+            let sortedItems = fileItems.sorted {
+                if $0.isDirectory == $1.isDirectory {
+                    return $0.modificationDate > $1.modificationDate // Sort by date within each group
+                }
+                return $0.isDirectory && !$1.isDirectory // Folders first
             }
             
-  
-        DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                let entries = try self.sftpConnection.contentsOfDirectory(atPath: self.currentPath, maxItems: 0)
-                
-                DispatchQueue.main.async {
-                    self.upOne = NSString( string:  NSString( string: self.currentPath ).deletingLastPathComponent ).lastPathComponent
-                }
-                
-                
-                let fileItems = entries.map { entry -> FileItem in
-                    let isDir = entry.isDirectory
-                    let url = URL(fileURLWithPath: self.currentPath).appendingPathComponent(entry.filename)
-                    let fileSize = entry.isDirectory ? nil : Int(truncatingIfNeeded: entry.size)
-                    return FileItem(
-                        name: entry.filename,
-                        url: url,
-                        isDirectory: isDir,
-                        size: fileSize,
-                        modificationDate: entry.mtime
-                    )
-                }
-                
-                // ✅ Sort: Folders First, Then Sort by Modification Date (Newest First)
-                let sortedItems = fileItems.sorted {
-                    if $0.isDirectory == $1.isDirectory {
-                        return $0.modificationDate > $1.modificationDate // Sort by date within each group
-                    }
-                    return $0.isDirectory && !$1.isDirectory // Folders first
-                }
-
-                DispatchQueue.main.async {
-                    self.items = sortedItems
-                    self.isLoading = false
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                    print("SFTP Directory Listing Error: \(error)")
-                }
+            await MainActor.run {
+                self.upOne = upOneValue
+                self.items = sortedItems
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.isLoading = false
+                print("SFTP Directory Listing Error: \(error)")
             }
         }
     }
@@ -136,15 +97,17 @@ class FileBrowserViewModel: ObservableObject {
     /// ✅ Navigate into a folder and refresh UI
     func navigateToFolder(_ folderName: String) {
         let newPath = "\(currentPath)/\(folderName)".replacingOccurrences(of: "//", with: "/")
-        DispatchQueue.main.async {
+        
+        Task { @MainActor in
             self.currentPath = newPath
-            self.fetchItems()
+            await fetchItems()
         }
     }
     
     /// ✅ Navigate up one directory and refresh UI
     func navigateUp() {
         guard currentPath != basePath else { return } // Prevent navigating beyond root
+        
         // Trim the last directory from the path
         let trimmedPath = currentPath
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -152,17 +115,18 @@ class FileBrowserViewModel: ObservableObject {
             .dropLast()
             .joined(separator: "/")
         let newPath = trimmedPath.isEmpty ? basePath : "/" + trimmedPath
-        DispatchQueue.main.async {
+        
+        Task { @MainActor in
             self.currentPath = newPath
-            self.fetchItems()
+            await fetchItems()
         }
     }
 }
 
+
 // MARK: - FileBrowserView
 import SwiftUI
 import Combine
-import mft
 import KeychainAccess
 
 
@@ -400,3 +364,17 @@ struct FileBrowserView: View {
     }
 }
 
+// upload conformance
+extension FileBrowserViewModel: SFTPUploadHandler {
+    
+    // Implementing the required methods
+    func getConnectionManager() -> SFTPConnectionManager? {
+        return connectionManager
+    }
+    
+    func refreshItems() {
+        Task {
+            await self.fetchItems()
+        }
+    }
+}
