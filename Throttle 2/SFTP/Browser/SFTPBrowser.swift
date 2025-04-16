@@ -192,10 +192,6 @@ struct SFTPFileBrowserView: View {
                 .cornerRadius(10)
                 .padding(.top)
             }
-            .sheet(isPresented: $showAirplay) {
-                        AirplayInfo()
-                    .presentationDetents([.large])
-                    }
             
             .fullScreenCover(isPresented: Binding(
                 get: { viewModel.showingNextVideoAlert },

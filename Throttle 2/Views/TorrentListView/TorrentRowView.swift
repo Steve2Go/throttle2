@@ -23,10 +23,6 @@ struct TorrentRowView: View {
     var selecting: Bool
     @Binding var selected: [Int]
     let doToast: (String, String, Color) -> Void
-//    @Binding var showToast: Bool
-//    @Binding var toastMessage: String
-//    @Binding var toastIcon: String
-//    @Binding var toastColor: ColorResource
     @AppStorage("primaryFile") var primaryFiles: Bool = false
     #if os(iOS)
     var isiPad: Bool {

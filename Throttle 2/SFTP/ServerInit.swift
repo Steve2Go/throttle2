@@ -13,15 +13,15 @@ extension Throttle_2App {
     
     func refeshTunnel(store: Store, torrentManager: TorrentManager){
         TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
-      // TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
+       TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
         guard let server = store.selection else {return}
         let localport = 4000 // update after tunnel logic
         let port  = server.port
         
         Task{
-//            if store.selection != nil {
-//                setupStreamingServer(server: store.selection!)
-//            }
+            if store.selection != nil {
+                setupStreamingServer(server: store.selection!)
+            }
             let tmanager = try SSHTunnelManager(server: server, localPort: localport, remoteHost: "127.0.0.1", remotePort: Int(port))
             try await tmanager.start()
             TunnelManagerHolder.shared.storeTunnel(tmanager, withIdentifier: "transmission-rpc")
@@ -39,7 +39,6 @@ extension Throttle_2App {
             store.selectedTorrentId = nil
             
             if store.selection != nil {
-                
                 TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
          //       setupStreamingServer(server: store.selection!)
                 
@@ -62,6 +61,9 @@ extension Throttle_2App {
                 
                 var url = ""
                 var at = ""
+                
+                setupStreamingServer(server: server! )
+                
                 
                 if isTunnel{
                     TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
@@ -160,6 +162,53 @@ extension Throttle_2App {
 
     
     #endif
+    
+    func setupStreamingServer(server: ServerEntity) {
+            Task {
+                do {
+                    // Only proceed if SFTP browsing is enabled
+                    guard server.sftpBrowse else { return }
+                    
+                    // 1. Setup the HTTP server
+                    try await HttpStreamingManager.shared.setupServer(for: server)
+                    
+                    // 2. Create SSH tunnel using existing infrastructure
+                    @AppStorage("StreamingServerPort") var serverPort = 8723
+                    @AppStorage("StreamingServerLocalPort") var localStreamPort = 8080
+                    
+                    // Check if tunnel already exists
+                    if TunnelManagerHolder.shared.getTunnel(withIdentifier: "http-streamer") != nil {
+                        print("HTTP streaming tunnel already exists")
+                    } else {
+                        // Create tunnel for HTTP streaming
+                        let htunnel = try SSHTunnelManager(
+                            server: server,
+                            localPort: localStreamPort,
+                            remoteHost: "127.0.0.1",
+                            remotePort: Int(serverPort)
+                        )
+                        try await htunnel.start()
+                        TunnelManagerHolder.shared.storeTunnel(htunnel, withIdentifier: "http-streamer")
+                        print("HTTP streaming tunnel established")
+                    }
+                    
+                    print("HTTP streaming setup completed for \(server.name ?? "unnamed server")")
+                } catch {
+                    print("Failed to setup HTTP streaming: \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        // Clean up streaming when disconnecting
+        func cleanupStreamingServer(server: ServerEntity) {
+            Task {
+                // 1. Close the tunnel
+                TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
+                
+                // 2. Stop the server
+                await HttpStreamingManager.shared.stopServer(for: server)
+            }
+        }
     
 //    func setupStreamingServer(server: ServerEntity) {
 //        Task {

@@ -34,10 +34,19 @@ public class ThumbnailManager: NSObject {
     private var serverSemaphores = [String: DispatchSemaphore]()
     private let semaphoreAccess = NSLock()
     
+    // HTTP session for image downloads
+    private let urlSession: URLSession
+    
     override init() {
+        // Configure URL session for HTTP downloads
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 20
+        urlSession = URLSession(configuration: config)
+        
         super.init()
         createCacheDirectoryIfNeeded()
-        memoryCache.countLimit = 100 // Limit memory cache size
+        memoryCache.countLimit = 150 // Increased memory cache size
     }
     
     private func createCacheDirectoryIfNeeded() {
@@ -92,14 +101,15 @@ public class ThumbnailManager: NSObject {
             return semaphore
         } else {
             // Create a new semaphore with the server's max connections value
-            let maxConnections = max(1, Int(server.thumbMax)) // Ensure at least 1
+            // Since HTTP is more efficient, we can use higher limits
+            let maxConnections = max(1, Int(server.thumbMax) * 2) // Double the limit for HTTP
             let semaphore = DispatchSemaphore(value: maxConnections)
             serverSemaphores[key] = semaphore
             return semaphore
         }
     }
     
-    /// Main entry point – returns a SwiftUI Image thumbnail for a given SFTP path.
+    /// Main entry point – returns a SwiftUI Image thumbnail for a given path.
     public func getThumbnail(for path: String, server: ServerEntity) async throws -> Image {
         // If not visible, return default immediately
         if !isVisible(path) {
@@ -157,7 +167,19 @@ public class ThumbnailManager: NSObject {
                     
                     let thumbnail: Image
                     if fileType == .image {
-                        thumbnail = try await generateImageThumbnail(for: path, server: server)
+                        // For images, first try HTTP if tunnel available
+                        if let tunnel = TunnelManagerHolder.shared.getTunnel(withIdentifier: "http-streamer") {
+                            do {
+                                thumbnail = try await generateImageThumbnailViaHTTP(for: path, server: server, tunnel: tunnel)
+                            } catch {
+                                // If HTTP fails, fall back to original SFTP method
+                                print("HTTP image download failed: \(error.localizedDescription), falling back to SFTP")
+                                thumbnail = try await generateImageThumbnailViaSFTP(for: path, server: server)
+                            }
+                        } else {
+                            // No HTTP tunnel, use SFTP
+                            thumbnail = try await generateImageThumbnailViaSFTP(for: path, server: server)
+                        }
                     } else if fileType == .video {
                         if server.ffThumb {
                             // Use server-side FFmpeg thumbnailing if enabled
@@ -205,7 +227,43 @@ public class ThumbnailManager: NSObject {
     
     // MARK: - Image Thumbnail Generation
     
-    private func generateImageThumbnail(for path: String, server: ServerEntity) async throws -> Image {
+    // New method for HTTP-based image thumbnail generation
+    private func generateImageThumbnailViaHTTP(for path: String, server: ServerEntity, tunnel: SSHTunnelManager) async throws -> Image {
+        // Create HTTP URL
+        guard let httpURL = HttpStreamingManager.shared.createStreamingURL(
+            for: path,
+            server: server,
+            localPort: tunnel.localPort
+        ) else {
+            throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create HTTP URL"])
+        }
+        
+        print("Downloading image thumbnail via HTTP: \(httpURL)")
+        
+        // Download image data
+        let (data, response) = try await urlSession.data(from: httpURL)
+        
+        // Verify valid HTTP response
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "ThumbnailManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "HTTP error"])
+        }
+        
+        // Create image from data
+        guard let uiImage = UIImage(data: data) else {
+            throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to load image data"])
+        }
+        
+        // Cache and process
+        memoryCache.setObject(uiImage, forKey: path as NSString)
+        let thumb = processThumbnail(uiImage: uiImage, isVideo: false)
+        try? saveToCache(image: uiImage, for: path)
+        
+        return thumb
+    }
+    
+    // Original SFTP image thumbnail method (kept as fallback)
+    private func generateImageThumbnailViaSFTP(for path: String, server: ServerEntity) async throws -> Image {
         // Get the connection manager for this server
         let connectionManager = getConnectionManager(for: server)
         

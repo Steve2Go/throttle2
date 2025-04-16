@@ -12,11 +12,10 @@ struct TorrentListView: View {
     @ObservedObject var presenting: Presenting
     @ObservedObject var filter: TorrentFilters
     
-    // State  sorting
-    
-    
+    // State for sorting
     @AppStorage("sortOption") var sortOption: String = "dateAdded"
     @AppStorage("filterOption") var filterOption: String = "all"
+    
     // CoreData fetch request for servers
     @FetchRequest(
         entity: ServerEntity.entity(),
@@ -25,22 +24,23 @@ struct TorrentListView: View {
     ) var servers: FetchedResults<ServerEntity>
     
     // UI state management
-    @State private var showDeleteSheet = false
-    @State private var showMoveSheet = false
+    @State private var showDeleteAlert = false
+    @State private var showMultipleDeleteAlert = false
     @State private var showRenameAlert = false
+    @State private var showMoveAlert = false
     @State private var selectedTorrent: Torrent?
-    @State private var deleteSheet: TorrentDeleteSheet?
-    @State private var mutateTorrent: MutateTorrent?
     @State private var selectedTorrentId: Int?
     @State private var showDetailsSheet = false
-    @State var renameText = ""
+    @State private var renameText = ""
+    @State private var moveLocation = ""
     @State private var searchQuery: String = ""
-    @State var selecting = false
-    @State var selected: [Int] = []
+    @State private var selecting = false
+    @State private var selected: [Int] = []
     @State private var splitViewVisibility = NavigationSplitViewVisibility.automatic
     @Binding var isSidebarVisible: Bool
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showDetailSheet = false
+    @State private var showFileBrowser = false
     
     @State var showToast = false
     @State var toastMessage = ""
@@ -62,6 +62,7 @@ struct TorrentListView: View {
         return UIDevice.current.userInterfaceIdiom == .pad
     }
     #endif
+    
     // Sorted torrents
     var sortedTorrents: [Torrent] {
         var filtered = manager.torrents.filter { torrent in
@@ -74,12 +75,10 @@ struct TorrentListView: View {
                 // If labels is an array of strings, check if it contains "starred"
                 let labels = $0.dynamicFields["labels"]?.value as? [String]
                 return labels?.contains("starred") == true
-                
             }
         case "downloading":
             filtered = filtered.filter { $0.status == 4 }
         case "seeding":
-            // Make sure to use a closure with curly braces:
             filtered = filtered.filter { $0.status == 5 || $0.status == 6 }
         case "stopped":
             filtered = filtered.filter { $0.status == 0 }
@@ -98,27 +97,6 @@ struct TorrentListView: View {
         }
     }
     
-    // Helper functions
-    func deleteTorrent(_ torrent: Torrent) {
-        deleteSheet = TorrentDeleteSheet(
-            torrentManager: manager,
-            torrents: [torrent],
-            isPresented: $showDeleteSheet
-        )
-        deleteSheet?.present()
-    }
-    
-    func setupMutation(_ torrent: Torrent) {
-        selectedTorrent = torrent
-        mutateTorrent = MutateTorrent(
-            torrentManager: manager,
-            torrent: torrent,
-            showMoveSheet: $showMoveSheet,
-            showRenameAlert: $showRenameAlert,
-            server: store.selection
-        )
-    }
-    
     var body: some View {
         ScrollView {
             LazyVStack {
@@ -126,35 +104,22 @@ struct TorrentListView: View {
                 if manager.isLoading {
                     ProgressView()
                 }
-#endif
+                #endif
+                
                 ForEach(sortedTorrents) { torrent in
                     TorrentRowView(
                         manager: manager,
                         store: store,
                         torrent: torrent,
                         onDelete: { deleteTorrent(torrent) },
-                        onMove: {
-                            setupMutation(torrent)
-                            mutateTorrent?.move()
-                        },
-                        onRename: {
-                            setupMutation(torrent)
-                            mutateTorrent?.rename()
-                        },
-                        selecting : selecting,
-                        selected : $selected,
+                        onMove: { moveTorrent(torrent) },
+                        onRename: { renameTorrent(torrent) },
+                        selecting: selecting,
+                        selected: $selected,
                         doToast: doToast
                     )
                 }
             }
-        }
-        .sheet(isPresented: $showRenameAlert) {
-            RenameSheetView(
-                selectedTorrent: selectedTorrent,
-                renameText: $renameText,
-                showRenameAlert: $showRenameAlert,
-                manager: manager
-            )
         }
         .simpleToast(isPresented: $showToast, options: toastOptions) {
             Label(toastMessage, systemImage: toastIcon)
@@ -177,11 +142,8 @@ struct TorrentListView: View {
                 manager.isLoading.toggle()
             }
         }
-        
         .searchable(text: $searchQuery, prompt: "Search")
-              
         .toolbar {
-            
             ToolbarItem(placement: .automatic) {
                 if !selecting {
                     Button {
@@ -236,10 +198,12 @@ struct TorrentListView: View {
                                     }
                                     selecting.toggle()
                                 }
+                                Button("Delete Selected", systemImage: "trash") {
+                                    deleteSelectedTorrents()
+                                }
                             }
                         }
                     } label: {
-                        
                         #if os(macOS)
                         Image(systemName: "checklist")
                         #else
@@ -253,13 +217,10 @@ struct TorrentListView: View {
             }
 
             if !isSidebarVisible {
-
-                ToolbarItem (placement: .automatic){
+                ToolbarItem(placement: .automatic){
                     FilterMenu(isSidebar: false)
                 }
             }
-            
-            
         }
         .onAppear {
             print("🚀 View appeared, starting periodic updates")
@@ -269,23 +230,66 @@ struct TorrentListView: View {
             print("👋 View disappeared, stopping updates")
             manager.stopPeriodicUpdates()
         }
-        .sheet(isPresented: $showDeleteSheet) {
-            if let deleteSheet = deleteSheet {
-                
-                deleteSheet.sheet
-#if os(iOS)
-.presentationDetents([.medium])
-#endif
+        
+        // Delete Alert
+        .alert("Delete Torrent", isPresented: $showDeleteAlert) {
+            Button("Delete Files", role: .destructive) {
+                Task {
+                    await performDelete(deleteFiles: true)
+                }
+            }
+            
+            Button("Remove Torrent Only", role: .destructive) {
+                Task {
+                    await performDelete(deleteFiles: false)
+                }
+            }
+            
+            Button("Cancel", role: .cancel) {}
+            
+        } message: {
+            if let name = selectedTorrent?.name {
+                Text("Are you sure you want to remove \(name)?")
+            } else {
+                Text("Are you sure you want to remove this torrent?")
             }
         }
-        .sheet(isPresented: $showMoveSheet) {
-            if let mutateTorrent = mutateTorrent {
-                mutateTorrent.moveSheet
-                    #if os(iOS)
-                    .presentationDetents([.medium])
-                    #endif
+        
+        // Multiple Delete Alert
+        .alert("Delete Torrents", isPresented: $showMultipleDeleteAlert) {
+            Button("Delete Files", role: .destructive) {
+                Task {
+                    await performMultipleDelete(deleteFiles: true)
+                }
             }
+            
+            Button("Remove Torrents Only", role: .destructive) {
+                Task {
+                    await performMultipleDelete(deleteFiles: false)
+                }
+            }
+            
+            Button("Cancel", role: .cancel) {}
+            
+        } message: {
+            Text("Are you sure you want to remove \(selected.count) torrents?")
         }
+        
+        // Rename Sheet
+        .sheet(isPresented: $showRenameAlert) {
+            renameSheet
+        }
+        
+        // Move Sheet
+        .sheet(isPresented: $showMoveAlert) {
+            moveSheet
+        }
+        
+        // File Browser Sheet (used inside the move sheet)
+        .sheet(isPresented: $showFileBrowser) {
+            fileBrowserSheet
+        }
+        
         #if os(iOS)
         .sheet(isPresented: $store.FileBrowse, onDismiss: {}, content: {
             Group {
@@ -333,8 +337,328 @@ struct TorrentListView: View {
         })
         #endif
     }
+    
+    // MARK: Delete Torrent
+    
+    func deleteTorrent(_ torrent: Torrent) {
+        selectedTorrent = torrent
+        showDeleteAlert = true
+    }
+    
+    func performDelete(deleteFiles: Bool) async {
+        guard let torrent = selectedTorrent else { return }
+        
+        do {
+            let success = try await manager.deleteTorrents(
+                ids: [torrent.id],
+                deleteLocalData: deleteFiles
+            )
+            
+            if success {
+                await MainActor.run {
+                    showDeleteAlert = false
+                    selectedTorrent = nil
+                }
+            }
+        } catch {
+            print("Error deleting torrent:", error)
+        }
+    }
+    
+    // MARK: Rename Torrent
+    
+    func renameTorrent(_ torrent: Torrent) {
+        selectedTorrent = torrent
+        renameText = torrent.name ?? ""
+        showRenameAlert = true
+    }
+    
+    func performRename() async {
+        guard let torrent = selectedTorrent, !renameText.isEmpty else { return }
+        
+        do {
+            let result = try await manager.renamePath(
+                ids: [torrent.id],
+                path: torrent.name ?? "",
+                newName: renameText
+            )
+            
+            await MainActor.run {
+                showRenameAlert = false
+                selectedTorrent = nil
+            }
+        } catch {
+            print("Error renaming torrent:", error)
+        }
+    }
+    
+    // MARK: Move Torrent
+    
+    func moveTorrent(_ torrent: Torrent) {
+        selectedTorrent = torrent
+        
+        // Get current download directory
+        Task {
+            if let downloadDir = try? await manager.getDownloadDirectory() {
+                await MainActor.run {
+                    moveLocation = downloadDir
+                }
+            }
+        }
+        
+        showMoveAlert = true
+    }
+    
+    func performMove() async {
+        guard let torrent = selectedTorrent, !moveLocation.isEmpty else { return }
+        
+        do {
+            let success = try await manager.moveTorrents(
+                ids: [torrent.id],
+                to: moveLocation,
+                move: true
+            )
+            
+            if success {
+                await MainActor.run {
+                    showMoveAlert = false
+                    selectedTorrent = nil
+                }
+            }
+        } catch {
+            print("Error moving torrent:", error)
+        }
+    }
+    
+    // MARK: Multiple Torrents Operations
+    
+    func deleteSelectedTorrents() {
+        if selected.isEmpty { return }
+        showMultipleDeleteAlert = true
+    }
+    
+    func performMultipleDelete(deleteFiles: Bool) async {
+        do {
+            let success = try await manager.deleteTorrents(
+                ids: selected,
+                deleteLocalData: deleteFiles
+            )
+            
+            if success {
+                await MainActor.run {
+                    showMultipleDeleteAlert = false
+                    selected = []
+                    selecting = false
+                }
+            }
+        } catch {
+            print("Error deleting torrents:", error)
+        }
+    }
+    
+    // MARK: - Alert and Sheet Views
+    
+    var renameSheet: some View {
+        #if os(iOS)
+        NavigationView {
+            Form {
+                Section("Current Name") {
+                    Text(selectedTorrent?.name ?? "")
+                        .foregroundStyle(.secondary)
+                }
+                
+                Section("New Name") {
+                    HStack {
+                        TextField("Enter new name", text: $renameText)
+                            .autocorrectionDisabled()
+                            .autocapitalization(.none)
+                        
+                        Button("Rename") {
+                            Task {
+                                await performRename()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(renameText.isEmpty)
+                    }
+                }
+            }
+            .navigationTitle("Rename Torrent")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showRenameAlert = false
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+        #else
+        VStack(spacing: 12) {
+            Text("Current name:")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(selectedTorrent?.name ?? "")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(.secondary)
+            
+            Divider()
+            
+            HStack {
+                TextField("New name", text: $renameText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: .infinity)
+                
+                Button("Rename") {
+                    Task {
+                        await performRename()
+                    }
+                }
+                .keyboardShortcut(.return)
+                .disabled(renameText.isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 400)
+        #endif
+    }
+    
+    var moveSheet: some View {
+        #if os(iOS)
+        NavigationView {
+            Form {
+                Section("New Location") {
+                    HStack {
+                        TextField("Enter new location", text: $moveLocation)
+                            .textContentType(.URL)
+                            .autocapitalization(.none)
+                            .autocorrectionDisabled()
+                        
+                        if store.selection?.sftpBrowse == true {
+                            Button {
+                                showFileBrowser = true
+                            } label: {
+                                Image(systemName: "folder")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Move Torrent")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showMoveAlert = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Move") {
+                        Task {
+                            await performMove()
+                        }
+                    }.disabled(moveLocation.isEmpty)
+                }
+            }
+            .presentationDetents([.medium])
+        }
+        #else
+        VStack(spacing: 20) {
+            Text("Move Torrent").font(.headline)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("New Location:")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    TextField("", text: $moveLocation)
+                        .textFieldStyle(.roundedBorder)
+                    
+                    if store.selection?.fsBrowse == true {
+                        Button("", systemImage: "folder") {
+                            let panel = NSOpenPanel()
+                            panel.allowsMultipleSelection = false
+                            panel.allowsOtherFileTypes = false
+                            panel.canChooseDirectories = true
+                            
+                            if panel.runModal() == .OK,
+                               let fpath = panel.url,
+                               let filesystemPath = store.selection?.pathFilesystem,
+                               let serverPath = store.selection?.pathServer {
+                                
+                                let movepath = fpath.absoluteString.replacingOccurrences(
+                                    of: "file://" + filesystemPath,
+                                    with: serverPath
+                                )
+                                
+                                moveLocation = movepath
+                            }
+                        }.labelsHidden()
+                    } else if store.selection?.sftpBrowse == true {
+                        Button { showFileBrowser = true } label: {
+                            Image(systemName: "folder")
+                        }
+                    }
+                }
+            }
+
+            Spacer()
+
+            HStack {
+                Button("Cancel") { showMoveAlert = false }
+
+                Button("Move") {
+                    Task {
+                        await performMove()
+                    }
+                }
+                .keyboardShortcut(.return)
+                .buttonStyle(.borderedProminent)
+                .disabled(moveLocation.isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 400, height: 200)
+        #endif
+    }
+    
+    var fileBrowserSheet: some View {
+        #if os(iOS)
+        NavigationView {
+            FileBrowserView(
+                currentPath: moveLocation,
+                basePath: store.selection?.pathFilesystem ?? "",
+                server: store.selection,
+                onFolderSelected: { folderPath in
+                    moveLocation = folderPath
+                    showFileBrowser = false
+                }
+            ).navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Cancel") {
+                            showFileBrowser = false
+                        }
+                    }
+                }
+        }
+        .presentationDetents([.large])
+        #else
+        FileBrowserView(
+            currentPath: moveLocation,
+            basePath: store.selection?.pathFilesystem ?? "",
+            server: store.selection,
+            onFolderSelected: { folderPath in
+                moveLocation = folderPath
+                showFileBrowser = false
+            }
+        ).frame(width: 600, height: 600)
+        #endif
+    }
 }
-//#if os(iOS)
+
+#if os(iOS)
 struct CheckboxToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack {
@@ -342,13 +666,6 @@ struct CheckboxToggleStyle: ToggleStyle {
                 .resizable()
                 .frame(width: 20, height: 20).padding(10)
                 .foregroundColor(.accentColor)
-//            RoundedRectangle(cornerRadius: 5.0)
-//                .stroke(lineWidth: 2)
-//                .frame(width: 25, height: 25)
-//                .cornerRadius(5.0)
-//                .overlay {
-//                    Image(systemName: configuration.isOn ? "checkmark" : "")
-//                }
                 .onTapGesture {
                     withAnimation(.spring()) {
                         configuration.isOn.toggle()
@@ -356,8 +673,7 @@ struct CheckboxToggleStyle: ToggleStyle {
                 }
 
             configuration.label
-
         }
     }
 }
-//#endif
+#endif

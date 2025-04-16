@@ -62,7 +62,7 @@ class TunnelManagerHolder {
 class SSHTunnelManager {
     private var client: SSHClient?
     private let group: MultiThreadedEventLoopGroup
-    private var localPort: Int
+    var localPort: Int
     private var remoteHost: String
     var remotePort: Int
     private var server: ServerEntity
