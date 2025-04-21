@@ -28,7 +28,7 @@ struct MacOSContentView: View {
   @State private var isAnimating = false
     
     #if os(macOS)
-    var mountManager = MountManager()
+    var mountManager = ServerMountManager()
 #endif
     
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
@@ -70,6 +70,7 @@ struct MacOSContentView: View {
             } else {
                 DetailsView(store: store, manager: manager)
             }
+            
         }
         .onChange(of: splitViewVisibility) {
             print (splitViewVisibility)

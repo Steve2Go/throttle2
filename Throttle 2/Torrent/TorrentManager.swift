@@ -398,13 +398,16 @@ class TorrentManager: ObservableObject {
             return (success, responseArgs)
         }
     
-    func fetchUpdates(selectedId: Int? = nil) async throws {
+    func fetchUpdates(selectedId: Int? = nil, fullFetch: Bool = false) async throws {
         guard let baseURL = baseURL else { return }
         
         defer { isLoading = false }
        // await TunnelManagerHolder.shared.ensureAllTunnelsHealth()
         var fieldsToFetch: [String] = []
-        let firstFetch = fileCache.isEmpty
+        
+        let firstFetch = fullFetch == true ? true : fileCache.isEmpty
+        
+        
         
         
         
@@ -456,7 +459,9 @@ class TorrentManager: ObservableObject {
         
         // Handle file caching
         if firstFetch && selectedId == nil {
-            
+            if fullFetch {
+                fileCache = [:]
+            }
             print("First fetch - caching files")
             print("Number of torrents: \(decodedResponse.arguments.torrents.count)")
             for torrent in decodedResponse.arguments.torrents {
@@ -484,8 +489,9 @@ class TorrentManager: ObservableObject {
         let thisDownloadingCount = torrentsToUpdate.filter({$0.percentComplete != 1}).count
         //print("Download Count: \(thisDownloadingCount)")
         
-        if thisDownloadingCount < downloadingCount {
-            fileCache = [:]
+        if thisDownloadingCount < downloadingCount && !fullFetch {
+            //fileCache = [:]
+            try await fetchUpdates( fullFetch: true)
         }
         
         downloadingCount = thisDownloadingCount
@@ -500,9 +506,9 @@ class TorrentManager: ObservableObject {
         stopPeriodicUpdates()
         
         // Initial fetch
-        Task {
-            try? await fetchUpdates(selectedId: selectedId)
-        }
+//        Task {
+//            try? await fetchUpdates(selectedId: selectedId)
+//        }
         
         // Create new timer
         fetchTimer = Timer.scheduledTimer(withTimeInterval: Double(refreshRate), repeats: true) { [weak self] _ in

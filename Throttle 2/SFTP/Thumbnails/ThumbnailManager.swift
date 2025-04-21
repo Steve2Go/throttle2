@@ -230,7 +230,7 @@ public class ThumbnailManager: NSObject {
     // New method for HTTP-based image thumbnail generation
     private func generateImageThumbnailViaHTTP(for path: String, server: ServerEntity, tunnel: SSHTunnelManager) async throws -> Image {
         // Create HTTP URL
-        guard let httpURL = HttpStreamingManager.shared.createStreamingURL(
+        guard let httpURL = try await HttpStreamingManager.shared.createStreamingURL(
             for: path,
             server: server,
             localPort: tunnel.localPort

@@ -2,194 +2,171 @@
 import SwiftUI
 import QuickLookThumbnailing
 import ffmpegkit
+import CryptoKit
 
 class ThumbnailManager: NSObject {
     static let shared = ThumbnailManager()
     
-    // Use a concurrent queue for better parallel processing
-    private let queue = DispatchQueue(label: "com.throttle.thumbnails", attributes: .concurrent)
+    // Memory cache
+    private let memoryCache = NSCache<NSString, NSImage>()
     
-    // Memory cache to complement file cache
-    private var memoryCache = NSCache<NSString, NSImage>()
-    
+    // File manager and paths
     private let fileManager = FileManager.default
     @AppStorage("qlVideo") var qlVideo: Bool = false
     
-    // Thumbnail size constant to avoid recreating CGSize
+    // Standard thumbnail size
     private let thumbnailSize = CGSize(width: 120, height: 120)
     
-    // Rate limiter to prevent too many concurrent operations
-    private let semaphore = DispatchSemaphore(value: 4) // Allow 4 concurrent operations
+    // Concurrency control
+    private let thumbnailQueue = DispatchQueue(label: "com.throttle.thumbnails", attributes: .concurrent)
+    private let maxConcurrentOperations = 4
+    private let semaphore = DispatchSemaphore(value: 4)
     
-    // Processing queue to track which files are already being processed
-    private var processingPaths = Set<String>()
-    private let processingQueue = DispatchQueue(label: "com.throttle.thumbnails.processing", attributes: .concurrent)
+    // Track in-progress operations to avoid duplicates
+    private var inProgressPaths = Set<String>()
+    private let inProgressLock = NSLock()
     
-    // Cache
-    private var cachePath: URL? {
-        get {
-            let path = fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
-                .first?.appendingPathComponent("thumbnailCache")
-            if let path = path {
-                if !fileManager.fileExists(atPath: path.path) {
-                    try? fileManager.createDirectory(at: path, withIntermediateDirectories: true, attributes: nil)
-                }
-            }
-            return path
-        }
-    }
+    // Debug counter
+    private var generationCounter = [String: Int]()
+    private let counterLock = NSLock()
     
-    // Check if QuickLook Video plugin is installed
-    private lazy var isQuickLookVideoAvailable: Bool = {
-        // Check for the QuickLook Video plugin in common locations
-        let possiblePaths = [
-            "/Library/QuickLook/Video.qlgenerator",
-            "/System/Library/QuickLook/Video.qlgenerator",
-            "~/Library/QuickLook/Video.qlgenerator"
-        ]
-        
-        for path in possiblePaths {
-            let expandedPath = NSString(string: path).expandingTildeInPath
-            if fileManager.fileExists(atPath: expandedPath) {
-                return true
-            }
-        }
-        
-        // Try alternate method: check if we can generate thumbnails for a common video format
-        if let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            let testFile = appSupportURL.appendingPathComponent("com.apple.QuickLook.thumbnailcache")
-            if fileManager.fileExists(atPath: testFile.path) {
-                return true
-            }
-        }
-        
-        // Default to assuming it's not available
-        return false
-    }()
-
     private override init() {
         super.init()
-        memoryCache.countLimit = 100 // Adjust based on your needs
+        memoryCache.countLimit = 200 // Allow more items in memory
+        setupCachePath()
     }
     
-    func clearCache() {
-        // Clear memory cache
-        memoryCache.removeAllObjects()
-        
-        // Clear disk cache
-        guard let cachePath = cachePath else { return }
-        
-        queue.async(flags: .barrier) {
-            try? self.fileManager.removeItem(at: cachePath)
-            try? self.fileManager.createDirectory(at: cachePath, withIntermediateDirectories: true)
-        }
+    // Ensure cache path exists
+    private func setupCachePath() {
+        guard let path = cachePath?.path, !fileManager.fileExists(atPath: path) else { return }
+        try? fileManager.createDirectory(at: cachePath!, withIntermediateDirectories: true)
     }
     
+    private var cachePath: URL? {
+        fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
+            .first?.appendingPathComponent("thumbnailCache")
+    }
+    
+    // Main public method - get a thumbnail for a path
     func getThumbnail(for path: String) async throws -> NSImage {
-        // Check memory cache first (fast path)
+        // 1. Check memory cache first (fast path)
         if let cachedImage = memoryCache.object(forKey: path as NSString) {
+            incrementGenerationCounter(for: path, status: "memory-hit")
             return cachedImage
         }
         
-        // Check if this path is already being processed
-        var isAlreadyProcessing = false
-        await withCheckedContinuation { continuation in
-            processingQueue.sync(flags: .barrier) {
-                isAlreadyProcessing = processingPaths.contains(path)
-                if !isAlreadyProcessing {
-                    processingPaths.insert(path)
-                }
-                continuation.resume()
-            }
-        }
-        
-        // If already processing, wait a bit and check cache again
-        if isAlreadyProcessing {
-            // Wait a short time for the other task to complete
+        // 2. Check if we're already processing this path
+        if isAlreadyInProgress(path) {
+            incrementGenerationCounter(for: path, status: "already-processing")
+            // Wait a bit and check memory cache again
             try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-            
-            // Check cache again
             if let cachedImage = memoryCache.object(forKey: path as NSString) {
                 return cachedImage
             }
             
-            // If still not in cache, wait longer
+            // Wait longer if still not ready
             try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
             if let cachedImage = memoryCache.object(forKey: path as NSString) {
                 return cachedImage
             }
         }
         
+        // Mark this path as in progress
+        markAsInProgress(path)
+        
         // Use semaphore to limit concurrent operations
         await withCheckedContinuation { continuation in
-            Task {
-                semaphore.wait()
-                continuation.resume()
-            }
+            semaphore.wait()
+            continuation.resume()
         }
         
+        // Always release semaphore and unmark path when done
         defer {
-            // Always release the semaphore and remove from processing set
             semaphore.signal()
-            processingQueue.async(flags: .barrier) {
-                self.processingPaths.remove(path)
-            }
+            unmarkAsInProgress(path)
         }
         
-        // Check disk cache
-        if let cached = try? await loadCachedThumbnail(for: path) {
-            memoryCache.setObject(cached, forKey: path as NSString)
-            return cached
+        // 3. Check disk cache
+        if let diskCached = loadFromDiskCache(path: path) {
+            incrementGenerationCounter(for: path, status: "disk-hit")
+            // Add to memory cache for future requests
+            memoryCache.setObject(diskCached, forKey: path as NSString)
+            return diskCached
         }
+        
+        // 4. Need to generate a new thumbnail
+        incrementGenerationCounter(for: path, status: "generating-new")
         
         do {
             let fileURL = URL(fileURLWithPath: path)
             let thumbnail: NSImage
             
-            // Generate thumbnail based on file type
+            // Generate appropriate thumbnail
             if shouldUseFFmpeg(for: fileURL) {
                 thumbnail = try await generateFFmpegThumbnail(for: path)
             } else {
                 thumbnail = try await generateQuickLookThumbnail(for: path)
             }
             
-            // Ensure the thumbnail is square
-            let squareThumbnail = ensureSquareImage(thumbnail)
+            // 5. Ensure thumbnail is square
+            let squareThumbnail = ensureSquareThumbnail(thumbnail)
             
-            // Cache the result
+            // 6. Cache the result in both memory and disk
             memoryCache.setObject(squareThumbnail, forKey: path as NSString)
-            saveToDiskCache(thumbnail: squareThumbnail, for: path)
+            saveToDiskCache(squareThumbnail, for: path)
             
             return squareThumbnail
         } catch {
-            // In case of error, remove from processing set to allow retries
-            processingQueue.async(flags: .barrier) {
-                self.processingPaths.remove(path)
-            }
+            print("Thumbnail generation error: \(error)")
             throw error
         }
     }
     
+    // MARK: - Helper Methods for Tracking In-Progress Items
+    
+    private func isAlreadyInProgress(_ path: String) -> Bool {
+        inProgressLock.lock()
+        defer { inProgressLock.unlock() }
+        return inProgressPaths.contains(path)
+    }
+    
+    private func markAsInProgress(_ path: String) {
+        inProgressLock.lock()
+        defer { inProgressLock.unlock() }
+        inProgressPaths.insert(path)
+    }
+    
+    private func unmarkAsInProgress(_ path: String) {
+        inProgressLock.lock()
+        defer { inProgressLock.unlock() }
+        inProgressPaths.remove(path)
+    }
+    
+    // MARK: - Counter for Debugging
+    
+    private func incrementGenerationCounter(for path: String, status: String) {
+        counterLock.lock()
+        defer { counterLock.unlock() }
+        
+        let count = generationCounter[path] ?? 0
+        generationCounter[path] = count + 1
+        
+        print("[ThumbnailManager] \(status) for \(path) - Count: \(count + 1)")
+    }
+    
+    // MARK: - Thumbnail Generation Methods
+    
     private func shouldUseFFmpeg(for url: URL) -> Bool {
-        // Check if this is a video file
+        // Determine if we should use FFmpeg based on file type and settings
         let ext = url.pathExtension.lowercased()
         let isVideo = ["mp4", "mov", "avi", "mkv", "flv", "mpeg", "m4v", "wmv"].contains(ext)
         
-        if !isVideo {
-            return false // Not a video, use QuickLook
-        }
+        // If not a video, don't use FFmpeg
+        if !isVideo { return false }
         
-        // If qlVideo setting is enabled, try to use QuickLook
-        if qlVideo {
-            return false
-        }
+        // If user prefers QuickLook for videos, don't use FFmpeg
+        if qlVideo { return false }
         
-        // Check if QuickLook Video plugin is installed
-        if isQuickLookVideoAvailable {
-            return false // QuickLook Video is available, use it
-        }
-        
-        // QuickLook Video isn't available, use FFmpeg for all video formats
         return true
     }
     
@@ -198,7 +175,7 @@ class ThumbnailManager: NSObject {
             fileAt: URL(fileURLWithPath: path),
             size: thumbnailSize,
             scale: NSScreen.main?.backingScaleFactor ?? 2.0,
-            representationTypes: .thumbnail // Use .thumbnail instead of .all for faster generation
+            representationTypes: .thumbnail
         )
         
         let thumbnail = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
@@ -207,153 +184,226 @@ class ThumbnailManager: NSObject {
     
     private func generateFFmpegThumbnail(for path: String) async throws -> NSImage {
         guard let cachePath = cachePath else {
-            throw NSError(domain: "ThumbnailManager", code: -1)
+            throw NSError(domain: "ThumbnailManager", code: -1,
+                     userInfo: [NSLocalizedDescriptionKey: "Cache path is nil"])
         }
         
-        // Use the same cache file URL pattern as other thumbnails
-        guard let cacheFile = cacheFileURL(for: path) else {
-            throw NSError(domain: "ThumbnailManager", code: -2)
-        }
-        
-        // If cached version exists, return it
-        if fileManager.fileExists(atPath: cacheFile.path),
-           let cachedImage = NSImage(contentsOf: cacheFile) {
-            return cachedImage
-        }
-        
+        // Create temp output file
         let tempOutput = cachePath.appendingPathComponent(UUID().uuidString + ".jpg")
         
         // Try at 6 seconds first
-        if let image = try? await extractFrame(from: path, at: "00:00:06", output: tempOutput) {
-            // Save to cache and return
-            if let tiffData = image.tiffRepresentation {
-                try? tiffData.write(to: cacheFile)
-            }
+        if let image = try await extractFrame(from: path, at: "00:00:06", output: tempOutput) {
             return image
         }
         
-        // Fall back to 1 second if 6 seconds fails
-        let image = try await extractFrame(from: path, at: "00:00:01", output: tempOutput)
-        
-        // Explicitly save to cache
-        if let tiffData = image.tiffRepresentation {
-            try? tiffData.write(to: cacheFile)
+        // Fallback to 1 second if 6 seconds fails
+        guard let image = try await extractFrame(from: path, at: "00:00:01", output: tempOutput, fallback: true) else {
+            throw NSError(domain: "ThumbnailManager", code: -4,
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to extract frame from video"])
         }
         
         return image
     }
-
-    private func extractFrame(from path: String, at timestamp: String, output: URL) async throws -> NSImage {
-        // Create a square thumbnail using proper scaling and cropping
+    
+    private func extractFrame(from path: String, at timestamp: String, output: URL, fallback: Bool = false) async throws -> NSImage? {
         let ffmpegArgs = [
             "-y",                    // Overwrite output files
             "-ss", timestamp,        // Seek to timestamp
             "-i", path,              // Input file
             "-vframes", "1",         // Extract exactly one frame
             "-vf", "scale=120:120:force_original_aspect_ratio=increase,crop=120:120", // Scale and crop to square
-            "-f", "image2",          // Output format
+            "-pix_fmt", "yuvj420p",  // Use full-range color space
+            "-q:v", "2",             // JPEG quality (1-31, lower is better)
             output.path              // Output file
         ]
         
         return try await withCheckedThrowingContinuation { continuation in
             FFmpegKit.execute(withArgumentsAsync: ffmpegArgs) { session in
-                guard let session = session,
-                      session.getReturnCode().isValueSuccess(),
-                      let image = NSImage(contentsOf: output) else {
+                // Clean up on function exit
+                defer {
                     try? FileManager.default.removeItem(at: output)
-                    continuation.resume(throwing: NSError(domain: "FFmpegKit", code: -1))
+                }
+                
+                // Check if session completed successfully
+                guard let session = session,
+                      session.getState() == .completed else {
+                    // For the first attempt, just return nil so we can try the fallback timestamp
+                    if !fallback {
+                        continuation.resume(returning: nil)
+                    } else {
+                        continuation.resume(throwing: NSError(domain: "FFmpegKit", code: -1,
+                                           userInfo: [NSLocalizedDescriptionKey: "FFmpeg session failed"]))
+                    }
                     return
                 }
                 
-                // Clean up temp file
-                try? FileManager.default.removeItem(at: output)
+                // Check return code
+                let returnCode = session.getReturnCode()
+                guard ((returnCode?.isValueSuccess()) != nil) else {
+                    // For the first attempt, just return nil so we can try the fallback timestamp
+                    if !fallback {
+                        continuation.resume(returning: nil)
+                    } else {
+                        continuation.resume(throwing: NSError(domain: "FFmpegKit", code: -2,
+                                                              userInfo: [NSLocalizedDescriptionKey: "FFmpeg returned error code: \(String(describing: returnCode?.getValue()))"]))
+                    }
+                    return
+                }
                 
+                // Check if output file exists
+                guard FileManager.default.fileExists(atPath: output.path) else {
+                    if !fallback {
+                        continuation.resume(returning: nil)
+                    } else {
+                        continuation.resume(throwing: NSError(domain: "FFmpegKit", code: -3,
+                                           userInfo: [NSLocalizedDescriptionKey: "FFmpeg output file not found"]))
+                    }
+                    return
+                }
+                
+                // Load the output image
+                guard let image = NSImage(contentsOf: output) else {
+                    if !fallback {
+                        continuation.resume(returning: nil)
+                    } else {
+                        continuation.resume(throwing: NSError(domain: "FFmpegKit", code: -4,
+                                           userInfo: [NSLocalizedDescriptionKey: "Failed to create image from FFmpeg output"]))
+                    }
+                    return
+                }
+                
+                // Success!
                 continuation.resume(returning: image)
             }
         }
     }
     
-    // Helper function to ensure images are square
-    private func ensureSquareImage(_ image: NSImage) -> NSImage {
+    // MARK: - Image Processing Helpers
+    
+    private func ensureSquareThumbnail(_ image: NSImage) -> NSImage {
         let size = min(image.size.width, image.size.height)
         
-        // If already square-ish (within 1px), return as is
-        if abs(image.size.width - image.size.height) <= 1.0 {
-            // Just resize to exact square if needed
-            if abs(image.size.width - thumbnailSize.width) > 1.0 ||
-               abs(image.size.height - thumbnailSize.height) > 1.0 {
-                return resizeImage(image, toSize: thumbnailSize)
-            }
+        // If already square (within 1px) and correct size, return as is
+        if abs(image.size.width - image.size.height) <= 1.0 &&
+           abs(image.size.width - thumbnailSize.width) <= 1.0 {
             return image
         }
         
-        // Create a new square image
+        // Need to create a square image
         let squareImage = NSImage(size: NSSize(width: size, height: size))
         
         squareImage.lockFocus()
         
-        // Calculate offset to center the image
+        // Center the image
         let xOffset = max(0, (image.size.width - size) / 2)
         let yOffset = max(0, (image.size.height - size) / 2)
         
         // Draw the original image, cropped to square
         image.draw(in: NSRect(x: -xOffset, y: -yOffset, width: image.size.width, height: image.size.height),
-                   from: NSRect(x: 0, y: 0, width: image.size.width, height: image.size.height),
-                   operation: .copy, fraction: 1.0)
+                  from: NSRect(x: 0, y: 0, width: image.size.width, height: image.size.height),
+                  operation: .copy, fraction: 1.0)
         
         squareImage.unlockFocus()
         
-        // Resize to the target size if needed
+        // If not the target size, resize it
         if abs(size - thumbnailSize.width) > 1.0 {
-            return resizeImage(squareImage, toSize: thumbnailSize)
+            return resizeImage(squareImage, to: thumbnailSize)
         }
         
         return squareImage
     }
     
-    // Helper function to resize an image
-    private func resizeImage(_ image: NSImage, toSize size: CGSize) -> NSImage {
+    private func resizeImage(_ image: NSImage, to size: CGSize) -> NSImage {
         let resizedImage = NSImage(size: size)
         
         resizedImage.lockFocus()
         image.draw(in: NSRect(origin: .zero, size: size),
-                   from: NSRect(origin: .zero, size: image.size),
-                   operation: .copy, fraction: 1.0)
+                  from: NSRect(origin: .zero, size: image.size),
+                  operation: .copy, fraction: 1.0)
         resizedImage.unlockFocus()
         
         return resizedImage
     }
     
-    private func saveToDiskCache(thumbnail: NSImage, for path: String) {
-        guard let cacheFile = cacheFileURL(for: path),
-              let tiffData = thumbnail.tiffRepresentation else { return }
-        
-        queue.async(flags: .barrier) {
-            try? tiffData.write(to: cacheFile)
-        }
+    // MARK: - Disk Cache Methods
+    
+    private func cacheKey(for path: String) -> String {
+        // Create a shorter cache key using MD5 hash
+        let data = Data(path.utf8)
+        let hash = Insecure.MD5.hash(data: data)
+        return hash.map { String(format: "%02x", $0) }.joined()
     }
     
     private func cacheFileURL(for path: String) -> URL? {
         guard let cachePath = cachePath else { return nil }
         
-        // Create a safe filename by hashing the path
-        let filename = path.data(using: .utf8)?
-            .map { String(format: "%02x", $0) }
-            .joined() ?? UUID().uuidString
-            
-        return cachePath.appendingPathComponent(filename + ".thumb")
+        let key = cacheKey(for: path)
+        return cachePath.appendingPathComponent(key + ".jpg")
     }
     
-    private func loadCachedThumbnail(for path: String) async throws -> NSImage? {
+    private func loadFromDiskCache(path: String) -> NSImage? {
         guard let cacheFile = cacheFileURL(for: path),
               fileManager.fileExists(atPath: cacheFile.path) else {
             return nil
         }
         
-        let data = try Data(contentsOf: cacheFile)
-        return NSImage(data: data)
+        // Attempt to load the image from disk
+        let image = NSImage(contentsOf: cacheFile)
+        return image
+    }
+    
+    private func saveToDiskCache(_ image: NSImage, for path: String) {
+        guard let cacheFile = cacheFileURL(for: path) else { return }
+        
+        // Ensure the cache directory exists
+        setupCachePath()
+        
+        // Save using a temporary file first
+        let tempFilePath = cacheFile.path + ".temp"
+        let tempFileURL = URL(fileURLWithPath: tempFilePath)
+        
+        // Get JPEG representation
+        guard let tiffRep = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiffRep),
+              let jpegData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) else {
+            print("Could not get JPEG representation for thumbnail")
+            return
+        }
+        
+        // Create a direct file handle - avoid NSData.write for better reliability
+        if fileManager.createFile(atPath: tempFilePath, contents: jpegData) {
+            do {
+                // If destination already exists, remove it
+                if fileManager.fileExists(atPath: cacheFile.path) {
+                    try fileManager.removeItem(at: cacheFile)
+                }
+                
+                // Move temp file to final destination
+                try fileManager.moveItem(at: tempFileURL, to: cacheFile)
+                print("Successfully cached thumbnail to: \(cacheFile.path)")
+            } catch {
+                print("Error moving temp thumbnail file: \(error)")
+                try? fileManager.removeItem(at: tempFileURL)
+            }
+        } else {
+            print("Failed to create thumbnail cache file")
+        }
+    }
+    
+    // MARK: - Cache Management
+    
+    func clearCache() {
+        // Clear memory cache
+        memoryCache.removeAllObjects()
+        
+        // Clear disk cache
+        guard let cachePath = cachePath else { return }
+        try? fileManager.removeItem(at: cachePath)
+        setupCachePath()
     }
 }
+
+// MARK: - Thumbnail View Implementation
 
 struct PathThumbnailViewMacOS: View {
     let path: String
@@ -366,14 +416,24 @@ struct PathThumbnailViewMacOS: View {
         
         func loadThumbnail(for path: String) {
             guard !isLoading else { return }
-            isLoading = true
             
+            // Update on main thread
+            DispatchQueue.main.async {
+                self.isLoading = true
+            }
+            
+            // Cancel any existing task
+            currentTask?.cancel()
+            
+            // Create a new task
             currentTask = Task {
                 do {
-                    let thumb = try await ThumbnailManager.shared.getThumbnail(for: path)
+                    let thumbnail = try await ThumbnailManager.shared.getThumbnail(for: path)
+                    
+                    // If not cancelled, update UI
                     if !Task.isCancelled {
                         await MainActor.run {
-                            self.thumbnail = thumb
+                            self.thumbnail = thumbnail
                             self.isLoading = false
                         }
                     }
@@ -390,7 +450,10 @@ struct PathThumbnailViewMacOS: View {
         func cancelLoading() {
             currentTask?.cancel()
             currentTask = nil
-            isLoading = false
+            
+            DispatchQueue.main.async {
+                self.isLoading = false
+            }
         }
     }
     
@@ -431,26 +494,6 @@ struct PathThumbnailViewMacOS: View {
             .resizable()
             .aspectRatio(contentMode: .fit)
             .frame(width: 60, height: 60)
-    }
-}
-
-enum FileType {
-    case video
-    case image
-    case other
-    
-    static func determine(from url: URL) -> FileType {
-        let ext = url.pathExtension.lowercased()
-        
-        if ["mp4", "mov", "avi", "mkv", "flv", "mpeg", "m4v", "wmv"].contains(ext) {
-            return .video
-        }
-        
-        if ["jpg", "jpeg", "png", "gif", "bmp", "tiff", "heic"].contains(ext) {
-            return .image
-        }
-        
-        return .other
     }
 }
 #endif

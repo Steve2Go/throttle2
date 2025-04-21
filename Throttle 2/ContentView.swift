@@ -33,7 +33,7 @@ struct ContentView: View {
     @State var currentSFTPViewModel: SFTPFileBrowserViewModel?
     #endif
     #if os(macOS)
-    var mountManager = MountManager()
+    var mountManager = ServerMountManager()
 #endif
     
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
@@ -170,7 +170,7 @@ struct ContentView: View {
         .onAppear {
             let serverArray = Array(servers)
             #if os(macOS)
-            mountManager.mountFolders(servers: serverArray)
+            mountManager.mountAllServers()
             #endif
             
             if presenting.didStart {
@@ -209,7 +209,7 @@ struct ContentView: View {
         .sheet(item: activeSheetBinding) { sheetType in
             switch sheetType {
             case .settings:
-                SettingsView(presenting: presenting)
+                SettingsView(presenting: presenting, manager: manager)
             case .servers:
                 ServersListView(presenting: presenting, store: store)
                     #if targetEnvironment(macCatalyst) || os(macOS)

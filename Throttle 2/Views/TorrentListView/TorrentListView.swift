@@ -15,7 +15,7 @@ struct TorrentListView: View {
     // State for sorting
     @AppStorage("sortOption") var sortOption: String = "dateAdded"
     @AppStorage("filterOption") var filterOption: String = "all"
-    
+    @AppStorage("filterdCount") var filterdCount: Int = 0
     // CoreData fetch request for servers
     @FetchRequest(
         entity: ServerEntity.entity(),
@@ -31,6 +31,7 @@ struct TorrentListView: View {
     @State private var selectedTorrent: Torrent?
     @State private var selectedTorrentId: Int?
     @State private var showDetailsSheet = false
+    @State private var showServerSettings = false
     @State private var renameText = ""
     @State private var moveLocation = ""
     @State private var searchQuery: String = ""
@@ -86,6 +87,7 @@ struct TorrentListView: View {
             // Nothing to change in the default case
             break
         }
+        filterdCount = filtered.count
         
         switch sortOption {
         case "name":
@@ -98,29 +100,44 @@ struct TorrentListView: View {
     }
     
     var body: some View {
-        ScrollView {
-            LazyVStack {
-                #if os(iOS)
-                if manager.isLoading {
-                    ProgressView()
-                }
-                #endif
-                
-                ForEach(sortedTorrents) { torrent in
-                    TorrentRowView(
-                        manager: manager,
-                        store: store,
-                        torrent: torrent,
-                        onDelete: { deleteTorrent(torrent) },
-                        onMove: { moveTorrent(torrent) },
-                        onRename: { renameTorrent(torrent) },
-                        selecting: selecting,
-                        selected: $selected,
-                        doToast: doToast
-                    )
-                }
-            }
+        VStack{
+            ScrollView {
+                LazyVStack {
+#if os(iOS)
+                    if manager.isLoading {
+                        ProgressView()
+                    }
+#endif
+                    
+                    ForEach(sortedTorrents) { torrent in
+                        TorrentRowView(
+                            manager: manager,
+                            store: store,
+                            torrent: torrent,
+                            onDelete: { deleteTorrent(torrent) },
+                            onMove: { moveTorrent(torrent) },
+                            onRename: { renameTorrent(torrent) },
+                            selecting: selecting,
+                            selected: $selected,
+                            doToast: doToast
+                        )
+                    }
+                }.padding(.bottom, 0)
+            }.padding(.bottom, 0)
+            ServerStatusBar(
+                manager: manager,
+                store: store,
+                showServerSettings: $showServerSettings,
+            ).padding(.top,-10)
+//                .onTapGesture {
+//                    #if os(iOS)
+//                    if !isiPad {
+//                        showServerSettings.toggle()
+//                    }
+//                    #endif
+//                }
         }
+        
         .simpleToast(isPresented: $showToast, options: toastOptions) {
             Label(toastMessage, systemImage: toastIcon)
             .padding()
@@ -142,7 +159,9 @@ struct TorrentListView: View {
                 manager.isLoading.toggle()
             }
         }
+        
         .searchable(text: $searchQuery, prompt: "Search")
+        
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 if !selecting {
@@ -223,6 +242,9 @@ struct TorrentListView: View {
             }
         }
         .onAppear {
+//            if TunnelManagerHolder.shared.getTunnel(withIdentifier: "http-streamer") != nil{
+//                activateThumbnails()
+//            }
             print("🚀 View appeared, starting periodic updates")
             manager.startPeriodicUpdates()
         }
@@ -230,6 +252,7 @@ struct TorrentListView: View {
             print("👋 View disappeared, stopping updates")
             manager.stopPeriodicUpdates()
         }
+       
         
         // Delete Alert
         .alert("Delete Torrent", isPresented: $showDeleteAlert) {
@@ -290,6 +313,12 @@ struct TorrentListView: View {
             fileBrowserSheet
         }
         
+        // Server Settings
+        .sheet(isPresented: $showServerSettings) {
+            TransmissionSettingsView (manager: manager, store: store )
+        }
+        
+        
         #if os(iOS)
         .sheet(isPresented: $store.FileBrowse, onDismiss: {}, content: {
             Group {
@@ -336,6 +365,7 @@ struct TorrentListView: View {
             }
         })
         #endif
+        
     }
     
     // MARK: Delete Torrent

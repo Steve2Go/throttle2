@@ -19,6 +19,7 @@ struct SettingsView: View {
     @AppStorage("qlVideo") var qlVideo: Bool = false
     @ObservedObject var presenting: Presenting
     @State var installerView = false
+    @ObservedObject var manager: TorrentManager
     @Environment(\.openURL) private var openURL
     
     func isVLCInstalled() -> Bool {
@@ -157,8 +158,10 @@ struct SettingsView: View {
 ////                }
 //#endif
                 
-                    Button("Clear Cache (Restart Required)"){
+                    Button("Clear Cache"){
                         ThumbnailManager.shared.clearCache()
+                        manager.reset()
+                        manager.isLoading.toggle()
                     }
                    
               

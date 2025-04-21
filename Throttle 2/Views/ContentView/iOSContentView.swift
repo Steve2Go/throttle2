@@ -130,8 +130,9 @@ struct iOSContentView: View {
                                 
                             }
                         )
-                    
-                    torrentListWithToolbar()
+                    VStack{
+                        torrentListWithToolbar().padding(.bottom,0)
+                    }
                 }
                 .navigationViewStyle(DoubleColumnNavigationViewStyle())
                 
@@ -140,11 +141,11 @@ struct iOSContentView: View {
                 // iPhone uses NavigationStack if available, otherwise NavigationView
                 if #available(iOS 16, *) {
                     NavigationStack {
-                        torrentListWithToolbar()
+                        torrentListWithToolbar().padding(.bottom,0)
                     }
                 } else {
                     NavigationView {
-                        torrentListWithToolbar()
+                        torrentListWithToolbar().padding(.bottom,0)
                     }
                     .navigationViewStyle(StackNavigationViewStyle())
                 }
@@ -171,7 +172,7 @@ struct iOSContentView: View {
         .sheet(item: createActiveSheetBinding(presenting)) { sheetType in
             switch sheetType {
             case .settings:
-                SettingsView(presenting: presenting)
+                SettingsView(presenting: presenting, manager: manager)
             case .servers:
                 ServersListView(presenting: presenting, store: store)
             case .adding:

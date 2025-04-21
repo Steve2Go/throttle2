@@ -2,6 +2,54 @@ import Foundation
 import Citadel
 import NIOCore
 
+// Singleton manager to track and reset all connections
+class SSHConnectionManager {
+    static let shared = SSHConnectionManager()
+    
+    private var activeConnections: [SSHConnection] = []
+    private let connectionLock = NSLock()
+    
+    private init() {}
+    
+    func register(connection: SSHConnection) {
+        connectionLock.lock()
+        defer { connectionLock.unlock() }
+        
+        // Only add if not already in the list
+        if !activeConnections.contains(where: { $0 === connection }) {
+            activeConnections.append(connection)
+        }
+    }
+    
+    func unregister(connection: SSHConnection) {
+        connectionLock.lock()
+        defer { connectionLock.unlock() }
+        
+        activeConnections.removeAll(where: { $0 === connection })
+    }
+    
+    func resetAllConnections() async {
+        connectionLock.lock()
+        let connectionsToReset = activeConnections
+        connectionLock.unlock()
+        
+        for connection in connectionsToReset {
+            await connection.disconnect()
+            await connection.resetState()
+        }
+    }
+    
+    // Call this method when app enters background
+    func handleAppBackgrounding() async {
+        await resetAllConnections()
+    }
+    
+    // Call this method when app will terminate
+    func cleanupBeforeTermination() async {
+        await resetAllConnections()
+    }
+}
+
 // Connection class for both SSH commands and SFTP operations
 class SSHConnection {
     private let host: String
@@ -10,53 +58,158 @@ class SSHConnection {
     private let password: String
     private var client: SSHClient?
     private var sftpClient: SFTPClient?
+    private var isConnecting: Bool = false
+    private var connectionLock = NSLock()
+    private var lastActiveTime: Date = Date()
+    
+    // Connection timeout (5 minutes of inactivity)
+    private let connectionTimeout: TimeInterval = 300
     
     init(host: String, port: Int = 22, username: String, password: String) {
         self.host = host
         self.port = port
         self.username = username
         self.password = password
+        
+        // Register with the connection manager
+        SSHConnectionManager.shared.register(connection: self)
     }
     
     func connect() async throws {
-        client = try await SSHClient.connect(
-            host: host,
-            port: port,
-            authenticationMethod: .passwordBased(username: username, password: password),
-            hostKeyValidator: .acceptAnything(),
-            reconnect: .never
-        )
+        // Use a lock to prevent multiple simultaneous connection attempts
+        connectionLock.lock()
+        
+        // Check if we're already connecting or connected
+        if isConnecting {
+            connectionLock.unlock()
+            
+            // Wait a moment and check again if connection succeeded
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            if client != nil {
+                return
+            } else {
+                // Previous connection attempt might still be in progress
+                // Wait a bit longer
+                try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
+                if client != nil {
+                    return
+                }
+            }
+            
+            // If we still don't have a connection after waiting, start over
+            connectionLock.lock()
+        }
+        
+        isConnecting = true
+        connectionLock.unlock()
+        
+        do {
+            client = try await SSHClient.connect(
+                host: host,
+                port: port,
+                authenticationMethod: .passwordBased(username: username, password: password),
+                hostKeyValidator: .acceptAnything(),
+                reconnect: .never
+            )
+            
+            // Update the last active time
+            lastActiveTime = Date()
+            
+            connectionLock.lock()
+            isConnecting = false
+            connectionLock.unlock()
+        } catch {
+            connectionLock.lock()
+            isConnecting = false
+            connectionLock.unlock()
+            throw error
+        }
     }
     
-    func executeCommand(_ command: String, maxResponseSize: Int? = nil, mergeStreams: Bool = false) async throws -> (status: Int32, output: String) {
-        if client == nil {
+    // Check if the connection is stale based on timeout
+    private func isConnectionStale() -> Bool {
+        // If no client exists, it's not stale - it's non-existent
+        guard client != nil else { return false }
+        
+        let currentTime = Date()
+        return currentTime.timeIntervalSince(lastActiveTime) > connectionTimeout
+    }
+    
+    // Method to verify and refresh connection if needed
+    private func ensureValidConnection() async throws {
+        // If connection is stale, disconnect and reconnect
+        if isConnectionStale() {
+            await disconnect()
+            try await connect()
+        } else if client == nil {
             try await connect()
         }
+        
+        // Update last active time
+        lastActiveTime = Date()
+    }
+    
+    func executeCommand(_ command: String, maxResponseSize: Int? = nil, mergeStreams: Bool = true) async throws -> (status: Int32, output: String) {
+        try await ensureValidConnection()
         
         guard let client = client else {
             throw NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
         }
         
+        // Update last active time
+        lastActiveTime = Date()
+        
+        // For multi-line commands, always merge streams by default
         let buffer: ByteBuffer
         if let maxSize = maxResponseSize {
             buffer = try await client.executeCommand(command, maxResponseSize: maxSize, mergeStreams: mergeStreams)
         } else {
-            buffer = try await client.executeCommand(command)
+            // Use a default max response size that's reasonably large (10MB)
+            buffer = try await client.executeCommand(command, maxResponseSize: 1024 * 1024 * 10, mergeStreams: mergeStreams)
         }
         
         let output = String(buffer: buffer)
+        
+        // We don't have access to the exit status with the current API, so we return a default success status
+        // In a real implementation, we might want to check for error messages in the output
         return (0, output)
     }
     
+    // Helper method for multi-line commands specifically
+    func executeMultiLineCommand(_ commands: [String], maxResponseSize: Int? = nil) async throws -> (status: Int32, output: String) {
+        // Join commands with proper line endings and execute with merged streams
+        let combinedCommand = commands.joined(separator: "\n")
+        return try await executeCommand(combinedCommand, maxResponseSize: maxResponseSize, mergeStreams: true)
+    }
+    
     func executeCommandWithStreams(_ command: String) async throws -> ExecCommandStream {
-        if client == nil {
-            try await connect()
-        }
+        try await ensureValidConnection()
         
         guard let client = client else {
             throw NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
         }
         
+        // Update last active time
+        lastActiveTime = Date()
+        
+        return try await client.executeCommandPair(command)
+    }
+    
+    // Execute interactive shell commands - useful for multi-line commands that need
+    // more context or state between lines
+    func executeInteractiveCommand(_ command: String) async throws -> ExecCommandStream {
+        try await ensureValidConnection()
+        
+        guard let client = client else {
+            throw NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
+        }
+        
+        // Update last active time
+        lastActiveTime = Date()
+        
+        // For interactive commands, we use executeCommandPair which gives us
+        // direct access to stdin/stdout streams
         return try await client.executeCommandPair(command)
     }
     
@@ -64,13 +217,14 @@ class SSHConnection {
     
     /// Open an SFTP session with the server
     func connectSFTP() async throws -> SFTPClient {
-        if client == nil {
-            try await connect()
-        }
+        try await ensureValidConnection()
         
         guard let client = client else {
             throw NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
         }
+        
+        // Update last active time
+        lastActiveTime = Date()
         
         // If we already have an SFTP client, return it
         if let sftp = sftpClient, sftp.isActive {
@@ -222,18 +376,42 @@ class SSHConnection {
     }
     
     func disconnect() async {
-        if let sftp = sftpClient {
+        connectionLock.lock()
+        let currentClient = client
+        let currentSFTP = sftpClient
+        client = nil
+        sftpClient = nil
+        connectionLock.unlock()
+        
+        if let sftp = currentSFTP {
             try? await sftp.close()
-            sftpClient = nil
         }
         
-        if let client = client {
-            try? await client.close()
-            self.client = nil
+        if let ssh = currentClient {
+            try? await ssh.close()
         }
     }
     
+    // Reset the connection state without actually trying to
+    // close anything - useful for known broken connections
+    func resetState() async {
+        connectionLock.lock()
+        client = nil
+        sftpClient = nil
+        isConnecting = false
+        connectionLock.unlock()
+    }
+    
+    // Force reconnect - useful after app comes back from background
+    func forceReconnect() async throws {
+        await disconnect()
+        try await connect()
+    }
+    
     deinit {
+        // Unregister from the connection manager
+        SSHConnectionManager.shared.unregister(connection: self)
+        
         Task {
             await disconnect()
         }

@@ -10,6 +10,7 @@ import SwiftUI
 #if os(macOS)
 import AppKit
 #endif
+import SwipeActions
 
 struct TorrentRowView: View {
     @ObservedObject var manager: TorrentManager
@@ -198,7 +199,8 @@ struct TorrentRowView: View {
             Button(role: .destructive) {
                 onDelete()
             } label: {
-                Label("Delete", systemImage: "trash")
+                Text("Delete")
+                Image( systemName: "trash")
             }
             Button {
                 Task {
@@ -344,7 +346,7 @@ struct TorrentRowView: View {
         if var path = torrent.dynamicFields["downloadDir"]?.value as? String {
             if path.hasPrefix(baseDir) {
                 path = String(path.dropFirst(baseDir.count))
-                let returnvalue = "/private/tmp/com.srgim.Throttle-2.sftp/\(store.selection!.name!)/\(path)/\(name)".replacingOccurrences(of: "//", with: "/")
+                let returnvalue = "/private/tmp/com.srgim.Throttle-2.sftp/\(ServerMountUtilities.getMountKey(for: store.selection!)!)/\(path)/\(name)".replacingOccurrences(of: "//", with: "/")
 //                print("returning path: " + returnvalue)
                 return returnvalue
             }
@@ -361,7 +363,7 @@ struct TorrentRowView: View {
             if path.hasPrefix(baseDir) {
                 path = String(path.dropFirst(baseDir.count))
                 path = (server.pathFilesystem ?? "") + path
-                let returnvalue = "/private/tmp/com.srgim.Throttle-2.sftp/\(store.selection!.name!)/\(path)/\(name)".replacingOccurrences(of: "//", with: "/")
+                let returnvalue = "/private/tmp/com.srgim.Throttle-2.sftp/\(ServerMountUtilities.getMountKey(for: store.selection!)!)/\(path)/\(name)".replacingOccurrences(of: "//", with: "/")
 //                print("returning path: " + returnvalue)
                 return returnvalue
             }
@@ -373,8 +375,9 @@ struct TorrentRowView: View {
 #if os(macOS)
 func get_fuse_path(torrent: Torrent, downloadDir: String) -> URL {
     let tmpURL = URL(fileURLWithPath: "/private/tmp")
+    let mountKey = ServerMountUtilities.getMountKey(for: store.selection!)
     let openBasePath = tmpURL.appendingPathComponent("com.srgim.Throttle-2.sftp")
-                            .appendingPathComponent(store.selection!.name!)
+                            .appendingPathComponent(mountKey!)
     
     // Clean up the download directory path
     var cleanPath = downloadDir

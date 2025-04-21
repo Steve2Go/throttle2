@@ -4,7 +4,7 @@
 //
 //  Created by Stephen Grigg on 21/3/2025.
 //
-#if os(iOS)
+//#if os(iOS)
 import SwiftUI
 
 // MARK: - Constants for file types
@@ -35,4 +35,4 @@ class serverInfo: ObservableObject {
     @Published var username: String = ""
     @Published var password: String = ""
 }
-#endif
+//#endif

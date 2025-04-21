@@ -12,13 +12,15 @@ import Network
 extension Throttle_2App {
     
     func refeshTunnel(store: Store, torrentManager: TorrentManager){
+      //  ThumbnailLoader.shared.deactivate()
         TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
-       TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
+      // TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
         guard let server = store.selection else {return}
         let localport = 4000 // update after tunnel logic
         let port  = server.port
         
         Task{
+            await SSHConnectionManager.shared.resetAllConnections()
             if store.selection != nil {
                 setupStreamingServer(server: store.selection!)
             }
@@ -35,11 +37,14 @@ extension Throttle_2App {
     
     func setupServer (store: Store, torrentManager: TorrentManager) {
     
-            
+        // Reset all SSH connections
+        Task{
+            await SSHConnectionManager.shared.resetAllConnections()
+        }
             store.selectedTorrentId = nil
             
             if store.selection != nil {
-                TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
+                //TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
          //       setupStreamingServer(server: store.selection!)
                 
                 // load the keychain
@@ -62,7 +67,7 @@ extension Throttle_2App {
                 var url = ""
                 var at = ""
                 
-                setupStreamingServer(server: server! )
+                //setupStreamingServer(server: server! )
                 
                 
                 if isTunnel{
@@ -92,8 +97,9 @@ extension Throttle_2App {
                                 torrentManager.isLoading = true
                                 
                                 torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
+                                try await torrentManager.fetchUpdates(fullFetch: true)
                                 torrentManager.startPeriodicUpdates()
-                                //try await Task.sleep(for: .milliseconds(500))
+                                try await Task.sleep(for: .milliseconds(500))
                                 if !store.magnetLink.isEmpty || store.selectedFile != nil {
                                     presenting.activeSheet = "adding"
                                 }
@@ -137,12 +143,12 @@ extension Throttle_2App {
                     url += "\(at)\(domain):\(String(port))\(path)"
                     store.connectTransmission = url
                     ServerManager.shared.setServer(store.selection!)
-                    
                     torrentManager.isLoading = true
                     torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
                     torrentManager.reset()
-                    torrentManager.startPeriodicUpdates()
                     Task {
+                        try await torrentManager.fetchUpdates(fullFetch: true)
+                        torrentManager.startPeriodicUpdates()
                         try await Task.sleep(for: .milliseconds(500))
                         if !store.magnetLink.isEmpty || store.selectedFile != nil {
                             presenting.activeSheet = "adding"
@@ -172,27 +178,36 @@ extension Throttle_2App {
                     // 1. Setup the HTTP server
                     try await HttpStreamingManager.shared.setupServer(for: server)
                     
-                    // 2. Create SSH tunnel using existing infrastructure
-                    @AppStorage("StreamingServerPort") var serverPort = 8723
+                    // Get the username from your server entity
+                    guard let username = server.sftpUser else {
+                        print("Missing username")
+                        return
+                    }
                     @AppStorage("StreamingServerLocalPort") var localStreamPort = 8080
-                    
-                    // Check if tunnel already exists
-                    if TunnelManagerHolder.shared.getTunnel(withIdentifier: "http-streamer") != nil {
-                        print("HTTP streaming tunnel already exists")
-                    } else {
-                        // Create tunnel for HTTP streaming
+
+                    // Get the specific port for this user's streaming server
+                    if let serverPort = HttpStreamingManager.shared.getServerPort(for: username) {
+                        print("Found streaming server port: \(serverPort)")
+                        
+                        // Now you can use this port to create your SSH tunnel
                         let htunnel = try SSHTunnelManager(
                             server: server,
-                            localPort: localStreamPort,
-                            remoteHost: "127.0.0.1",
-                            remotePort: Int(serverPort)
+                            localPort: localStreamPort, // Your local port (e.g., 8080)
+                            remoteHost: "127.0.0.1",    // The streaming server binds to localhost on the remote machine
+                            remotePort: serverPort       // The specific port for this user's server
                         )
+                        
                         try await htunnel.start()
                         TunnelManagerHolder.shared.storeTunnel(htunnel, withIdentifier: "http-streamer")
+                        //    ThumbnailLoader.shared.activate()
                         print("HTTP streaming tunnel established")
+                        print("HTTP streaming setup completed for \(server.name ?? "unnamed server")")
+                    } else {
+                        print("Failed to get port for user \(username)")
                     }
+                
+                        
                     
-                    print("HTTP streaming setup completed for \(server.name ?? "unnamed server")")
                 } catch {
                     print("Failed to setup HTTP streaming: \(error.localizedDescription)")
                 }

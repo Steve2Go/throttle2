@@ -668,6 +668,7 @@ struct ServerEditView: View {
                 onSave?(newServer)
             }
             
+            
             // Save context
             do {
                 try viewContext.save()

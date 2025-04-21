@@ -46,7 +46,7 @@ struct ServerRow: View {
                     
                         
                         if server == store.selection {
-                            Image(systemName: "externaldrive.badge.checkmark").foregroundColor(.blue)
+                            Image(systemName: "externaldrive.fill.badge.checkmark").foregroundColor(.blue)
                                 .padding(.leading, 6)
                                 .foregroundStyle(.primary)
                         } else {
