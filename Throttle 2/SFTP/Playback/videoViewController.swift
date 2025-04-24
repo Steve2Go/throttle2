@@ -43,6 +43,8 @@ class videoViewController: UIViewController {
         }
     }
     
+    
+    
     // Convenience initializer with configuration
     convenience init(configuration: VideoPlayerConfiguration) {
         self.init()

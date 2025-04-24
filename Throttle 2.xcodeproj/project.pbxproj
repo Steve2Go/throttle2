@@ -10,8 +10,6 @@
 		E70D09CA2D9CC9DD00C9CB48 /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */; platformFilter = ios; };
 		E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = E70D0AD42D9E84DD00C9CB48 /* Citadel */; };
 		E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = E7150E522D631F8B009C4217 /* KeychainAccess */; };
-		E71B8E032DB0E08600B70BE5 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = E71B8E022DB0E08600B70BE5 /* Kingfisher */; };
-		E71B8E152DB5B8EB00B70BE5 /* SwipeActions in Frameworks */ = {isa = PBXBuildFile; productRef = E71B8E142DB5B8EB00B70BE5 /* SwipeActions */; };
 		E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */ = {isa = PBXBuildFile; productRef = E76AA8B52D8423E00009CA6F /* SimpleToast */; };
 		E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */ = {isa = PBXBuildFile; productRef = E7F5F3EF2D718B2700079054 /* FilePicker */; };
 		E7F968E82D89307700A19857 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = E7F968E72D89307700A19857 /* README.md */; };
@@ -66,6 +64,7 @@
 		E7150E2E2D631D0A009C4217 /* Throttle 2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Throttle 2Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E7150E382D631D0A009C4217 /* Throttle 2UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Throttle 2UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = MobileVLCKit.xcframework; path = Pods/MobileVLCKit/MobileVLCKit.xcframework; sourceTree = "<group>"; };
+		E732C14A2DBA38E700D487F5 /* mft.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = mft.xcframework; sourceTree = "<group>"; };
 		E7BEDF612D6EF03300E72E6F /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
 		E7F968E72D89307700A19857 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		E7F96D8C2D8F611800A19857 /* QuickLookThumbnailing.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuickLookThumbnailing.framework; path = System/Library/Frameworks/QuickLookThumbnailing.framework; sourceTree = SDKROOT; };
@@ -205,8 +204,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */,
-				E71B8E152DB5B8EB00B70BE5 /* SwipeActions in Frameworks */,
-				E71B8E032DB0E08600B70BE5 /* Kingfisher in Frameworks */,
 				E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */,
 				E70D09CA2D9CC9DD00C9CB48 /* MobileVLCKit.xcframework in Frameworks */,
 				E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */,
@@ -266,6 +263,7 @@
 			isa = PBXGroup;
 			children = (
 				E706AFEF2D9993D6005825F4 /* Pods_Throttle_2.framework */,
+				E732C14A2DBA38E700D487F5 /* mft.xcframework */,
 				E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */,
 				E7BEDF612D6EF03300E72E6F /* UniformTypeIdentifiers.framework */,
 				2DA01AB29F5FBAAE606649AE /* Pods_Throttle_2.framework */,
@@ -304,8 +302,6 @@
 				E7F5F3EF2D718B2700079054 /* FilePicker */,
 				E76AA8B52D8423E00009CA6F /* SimpleToast */,
 				E70D0AD42D9E84DD00C9CB48 /* Citadel */,
-				E71B8E022DB0E08600B70BE5 /* Kingfisher */,
-				E71B8E142DB5B8EB00B70BE5 /* SwipeActions */,
 			);
 			productName = "Throttle 2";
 			productReference = E7150E172D631D08009C4217 /* Throttle 2.app */;
@@ -384,8 +380,6 @@
 				E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */,
 				E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */,
 				E70D0AD32D9E84DD00C9CB48 /* XCRemoteSwiftPackageReference "Citadel" */,
-				E71B8E012DB0E08600B70BE5 /* XCRemoteSwiftPackageReference "Kingfisher" */,
-				E71B8E132DB5B8EB00B70BE5 /* XCRemoteSwiftPackageReference "SwipeActions" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E7150E182D631D08009C4217 /* Products */;
@@ -590,6 +584,30 @@
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Throttle 2/Info.plist";
@@ -617,7 +635,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.3;
 				OTHER_LDFLAGS = "";
 				"OTHER_LDFLAGS[sdk=iphone*]" = (
 					"$(inherited)",
@@ -770,6 +788,30 @@
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
 					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
+					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Throttle 2/Info.plist";
@@ -797,7 +839,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 1.3;
 				OTHER_LDFLAGS = "";
 				"OTHER_LDFLAGS[sdk=iphone*]" = (
 					"$(inherited)",
@@ -1134,22 +1176,6 @@
 				kind = branch;
 			};
 		};
-		E71B8E012DB0E08600B70BE5 /* XCRemoteSwiftPackageReference "Kingfisher" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/onevcat/Kingfisher";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 8.3.2;
-			};
-		};
-		E71B8E132DB5B8EB00B70BE5 /* XCRemoteSwiftPackageReference "SwipeActions" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/c-villain/SwipeActions";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.4.1;
-			};
-		};
 		E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sanzaru/SimpleToast.git";
@@ -1178,16 +1204,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E7150E512D631F8B009C4217 /* XCRemoteSwiftPackageReference "KeychainAccess" */;
 			productName = KeychainAccess;
-		};
-		E71B8E022DB0E08600B70BE5 /* Kingfisher */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E71B8E012DB0E08600B70BE5 /* XCRemoteSwiftPackageReference "Kingfisher" */;
-			productName = Kingfisher;
-		};
-		E71B8E142DB5B8EB00B70BE5 /* SwipeActions */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E71B8E132DB5B8EB00B70BE5 /* XCRemoteSwiftPackageReference "SwipeActions" */;
-			productName = SwipeActions;
 		};
 		E76AA8B52D8423E00009CA6F /* SimpleToast */ = {
 			isa = XCSwiftPackageProductDependency;

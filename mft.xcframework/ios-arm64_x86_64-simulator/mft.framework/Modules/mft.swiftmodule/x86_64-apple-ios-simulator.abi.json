@@ -1,0 +1,5646 @@
+{
+  "ABIRoot": {
+    "kind": "Root",
+    "name": "mft",
+    "printedName": "mft",
+    "children": [
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "mft",
+        "declAttributes": [
+          "RawDocComment"
+        ]
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "MFTSftpItem",
+        "printedName": "MFTSftpItem",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "filename",
+            "printedName": "filename",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)filename",
+            "mangledName": "$s3mft11MFTSftpItemC8filenameSSvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)filename",
+                "mangledName": "$s3mft11MFTSftpItemC8filenameSSvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "size",
+            "printedName": "size",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt64",
+                "printedName": "Swift.UInt64",
+                "usr": "s:s6UInt64V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)size",
+            "mangledName": "$s3mft11MFTSftpItemC4sizes6UInt64Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)size",
+                "mangledName": "$s3mft11MFTSftpItemC4sizes6UInt64Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "uid",
+            "printedName": "uid",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt32",
+                "printedName": "Swift.UInt32",
+                "usr": "s:s6UInt32V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)uid",
+            "mangledName": "$s3mft11MFTSftpItemC3uids6UInt32Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt32",
+                    "printedName": "Swift.UInt32",
+                    "usr": "s:s6UInt32V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)uid",
+                "mangledName": "$s3mft11MFTSftpItemC3uids6UInt32Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "gid",
+            "printedName": "gid",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt32",
+                "printedName": "Swift.UInt32",
+                "usr": "s:s6UInt32V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)gid",
+            "mangledName": "$s3mft11MFTSftpItemC3gids6UInt32Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt32",
+                    "printedName": "Swift.UInt32",
+                    "usr": "s:s6UInt32V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)gid",
+                "mangledName": "$s3mft11MFTSftpItemC3gids6UInt32Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "owner",
+            "printedName": "owner",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)owner",
+            "mangledName": "$s3mft11MFTSftpItemC5ownerSSvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)owner",
+                "mangledName": "$s3mft11MFTSftpItemC5ownerSSvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "group",
+            "printedName": "group",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)group",
+            "mangledName": "$s3mft11MFTSftpItemC5groupSSvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)group",
+                "mangledName": "$s3mft11MFTSftpItemC5groupSSvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "permissions",
+            "printedName": "permissions",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt32",
+                "printedName": "Swift.UInt32",
+                "usr": "s:s6UInt32V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)permissions",
+            "mangledName": "$s3mft11MFTSftpItemC11permissionss6UInt32Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt32",
+                    "printedName": "Swift.UInt32",
+                    "usr": "s:s6UInt32V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)permissions",
+                "mangledName": "$s3mft11MFTSftpItemC11permissionss6UInt32Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "atime",
+            "printedName": "atime",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Date",
+                "printedName": "Foundation.Date",
+                "usr": "s:10Foundation4DateV"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)atime",
+            "mangledName": "$s3mft11MFTSftpItemC5atime10Foundation4DateVvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Date",
+                    "printedName": "Foundation.Date",
+                    "usr": "s:10Foundation4DateV"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)atime",
+                "mangledName": "$s3mft11MFTSftpItemC5atime10Foundation4DateVvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "atimeNanos",
+            "printedName": "atimeNanos",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt32",
+                "printedName": "Swift.UInt32",
+                "usr": "s:s6UInt32V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)atimeNanos",
+            "mangledName": "$s3mft11MFTSftpItemC10atimeNanoss6UInt32Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt32",
+                    "printedName": "Swift.UInt32",
+                    "usr": "s:s6UInt32V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)atimeNanos",
+                "mangledName": "$s3mft11MFTSftpItemC10atimeNanoss6UInt32Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "mtime",
+            "printedName": "mtime",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Date",
+                "printedName": "Foundation.Date",
+                "usr": "s:10Foundation4DateV"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)mtime",
+            "mangledName": "$s3mft11MFTSftpItemC5mtime10Foundation4DateVvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Date",
+                    "printedName": "Foundation.Date",
+                    "usr": "s:10Foundation4DateV"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)mtime",
+                "mangledName": "$s3mft11MFTSftpItemC5mtime10Foundation4DateVvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "mtimeNanos",
+            "printedName": "mtimeNanos",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt32",
+                "printedName": "Swift.UInt32",
+                "usr": "s:s6UInt32V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)mtimeNanos",
+            "mangledName": "$s3mft11MFTSftpItemC10mtimeNanoss6UInt32Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt32",
+                    "printedName": "Swift.UInt32",
+                    "usr": "s:s6UInt32V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)mtimeNanos",
+                "mangledName": "$s3mft11MFTSftpItemC10mtimeNanoss6UInt32Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "createTime",
+            "printedName": "createTime",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Date",
+                "printedName": "Foundation.Date",
+                "usr": "s:10Foundation4DateV"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)createTime",
+            "mangledName": "$s3mft11MFTSftpItemC10createTime10Foundation4DateVvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Date",
+                    "printedName": "Foundation.Date",
+                    "usr": "s:10Foundation4DateV"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)createTime",
+                "mangledName": "$s3mft11MFTSftpItemC10createTime10Foundation4DateVvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "createTimeNanos",
+            "printedName": "createTimeNanos",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt32",
+                "printedName": "Swift.UInt32",
+                "usr": "s:s6UInt32V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)createTimeNanos",
+            "mangledName": "$s3mft11MFTSftpItemC15createTimeNanoss6UInt32Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt32",
+                    "printedName": "Swift.UInt32",
+                    "usr": "s:s6UInt32V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)createTimeNanos",
+                "mangledName": "$s3mft11MFTSftpItemC15createTimeNanoss6UInt32Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "isDirectory",
+            "printedName": "isDirectory",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Bool",
+                "printedName": "Swift.Bool",
+                "usr": "s:Sb"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)isDirectory",
+            "mangledName": "$s3mft11MFTSftpItemC11isDirectorySbvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Bool",
+                    "printedName": "Swift.Bool",
+                    "usr": "s:Sb"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)isDirectory",
+                "mangledName": "$s3mft11MFTSftpItemC11isDirectorySbvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "isSymlink",
+            "printedName": "isSymlink",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Bool",
+                "printedName": "Swift.Bool",
+                "usr": "s:Sb"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)isSymlink",
+            "mangledName": "$s3mft11MFTSftpItemC9isSymlinkSbvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Bool",
+                    "printedName": "Swift.Bool",
+                    "usr": "s:Sb"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)isSymlink",
+                "mangledName": "$s3mft11MFTSftpItemC9isSymlinkSbvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "isSpecial",
+            "printedName": "isSpecial",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Bool",
+                "printedName": "Swift.Bool",
+                "usr": "s:Sb"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(py)isSpecial",
+            "mangledName": "$s3mft11MFTSftpItemC9isSpecialSbvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "Final",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "isLet": true,
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Bool",
+                    "printedName": "Swift.Bool",
+                    "usr": "s:Sb"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)isSpecial",
+                "mangledName": "$s3mft11MFTSftpItemC9isSpecialSbvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "Final",
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTSftpItem",
+                "printedName": "mft.MFTSftpItem",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "c:@M@mft@objc(cs)MFTSftpItem(im)init",
+            "mangledName": "$s3mft11MFTSftpItemCACycfc",
+            "moduleName": "mft",
+            "overriding": true,
+            "implicit": true,
+            "objc_name": "init",
+            "declAttributes": [
+              "Dynamic",
+              "ObjC",
+              "Override"
+            ],
+            "init_kind": "Designated"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "c:@M@mft@objc(cs)MFTSftpItem",
+        "mangledName": "$s3mft11MFTSftpItemC",
+        "moduleName": "mft",
+        "declAttributes": [
+          "AccessControl",
+          "ObjCMembers",
+          "RawDocComment",
+          "ObjC"
+        ],
+        "superclassUsr": "c:objc(cs)NSObject",
+        "hasMissingDesignatedInitializers": true,
+        "superclassNames": [
+          "ObjectiveC.NSObject"
+        ],
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Equatable",
+            "printedName": "Equatable",
+            "usr": "s:SQ",
+            "mangledName": "$sSQ"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Hashable",
+            "printedName": "Hashable",
+            "usr": "s:SH",
+            "mangledName": "$sSH"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CVarArg",
+            "printedName": "CVarArg",
+            "usr": "s:s7CVarArgP",
+            "mangledName": "$ss7CVarArgP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "_KeyValueCodingAndObservingPublishing",
+            "printedName": "_KeyValueCodingAndObservingPublishing",
+            "usr": "s:10Foundation37_KeyValueCodingAndObservingPublishingP",
+            "mangledName": "$s10Foundation37_KeyValueCodingAndObservingPublishingP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "_KeyValueCodingAndObserving",
+            "printedName": "_KeyValueCodingAndObserving",
+            "usr": "s:10Foundation27_KeyValueCodingAndObservingP",
+            "mangledName": "$s10Foundation27_KeyValueCodingAndObservingP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CustomStringConvertible",
+            "printedName": "CustomStringConvertible",
+            "usr": "s:s23CustomStringConvertibleP",
+            "mangledName": "$ss23CustomStringConvertibleP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CustomDebugStringConvertible",
+            "printedName": "CustomDebugStringConvertible",
+            "usr": "s:s28CustomDebugStringConvertibleP",
+            "mangledName": "$ss28CustomDebugStringConvertibleP"
+          }
+        ]
+      },
+      {
+        "kind": "Import",
+        "name": "Foundation",
+        "printedName": "Foundation",
+        "declKind": "Import",
+        "moduleName": "mft",
+        "declAttributes": [
+          "RawDocComment"
+        ]
+      },
+      {
+        "kind": "Import",
+        "name": "libssh",
+        "printedName": "libssh",
+        "declKind": "Import",
+        "moduleName": "mft",
+        "declAttributes": [
+          "ImplementationOnly"
+        ]
+      },
+      {
+        "kind": "Import",
+        "name": "NSString_iconv",
+        "printedName": "NSString_iconv",
+        "declKind": "Import",
+        "moduleName": "mft",
+        "declAttributes": [
+          "ImplementationOnly"
+        ]
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "MFTKnownHostStatus",
+        "printedName": "MFTKnownHostStatus",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "KNOWN_HOSTS_ERROR",
+            "printedName": "KNOWN_HOSTS_ERROR",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTKnownHostStatus.Type) -> mft.MFTKnownHostStatus",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTKnownHostStatus",
+                    "printedName": "mft.MFTKnownHostStatus",
+                    "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTKnownHostStatus.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTKnownHostStatus",
+                        "printedName": "mft.MFTKnownHostStatus",
+                        "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTKnownHostStatus@MFTKnownHostStatusKNOWN_HOSTS_ERROR",
+            "mangledName": "$s3mft18MFTKnownHostStatusO17KNOWN_HOSTS_ERRORyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 0
+          },
+          {
+            "kind": "Var",
+            "name": "KNOWN_HOSTS_NOT_FOUND",
+            "printedName": "KNOWN_HOSTS_NOT_FOUND",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTKnownHostStatus.Type) -> mft.MFTKnownHostStatus",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTKnownHostStatus",
+                    "printedName": "mft.MFTKnownHostStatus",
+                    "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTKnownHostStatus.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTKnownHostStatus",
+                        "printedName": "mft.MFTKnownHostStatus",
+                        "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTKnownHostStatus@MFTKnownHostStatusKNOWN_HOSTS_NOT_FOUND",
+            "mangledName": "$s3mft18MFTKnownHostStatusO21KNOWN_HOSTS_NOT_FOUNDyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 1
+          },
+          {
+            "kind": "Var",
+            "name": "KNOWN_HOSTS_UNKNOWN",
+            "printedName": "KNOWN_HOSTS_UNKNOWN",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTKnownHostStatus.Type) -> mft.MFTKnownHostStatus",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTKnownHostStatus",
+                    "printedName": "mft.MFTKnownHostStatus",
+                    "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTKnownHostStatus.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTKnownHostStatus",
+                        "printedName": "mft.MFTKnownHostStatus",
+                        "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTKnownHostStatus@MFTKnownHostStatusKNOWN_HOSTS_UNKNOWN",
+            "mangledName": "$s3mft18MFTKnownHostStatusO19KNOWN_HOSTS_UNKNOWNyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 2
+          },
+          {
+            "kind": "Var",
+            "name": "KNOWN_HOSTS_OK",
+            "printedName": "KNOWN_HOSTS_OK",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTKnownHostStatus.Type) -> mft.MFTKnownHostStatus",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTKnownHostStatus",
+                    "printedName": "mft.MFTKnownHostStatus",
+                    "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTKnownHostStatus.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTKnownHostStatus",
+                        "printedName": "mft.MFTKnownHostStatus",
+                        "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTKnownHostStatus@MFTKnownHostStatusKNOWN_HOSTS_OK",
+            "mangledName": "$s3mft18MFTKnownHostStatusO14KNOWN_HOSTS_OKyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 3
+          },
+          {
+            "kind": "Var",
+            "name": "KNOWN_HOSTS_CHANGED",
+            "printedName": "KNOWN_HOSTS_CHANGED",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTKnownHostStatus.Type) -> mft.MFTKnownHostStatus",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTKnownHostStatus",
+                    "printedName": "mft.MFTKnownHostStatus",
+                    "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTKnownHostStatus.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTKnownHostStatus",
+                        "printedName": "mft.MFTKnownHostStatus",
+                        "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTKnownHostStatus@MFTKnownHostStatusKNOWN_HOSTS_CHANGED",
+            "mangledName": "$s3mft18MFTKnownHostStatusO19KNOWN_HOSTS_CHANGEDyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 4
+          },
+          {
+            "kind": "Var",
+            "name": "KNOWN_HOSTS_OTHER",
+            "printedName": "KNOWN_HOSTS_OTHER",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTKnownHostStatus.Type) -> mft.MFTKnownHostStatus",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTKnownHostStatus",
+                    "printedName": "mft.MFTKnownHostStatus",
+                    "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTKnownHostStatus.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTKnownHostStatus",
+                        "printedName": "mft.MFTKnownHostStatus",
+                        "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTKnownHostStatus@MFTKnownHostStatusKNOWN_HOSTS_OTHER",
+            "mangledName": "$s3mft18MFTKnownHostStatusO17KNOWN_HOSTS_OTHERyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 5
+          },
+          {
+            "kind": "Var",
+            "name": "NO_SESSION",
+            "printedName": "NO_SESSION",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTKnownHostStatus.Type) -> mft.MFTKnownHostStatus",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTKnownHostStatus",
+                    "printedName": "mft.MFTKnownHostStatus",
+                    "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTKnownHostStatus.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTKnownHostStatus",
+                        "printedName": "mft.MFTKnownHostStatus",
+                        "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTKnownHostStatus@MFTKnownHostStatusNO_SESSION",
+            "mangledName": "$s3mft18MFTKnownHostStatusO10NO_SESSIONyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 6
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init(rawValue:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "mft.MFTKnownHostStatus?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTKnownHostStatus",
+                    "printedName": "mft.MFTKnownHostStatus",
+                    "usr": "c:@M@mft@E@MFTKnownHostStatus"
+                  }
+                ],
+                "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:3mft18MFTKnownHostStatusO8rawValueACSgSi_tcfc",
+            "mangledName": "$s3mft18MFTKnownHostStatusO8rawValueACSgSi_tcfc",
+            "moduleName": "mft",
+            "implicit": true,
+            "init_kind": "Designated"
+          },
+          {
+            "kind": "Var",
+            "name": "rawValue",
+            "printedName": "rawValue",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:3mft18MFTKnownHostStatusO8rawValueSivp",
+            "mangledName": "$s3mft18MFTKnownHostStatusO8rawValueSivp",
+            "moduleName": "mft",
+            "implicit": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Int",
+                    "printedName": "Swift.Int",
+                    "usr": "s:Si"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft18MFTKnownHostStatusO8rawValueSivg",
+                "mangledName": "$s3mft18MFTKnownHostStatusO8rawValueSivg",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "get"
+              }
+            ]
+          }
+        ],
+        "declKind": "Enum",
+        "usr": "c:@M@mft@E@MFTKnownHostStatus",
+        "mangledName": "$s3mft18MFTKnownHostStatusO",
+        "moduleName": "mft",
+        "declAttributes": [
+          "AccessControl",
+          "ObjC",
+          "RawDocComment"
+        ],
+        "enumRawTypeName": "Int",
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Equatable",
+            "printedName": "Equatable",
+            "usr": "s:SQ",
+            "mangledName": "$sSQ"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Hashable",
+            "printedName": "Hashable",
+            "usr": "s:SH",
+            "mangledName": "$sSH"
+          },
+          {
+            "kind": "Conformance",
+            "name": "RawRepresentable",
+            "printedName": "RawRepresentable",
+            "children": [
+              {
+                "kind": "TypeWitness",
+                "name": "RawValue",
+                "printedName": "RawValue",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Int",
+                    "printedName": "Swift.Int",
+                    "usr": "s:Si"
+                  }
+                ]
+              }
+            ],
+            "usr": "s:SY",
+            "mangledName": "$sSY"
+          }
+        ]
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "MFTFilesystemStats",
+        "printedName": "MFTFilesystemStats",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "size",
+            "printedName": "size",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt64",
+                "printedName": "Swift.UInt64",
+                "usr": "s:s6UInt64V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTFilesystemStats(py)size",
+            "mangledName": "$s3mft18MFTFilesystemStatsC4sizes6UInt64Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTFilesystemStats(im)size",
+                "mangledName": "$s3mft18MFTFilesystemStatsC4sizes6UInt64Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTFilesystemStats(im)setSize:",
+                "mangledName": "$s3mft18MFTFilesystemStatsC4sizes6UInt64Vvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft18MFTFilesystemStatsC4sizes6UInt64VvM",
+                "mangledName": "$s3mft18MFTFilesystemStatsC4sizes6UInt64VvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "freeSpace",
+            "printedName": "freeSpace",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt64",
+                "printedName": "Swift.UInt64",
+                "usr": "s:s6UInt64V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTFilesystemStats(py)freeSpace",
+            "mangledName": "$s3mft18MFTFilesystemStatsC9freeSpaces6UInt64Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTFilesystemStats(im)freeSpace",
+                "mangledName": "$s3mft18MFTFilesystemStatsC9freeSpaces6UInt64Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTFilesystemStats(im)setFreeSpace:",
+                "mangledName": "$s3mft18MFTFilesystemStatsC9freeSpaces6UInt64Vvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft18MFTFilesystemStatsC9freeSpaces6UInt64VvM",
+                "mangledName": "$s3mft18MFTFilesystemStatsC9freeSpaces6UInt64VvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTFilesystemStats",
+                "printedName": "mft.MFTFilesystemStats",
+                "usr": "c:@M@mft@objc(cs)MFTFilesystemStats"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "c:@M@mft@objc(cs)MFTFilesystemStats(im)init",
+            "mangledName": "$s3mft18MFTFilesystemStatsCACycfc",
+            "moduleName": "mft",
+            "overriding": true,
+            "implicit": true,
+            "objc_name": "init",
+            "declAttributes": [
+              "Dynamic",
+              "ObjC",
+              "Override"
+            ],
+            "init_kind": "Designated"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "c:@M@mft@objc(cs)MFTFilesystemStats",
+        "mangledName": "$s3mft18MFTFilesystemStatsC",
+        "moduleName": "mft",
+        "declAttributes": [
+          "AccessControl",
+          "ObjCMembers",
+          "RawDocComment",
+          "ObjC"
+        ],
+        "superclassUsr": "c:objc(cs)NSObject",
+        "hasMissingDesignatedInitializers": true,
+        "superclassNames": [
+          "ObjectiveC.NSObject"
+        ],
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Equatable",
+            "printedName": "Equatable",
+            "usr": "s:SQ",
+            "mangledName": "$sSQ"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Hashable",
+            "printedName": "Hashable",
+            "usr": "s:SH",
+            "mangledName": "$sSH"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CVarArg",
+            "printedName": "CVarArg",
+            "usr": "s:s7CVarArgP",
+            "mangledName": "$ss7CVarArgP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "_KeyValueCodingAndObservingPublishing",
+            "printedName": "_KeyValueCodingAndObservingPublishing",
+            "usr": "s:10Foundation37_KeyValueCodingAndObservingPublishingP",
+            "mangledName": "$s10Foundation37_KeyValueCodingAndObservingPublishingP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "_KeyValueCodingAndObserving",
+            "printedName": "_KeyValueCodingAndObserving",
+            "usr": "s:10Foundation27_KeyValueCodingAndObservingP",
+            "mangledName": "$s10Foundation27_KeyValueCodingAndObservingP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CustomStringConvertible",
+            "printedName": "CustomStringConvertible",
+            "usr": "s:s23CustomStringConvertibleP",
+            "mangledName": "$ss23CustomStringConvertibleP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CustomDebugStringConvertible",
+            "printedName": "CustomDebugStringConvertible",
+            "usr": "s:s28CustomDebugStringConvertibleP",
+            "mangledName": "$ss28CustomDebugStringConvertibleP"
+          }
+        ]
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "MFTErrorCode",
+        "printedName": "MFTErrorCode",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "no_error",
+            "printedName": "no_error",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeNo_error",
+            "mangledName": "$s3mft12MFTErrorCodeO8no_erroryA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 0
+          },
+          {
+            "kind": "Var",
+            "name": "no_session",
+            "printedName": "no_session",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeNo_session",
+            "mangledName": "$s3mft12MFTErrorCodeO10no_sessionyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 1
+          },
+          {
+            "kind": "Var",
+            "name": "no_pubkey_method",
+            "printedName": "no_pubkey_method",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeNo_pubkey_method",
+            "mangledName": "$s3mft12MFTErrorCodeO16no_pubkey_methodyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 2
+          },
+          {
+            "kind": "Var",
+            "name": "no_password_method",
+            "printedName": "no_password_method",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeNo_password_method",
+            "mangledName": "$s3mft12MFTErrorCodeO18no_password_methodyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 3
+          },
+          {
+            "kind": "Var",
+            "name": "authentication_failed",
+            "printedName": "authentication_failed",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeAuthentication_failed",
+            "mangledName": "$s3mft12MFTErrorCodeO21authentication_failedyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 4
+          },
+          {
+            "kind": "Var",
+            "name": "local_read_error",
+            "printedName": "local_read_error",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeLocal_read_error",
+            "mangledName": "$s3mft12MFTErrorCodeO16local_read_erroryA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 5
+          },
+          {
+            "kind": "Var",
+            "name": "local_write_error",
+            "printedName": "local_write_error",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeLocal_write_error",
+            "mangledName": "$s3mft12MFTErrorCodeO17local_write_erroryA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 6
+          },
+          {
+            "kind": "Var",
+            "name": "local_open_error_for_reading",
+            "printedName": "local_open_error_for_reading",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeLocal_open_error_for_reading",
+            "mangledName": "$s3mft12MFTErrorCodeO28local_open_error_for_readingyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 7
+          },
+          {
+            "kind": "Var",
+            "name": "local_open_error_for_writing",
+            "printedName": "local_open_error_for_writing",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeLocal_open_error_for_writing",
+            "mangledName": "$s3mft12MFTErrorCodeO28local_open_error_for_writingyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 8
+          },
+          {
+            "kind": "Var",
+            "name": "local_file_not_readable",
+            "printedName": "local_file_not_readable",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeLocal_file_not_readable",
+            "mangledName": "$s3mft12MFTErrorCodeO23local_file_not_readableyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 9
+          },
+          {
+            "kind": "Var",
+            "name": "local_file_not_writable",
+            "printedName": "local_file_not_writable",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeLocal_file_not_writable",
+            "mangledName": "$s3mft12MFTErrorCodeO23local_file_not_writableyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 10
+          },
+          {
+            "kind": "Var",
+            "name": "wrong_keyfile",
+            "printedName": "wrong_keyfile",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeWrong_keyfile",
+            "mangledName": "$s3mft12MFTErrorCodeO13wrong_keyfileyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 11
+          },
+          {
+            "kind": "Var",
+            "name": "file_not_found",
+            "printedName": "file_not_found",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeFile_not_found",
+            "mangledName": "$s3mft12MFTErrorCodeO14file_not_foundyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 12
+          },
+          {
+            "kind": "Var",
+            "name": "canceled",
+            "printedName": "canceled",
+            "children": [
+              {
+                "kind": "TypeFunc",
+                "name": "Function",
+                "printedName": "(mft.MFTErrorCode.Type) -> mft.MFTErrorCode",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Metatype",
+                    "printedName": "mft.MFTErrorCode.Type",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "MFTErrorCode",
+                        "printedName": "mft.MFTErrorCode",
+                        "usr": "c:@M@mft@E@MFTErrorCode"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "declKind": "EnumElement",
+            "usr": "c:@M@mft@E@MFTErrorCode@MFTErrorCodeCanceled",
+            "mangledName": "$s3mft12MFTErrorCodeO8canceledyA2CmF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "ObjC"
+            ],
+            "fixedbinaryorder": 13
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init(rawValue:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "mft.MFTErrorCode?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTErrorCode",
+                    "printedName": "mft.MFTErrorCode",
+                    "usr": "c:@M@mft@E@MFTErrorCode"
+                  }
+                ],
+                "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "s:3mft12MFTErrorCodeO8rawValueACSgSi_tcfc",
+            "mangledName": "$s3mft12MFTErrorCodeO8rawValueACSgSi_tcfc",
+            "moduleName": "mft",
+            "implicit": true,
+            "init_kind": "Designated"
+          },
+          {
+            "kind": "Var",
+            "name": "rawValue",
+            "printedName": "rawValue",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "s:3mft12MFTErrorCodeO8rawValueSivp",
+            "mangledName": "$s3mft12MFTErrorCodeO8rawValueSivp",
+            "moduleName": "mft",
+            "implicit": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Int",
+                    "printedName": "Swift.Int",
+                    "usr": "s:Si"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft12MFTErrorCodeO8rawValueSivg",
+                "mangledName": "$s3mft12MFTErrorCodeO8rawValueSivg",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "get"
+              }
+            ]
+          }
+        ],
+        "declKind": "Enum",
+        "usr": "c:@M@mft@E@MFTErrorCode",
+        "mangledName": "$s3mft12MFTErrorCodeO",
+        "moduleName": "mft",
+        "declAttributes": [
+          "AccessControl",
+          "ObjC",
+          "RawDocComment"
+        ],
+        "enumRawTypeName": "Int",
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Equatable",
+            "printedName": "Equatable",
+            "usr": "s:SQ",
+            "mangledName": "$sSQ"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Hashable",
+            "printedName": "Hashable",
+            "usr": "s:SH",
+            "mangledName": "$sSH"
+          },
+          {
+            "kind": "Conformance",
+            "name": "RawRepresentable",
+            "printedName": "RawRepresentable",
+            "children": [
+              {
+                "kind": "TypeWitness",
+                "name": "RawValue",
+                "printedName": "RawValue",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Int",
+                    "printedName": "Swift.Int",
+                    "usr": "s:Si"
+                  }
+                ]
+              }
+            ],
+            "usr": "s:SY",
+            "mangledName": "$sSY"
+          }
+        ]
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "MFTSftpConnectionInfo",
+        "printedName": "MFTSftpConnectionInfo",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "serverBanner",
+            "printedName": "serverBanner",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)serverBanner",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC12serverBannerSSvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)serverBanner",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC12serverBannerSSvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setServerBanner:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC12serverBannerSSvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC12serverBannerSSvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC12serverBannerSSvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "issueBanner",
+            "printedName": "issueBanner",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)issueBanner",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC11issueBannerSSvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)issueBanner",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC11issueBannerSSvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setIssueBanner:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC11issueBannerSSvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC11issueBannerSSvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC11issueBannerSSvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "cipherIn",
+            "printedName": "cipherIn",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)cipherIn",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC8cipherInSSvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)cipherIn",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC8cipherInSSvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setCipherIn:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC8cipherInSSvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC8cipherInSSvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC8cipherInSSvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "cipherOut",
+            "printedName": "cipherOut",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)cipherOut",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC9cipherOutSSvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)cipherOut",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC9cipherOutSSvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setCipherOut:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC9cipherOutSSvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC9cipherOutSSvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC9cipherOutSSvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "hmacIn",
+            "printedName": "hmacIn",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)hmacIn",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC6hmacInSSvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)hmacIn",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC6hmacInSSvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setHmacIn:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC6hmacInSSvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC6hmacInSSvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC6hmacInSSvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "hmacOut",
+            "printedName": "hmacOut",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)hmacOut",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC7hmacOutSSvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)hmacOut",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC7hmacOutSSvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setHmacOut:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC7hmacOutSSvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC7hmacOutSSvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC7hmacOutSSvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "kexAlg",
+            "printedName": "kexAlg",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)kexAlg",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC6kexAlgSSvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)kexAlg",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC6kexAlgSSvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setKexAlg:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC6kexAlgSSvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC6kexAlgSSvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC6kexAlgSSvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "authMethods",
+            "printedName": "authMethods",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Array",
+                "printedName": "[Swift.String]",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "usr": "s:Sa"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)authMethods",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC11authMethodsSaySSGvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Array",
+                    "printedName": "[Swift.String]",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      }
+                    ],
+                    "usr": "s:Sa"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)authMethods",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC11authMethodsSaySSGvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Array",
+                    "printedName": "[Swift.String]",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      }
+                    ],
+                    "usr": "s:Sa"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setAuthMethods:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC11authMethodsSaySSGvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC11authMethodsSaySSGvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC11authMethodsSaySSGvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "protocolVerions",
+            "printedName": "protocolVerions",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Int32",
+                "printedName": "Swift.Int32",
+                "usr": "s:s5Int32V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)protocolVerions",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC15protocolVerionss5Int32Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Int32",
+                    "printedName": "Swift.Int32",
+                    "usr": "s:s5Int32V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)protocolVerions",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC15protocolVerionss5Int32Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Int32",
+                    "printedName": "Swift.Int32",
+                    "usr": "s:s5Int32V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setProtocolVerions:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC15protocolVerionss5Int32Vvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC15protocolVerionss5Int32VvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC15protocolVerionss5Int32VvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "maxOpenHandles",
+            "printedName": "maxOpenHandles",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt64",
+                "printedName": "Swift.UInt64",
+                "usr": "s:s6UInt64V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)maxOpenHandles",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC14maxOpenHandless6UInt64Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)maxOpenHandles",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC14maxOpenHandless6UInt64Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setMaxOpenHandles:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC14maxOpenHandless6UInt64Vvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC14maxOpenHandless6UInt64VvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC14maxOpenHandless6UInt64VvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "maxPacketLenght",
+            "printedName": "maxPacketLenght",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt64",
+                "printedName": "Swift.UInt64",
+                "usr": "s:s6UInt64V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)maxPacketLenght",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC15maxPacketLenghts6UInt64Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)maxPacketLenght",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC15maxPacketLenghts6UInt64Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setMaxPacketLenght:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC15maxPacketLenghts6UInt64Vvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC15maxPacketLenghts6UInt64VvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC15maxPacketLenghts6UInt64VvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "maxReadLenght",
+            "printedName": "maxReadLenght",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt64",
+                "printedName": "Swift.UInt64",
+                "usr": "s:s6UInt64V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)maxReadLenght",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC13maxReadLenghts6UInt64Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)maxReadLenght",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC13maxReadLenghts6UInt64Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setMaxReadLenght:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC13maxReadLenghts6UInt64Vvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC13maxReadLenghts6UInt64VvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC13maxReadLenghts6UInt64VvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Var",
+            "name": "maxWriteLenght",
+            "printedName": "maxWriteLenght",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "UInt64",
+                "printedName": "Swift.UInt64",
+                "usr": "s:s6UInt64V"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(py)maxWriteLenght",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoC14maxWriteLenghts6UInt64Vvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)maxWriteLenght",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC14maxWriteLenghts6UInt64Vvg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "UInt64",
+                    "printedName": "Swift.UInt64",
+                    "usr": "s:s6UInt64V"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)setMaxWriteLenght:",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC14maxWriteLenghts6UInt64Vvs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft21MFTSftpConnectionInfoC14maxWriteLenghts6UInt64VvM",
+                "mangledName": "$s3mft21MFTSftpConnectionInfoC14maxWriteLenghts6UInt64VvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTSftpConnectionInfo",
+                "printedName": "mft.MFTSftpConnectionInfo",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo(im)init",
+            "mangledName": "$s3mft21MFTSftpConnectionInfoCACycfc",
+            "moduleName": "mft",
+            "overriding": true,
+            "implicit": true,
+            "objc_name": "init",
+            "declAttributes": [
+              "Dynamic",
+              "ObjC",
+              "Override"
+            ],
+            "init_kind": "Designated"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo",
+        "mangledName": "$s3mft21MFTSftpConnectionInfoC",
+        "moduleName": "mft",
+        "declAttributes": [
+          "AccessControl",
+          "ObjCMembers",
+          "RawDocComment",
+          "ObjC"
+        ],
+        "superclassUsr": "c:objc(cs)NSObject",
+        "inheritsConvenienceInitializers": true,
+        "superclassNames": [
+          "ObjectiveC.NSObject"
+        ],
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Equatable",
+            "printedName": "Equatable",
+            "usr": "s:SQ",
+            "mangledName": "$sSQ"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Hashable",
+            "printedName": "Hashable",
+            "usr": "s:SH",
+            "mangledName": "$sSH"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CVarArg",
+            "printedName": "CVarArg",
+            "usr": "s:s7CVarArgP",
+            "mangledName": "$ss7CVarArgP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "_KeyValueCodingAndObservingPublishing",
+            "printedName": "_KeyValueCodingAndObservingPublishing",
+            "usr": "s:10Foundation37_KeyValueCodingAndObservingPublishingP",
+            "mangledName": "$s10Foundation37_KeyValueCodingAndObservingPublishingP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "_KeyValueCodingAndObserving",
+            "printedName": "_KeyValueCodingAndObserving",
+            "usr": "s:10Foundation27_KeyValueCodingAndObservingP",
+            "mangledName": "$s10Foundation27_KeyValueCodingAndObservingP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CustomStringConvertible",
+            "printedName": "CustomStringConvertible",
+            "usr": "s:s23CustomStringConvertibleP",
+            "mangledName": "$ss23CustomStringConvertibleP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CustomDebugStringConvertible",
+            "printedName": "CustomDebugStringConvertible",
+            "usr": "s:s28CustomDebugStringConvertibleP",
+            "mangledName": "$ss28CustomDebugStringConvertibleP"
+          }
+        ]
+      },
+      {
+        "kind": "TypeDecl",
+        "name": "MFTSftpConnection",
+        "printedName": "MFTSftpConnection",
+        "children": [
+          {
+            "kind": "Var",
+            "name": "defRqCount",
+            "printedName": "defRqCount",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(py)defRqCount",
+            "mangledName": "$s3mft17MFTSftpConnectionC10defRqCountSivp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "HasInitialValue",
+              "HasStorage",
+              "AccessControl",
+              "ObjC"
+            ],
+            "hasStorage": true,
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Int",
+                    "printedName": "Swift.Int",
+                    "usr": "s:Si"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)defRqCount",
+                "mangledName": "$s3mft17MFTSftpConnectionC10defRqCountSivg",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Int",
+                    "printedName": "Swift.Int",
+                    "usr": "s:Si"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)setDefRqCount:",
+                "mangledName": "$s3mft17MFTSftpConnectionC10defRqCountSivs",
+                "moduleName": "mft",
+                "implicit": true,
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft17MFTSftpConnectionC10defRqCountSivM",
+                "mangledName": "$s3mft17MFTSftpConnectionC10defRqCountSivM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init(hostname:port:username:password:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTSftpConnection",
+                "printedName": "mft.MFTSftpConnection",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnection"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)initWithHostname:port:username:password:",
+            "mangledName": "$s3mft17MFTSftpConnectionC8hostname4port8username8passwordACSS_SiS2Stcfc",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "init_kind": "Designated"
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init(hostname:port:username:prvKeyPath:passphrase:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTSftpConnection",
+                "printedName": "mft.MFTSftpConnection",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnection"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)initWithHostname:port:username:prvKeyPath:passphrase:",
+            "mangledName": "$s3mft17MFTSftpConnectionC8hostname4port8username10prvKeyPath10passphraseACSS_SiS3Stcfc",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "init_kind": "Designated"
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init(hostname:port:username:prvKey:passphrase:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTSftpConnection",
+                "printedName": "mft.MFTSftpConnection",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnection"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Int",
+                "printedName": "Swift.Int",
+                "usr": "s:Si"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)initWithHostname:port:username:prvKey:passphrase:",
+            "mangledName": "$s3mft17MFTSftpConnectionC8hostname4port8username6prvKey10passphraseACSS_SiS3Stcfc",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "init_kind": "Designated"
+          },
+          {
+            "kind": "Var",
+            "name": "connected",
+            "printedName": "connected",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Bool",
+                "printedName": "Swift.Bool",
+                "usr": "s:Sb"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(py)connected",
+            "mangledName": "$s3mft17MFTSftpConnectionC9connectedSbvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Bool",
+                    "printedName": "Swift.Bool",
+                    "usr": "s:Sb"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)connected",
+                "mangledName": "$s3mft17MFTSftpConnectionC9connectedSbvg",
+                "moduleName": "mft",
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              }
+            ]
+          },
+          {
+            "kind": "Function",
+            "name": "connect",
+            "printedName": "connect()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)connectAndReturnError:",
+            "mangledName": "$s3mft17MFTSftpConnectionC7connectyyKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "authenticate",
+            "printedName": "authenticate()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)authenticateAndReturnError:",
+            "mangledName": "$s3mft17MFTSftpConnectionC12authenticateyyKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "disconnect",
+            "printedName": "disconnect()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)disconnect",
+            "mangledName": "$s3mft17MFTSftpConnectionC10disconnectyyF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "connectionInfo",
+            "printedName": "connectionInfo()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTSftpConnectionInfo",
+                "printedName": "mft.MFTSftpConnectionInfo",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnectionInfo"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)connectionInfoAndReturnError:",
+            "mangledName": "$s3mft17MFTSftpConnectionC14connectionInfoAA0bcE0CyKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "contentsOfDirectory",
+            "printedName": "contentsOfDirectory(atPath:maxItems:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Array",
+                "printedName": "[mft.MFTSftpItem]",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "MFTSftpItem",
+                    "printedName": "mft.MFTSftpItem",
+                    "usr": "c:@M@mft@objc(cs)MFTSftpItem"
+                  }
+                ],
+                "usr": "s:Sa"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Int64",
+                "printedName": "Swift.Int64",
+                "usr": "s:s5Int64V"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)contentsOfDirectoryAtPath:maxItems:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC19contentsOfDirectory6atPath8maxItemsSayAA0B4ItemCGSS_s5Int64VtKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "infoForFile",
+            "printedName": "infoForFile(atPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTSftpItem",
+                "printedName": "mft.MFTSftpItem",
+                "usr": "c:@M@mft@objc(cs)MFTSftpItem"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)infoForFileAtPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC11infoForFile6atPathAA0B4ItemCSS_tKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "canonicalPath",
+            "printedName": "canonicalPath(forPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)canonicalPathForPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC13canonicalPath03forE0S2S_tKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "effectiveTarget",
+            "printedName": "effectiveTarget(forPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)effectiveTargetForPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC15effectiveTarget7forPathS2S_tKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "createDirectory",
+            "printedName": "createDirectory(atPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)createDirectoryAtPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC15createDirectory6atPathySS_tKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "createSymbolicLink",
+            "printedName": "createSymbolicLink(atPath:withDestinationPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)createSymbolicLinkAtPath:withDestinationPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC18createSymbolicLink6atPath015withDestinationH0ySS_SStKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "removeDirectory",
+            "printedName": "removeDirectory(atPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)removeDirectoryAtPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC15removeDirectory6atPathySS_tKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "removeFile",
+            "printedName": "removeFile(atPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)removeFileAtPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC10removeFile6atPathySS_tKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "contents",
+            "printedName": "contents(atPath:toStream:fromPosition:progress:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "OutputStream",
+                "printedName": "Foundation.OutputStream",
+                "usr": "c:objc(cs)NSOutputStream"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "UInt64",
+                "printedName": "Swift.UInt64",
+                "usr": "s:s6UInt64V"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "((Swift.UInt64, Swift.UInt64) -> Swift.Bool)?",
+                "children": [
+                  {
+                    "kind": "TypeFunc",
+                    "name": "Function",
+                    "printedName": "(Swift.UInt64, Swift.UInt64) -> Swift.Bool",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Bool",
+                        "printedName": "Swift.Bool",
+                        "usr": "s:Sb"
+                      },
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Tuple",
+                        "printedName": "(Swift.UInt64, Swift.UInt64)",
+                        "children": [
+                          {
+                            "kind": "TypeNominal",
+                            "name": "UInt64",
+                            "printedName": "Swift.UInt64",
+                            "usr": "s:s6UInt64V"
+                          },
+                          {
+                            "kind": "TypeNominal",
+                            "name": "UInt64",
+                            "printedName": "Swift.UInt64",
+                            "usr": "s:s6UInt64V"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)contentsAtPath:toStream:fromPosition:error:progress:",
+            "mangledName": "$s3mft17MFTSftpConnectionC8contents6atPath8toStream12fromPosition8progressySS_So08NSOutputH0Cs6UInt64VSbAL_ALtcSgtKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "write",
+            "printedName": "write(stream:toFileAtPath:append:progress:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "InputStream",
+                "printedName": "Foundation.InputStream",
+                "usr": "c:objc(cs)NSInputStream"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Bool",
+                "printedName": "Swift.Bool",
+                "usr": "s:Sb"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "((Swift.UInt64) -> Swift.Bool)?",
+                "children": [
+                  {
+                    "kind": "TypeFunc",
+                    "name": "Function",
+                    "printedName": "(Swift.UInt64) -> Swift.Bool",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Bool",
+                        "printedName": "Swift.Bool",
+                        "usr": "s:Sb"
+                      },
+                      {
+                        "kind": "TypeNominal",
+                        "name": "UInt64",
+                        "printedName": "Swift.UInt64",
+                        "usr": "s:s6UInt64V"
+                      }
+                    ]
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)writeWithStream:toFileAtPath:append:error:progress:",
+            "mangledName": "$s3mft17MFTSftpConnectionC5write6stream12toFileAtPath6append8progressySo13NSInputStreamC_SSS2bs6UInt64VcSgtKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "copyItem",
+            "printedName": "copyItem(atPath:toFileAtPath:progress:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "((Swift.UInt64, Swift.UInt64) -> Swift.Bool)?",
+                "children": [
+                  {
+                    "kind": "TypeFunc",
+                    "name": "Function",
+                    "printedName": "(Swift.UInt64, Swift.UInt64) -> Swift.Bool",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Bool",
+                        "printedName": "Swift.Bool",
+                        "usr": "s:Sb"
+                      },
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Tuple",
+                        "printedName": "(Swift.UInt64, Swift.UInt64)",
+                        "children": [
+                          {
+                            "kind": "TypeNominal",
+                            "name": "UInt64",
+                            "printedName": "Swift.UInt64",
+                            "usr": "s:s6UInt64V"
+                          },
+                          {
+                            "kind": "TypeNominal",
+                            "name": "UInt64",
+                            "printedName": "Swift.UInt64",
+                            "usr": "s:s6UInt64V"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)copyItemAtPath:toFileAtPath:error:progress:",
+            "mangledName": "$s3mft17MFTSftpConnectionC8copyItem6atPath08toFileAtG08progressySS_SSSbs6UInt64V_AItcSgtKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "moveItem",
+            "printedName": "moveItem(atPath:toPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)moveItemAtPath:toPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC8moveItem6atPath02toG0ySS_SStKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "set",
+            "printedName": "set(modificationTime:accessTime:forPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Foundation.Date?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Date",
+                    "printedName": "Foundation.Date",
+                    "usr": "s:10Foundation4DateV"
+                  }
+                ],
+                "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Foundation.Date?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Date",
+                    "printedName": "Foundation.Date",
+                    "usr": "s:10Foundation4DateV"
+                  }
+                ],
+                "usr": "s:Sq"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)setWithModificationTime:accessTime:forPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC3set16modificationTime06accessF07forPathy10Foundation4DateVSg_AKSStKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "set",
+            "printedName": "set(permissions:forPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "UInt32",
+                "printedName": "Swift.UInt32",
+                "usr": "s:s6UInt32V"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)setWithPermissions:forPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC3set11permissions7forPathys6UInt32V_SStKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "filesystemStats",
+            "printedName": "filesystemStats(forPath:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTFilesystemStats",
+                "printedName": "mft.MFTFilesystemStats",
+                "usr": "c:@M@mft@objc(cs)MFTFilesystemStats"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)filesystemStatsForPath:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC15filesystemStats7forPathAA013MFTFilesystemE0CSS_tKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "knownHostStatus",
+            "printedName": "knownHostStatus(inFile:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTKnownHostStatus",
+                "printedName": "mft.MFTKnownHostStatus",
+                "usr": "c:@M@mft@E@MFTKnownHostStatus"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)knownHostStatusInFile:",
+            "mangledName": "$s3mft17MFTSftpConnectionC15knownHostStatus6inFileAA08MFTKnowneF0OSS_tF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "addKnownHostName",
+            "printedName": "addKnownHostName(toFile:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)addKnownHostNameToFile:error:",
+            "mangledName": "$s3mft17MFTSftpConnectionC16addKnownHostName6toFileySS_tKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "fingerprintHash",
+            "printedName": "fingerprintHash()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)fingerprintHashAndReturnError:",
+            "mangledName": "$s3mft17MFTSftpConnectionC15fingerprintHashSSyKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "uploadFile",
+            "printedName": "uploadFile(atPath:toFileAtPath:progress:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "((Swift.UInt64) -> Swift.Bool)?",
+                "children": [
+                  {
+                    "kind": "TypeFunc",
+                    "name": "Function",
+                    "printedName": "(Swift.UInt64) -> Swift.Bool",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Bool",
+                        "printedName": "Swift.Bool",
+                        "usr": "s:Sb"
+                      },
+                      {
+                        "kind": "TypeNominal",
+                        "name": "UInt64",
+                        "printedName": "Swift.UInt64",
+                        "usr": "s:s6UInt64V"
+                      }
+                    ]
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)uploadFileAtPath:toFileAtPath:error:progress:",
+            "mangledName": "$s3mft17MFTSftpConnectionC10uploadFile6atPath02toe2AtG08progressySS_SSSbs6UInt64VcSgtKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "resumeUploadFile",
+            "printedName": "resumeUploadFile(atPath:toFileAtPath:progress:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "((Swift.UInt64) -> Swift.Bool)?",
+                "children": [
+                  {
+                    "kind": "TypeFunc",
+                    "name": "Function",
+                    "printedName": "(Swift.UInt64) -> Swift.Bool",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Bool",
+                        "printedName": "Swift.Bool",
+                        "usr": "s:Sb"
+                      },
+                      {
+                        "kind": "TypeNominal",
+                        "name": "UInt64",
+                        "printedName": "Swift.UInt64",
+                        "usr": "s:s6UInt64V"
+                      }
+                    ]
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)resumeUploadFileAtPath:toFileAtPath:error:progress:",
+            "mangledName": "$s3mft17MFTSftpConnectionC16resumeUploadFile6atPath02tof2AtH08progressySS_SSSbs6UInt64VcSgtKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "downloadFile",
+            "printedName": "downloadFile(atPath:toFileAtPath:progress:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "((Swift.UInt64, Swift.UInt64) -> Swift.Bool)?",
+                "children": [
+                  {
+                    "kind": "TypeFunc",
+                    "name": "Function",
+                    "printedName": "(Swift.UInt64, Swift.UInt64) -> Swift.Bool",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Bool",
+                        "printedName": "Swift.Bool",
+                        "usr": "s:Sb"
+                      },
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Tuple",
+                        "printedName": "(Swift.UInt64, Swift.UInt64)",
+                        "children": [
+                          {
+                            "kind": "TypeNominal",
+                            "name": "UInt64",
+                            "printedName": "Swift.UInt64",
+                            "usr": "s:s6UInt64V"
+                          },
+                          {
+                            "kind": "TypeNominal",
+                            "name": "UInt64",
+                            "printedName": "Swift.UInt64",
+                            "usr": "s:s6UInt64V"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)downloadFileAtPath:toFileAtPath:error:progress:",
+            "mangledName": "$s3mft17MFTSftpConnectionC12downloadFile6atPath02toe2AtG08progressySS_SSSbs6UInt64V_AItcSgtKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Function",
+            "name": "resumeDownloadFile",
+            "printedName": "resumeDownloadFile(atPath:toFileAtPath:progress:)",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Void",
+                "printedName": "()"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "String",
+                "printedName": "Swift.String",
+                "usr": "s:SS"
+              },
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "((Swift.UInt64, Swift.UInt64) -> Swift.Bool)?",
+                "children": [
+                  {
+                    "kind": "TypeFunc",
+                    "name": "Function",
+                    "printedName": "(Swift.UInt64, Swift.UInt64) -> Swift.Bool",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Bool",
+                        "printedName": "Swift.Bool",
+                        "usr": "s:Sb"
+                      },
+                      {
+                        "kind": "TypeNominal",
+                        "name": "Tuple",
+                        "printedName": "(Swift.UInt64, Swift.UInt64)",
+                        "children": [
+                          {
+                            "kind": "TypeNominal",
+                            "name": "UInt64",
+                            "printedName": "Swift.UInt64",
+                            "usr": "s:s6UInt64V"
+                          },
+                          {
+                            "kind": "TypeNominal",
+                            "name": "UInt64",
+                            "printedName": "Swift.UInt64",
+                            "usr": "s:s6UInt64V"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Func",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)resumeDownloadFileAtPath:toFileAtPath:error:progress:",
+            "mangledName": "$s3mft17MFTSftpConnectionC18resumeDownloadFile6atPath02tof2AtH08progressySS_SSSbs6UInt64V_AItcSgtKF",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "throwing": true,
+            "funcSelfKind": "NonMutating"
+          },
+          {
+            "kind": "Var",
+            "name": "encoding",
+            "printedName": "encoding",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "Optional",
+                "printedName": "Swift.String?",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "String",
+                    "printedName": "Swift.String",
+                    "usr": "s:SS"
+                  }
+                ],
+                "usr": "s:Sq"
+              }
+            ],
+            "declKind": "Var",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(py)encoding",
+            "mangledName": "$s3mft17MFTSftpConnectionC8encodingSSSgvp",
+            "moduleName": "mft",
+            "declAttributes": [
+              "AccessControl",
+              "RawDocComment",
+              "ObjC"
+            ],
+            "accessors": [
+              {
+                "kind": "Accessor",
+                "name": "Get",
+                "printedName": "Get()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "Swift.String?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)encoding",
+                "mangledName": "$s3mft17MFTSftpConnectionC8encodingSSSgvg",
+                "moduleName": "mft",
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "get"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Set",
+                "printedName": "Set()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  },
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Optional",
+                    "printedName": "Swift.String?",
+                    "children": [
+                      {
+                        "kind": "TypeNominal",
+                        "name": "String",
+                        "printedName": "Swift.String",
+                        "usr": "s:SS"
+                      }
+                    ],
+                    "usr": "s:Sq"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)setEncoding:",
+                "mangledName": "$s3mft17MFTSftpConnectionC8encodingSSSgvs",
+                "moduleName": "mft",
+                "declAttributes": [
+                  "ObjC"
+                ],
+                "accessorKind": "set"
+              },
+              {
+                "kind": "Accessor",
+                "name": "Modify",
+                "printedName": "Modify()",
+                "children": [
+                  {
+                    "kind": "TypeNominal",
+                    "name": "Void",
+                    "printedName": "()"
+                  }
+                ],
+                "declKind": "Accessor",
+                "usr": "s:3mft17MFTSftpConnectionC8encodingSSSgvM",
+                "mangledName": "$s3mft17MFTSftpConnectionC8encodingSSSgvM",
+                "moduleName": "mft",
+                "implicit": true,
+                "accessorKind": "_modify"
+              }
+            ]
+          },
+          {
+            "kind": "Constructor",
+            "name": "init",
+            "printedName": "init()",
+            "children": [
+              {
+                "kind": "TypeNominal",
+                "name": "MFTSftpConnection",
+                "printedName": "mft.MFTSftpConnection",
+                "usr": "c:@M@mft@objc(cs)MFTSftpConnection"
+              }
+            ],
+            "declKind": "Constructor",
+            "usr": "c:@M@mft@objc(cs)MFTSftpConnection(im)init",
+            "mangledName": "$s3mft17MFTSftpConnectionCACycfc",
+            "moduleName": "mft",
+            "overriding": true,
+            "implicit": true,
+            "objc_name": "init",
+            "declAttributes": [
+              "Dynamic",
+              "ObjC",
+              "Override"
+            ],
+            "init_kind": "Designated"
+          }
+        ],
+        "declKind": "Class",
+        "usr": "c:@M@mft@objc(cs)MFTSftpConnection",
+        "mangledName": "$s3mft17MFTSftpConnectionC",
+        "moduleName": "mft",
+        "declAttributes": [
+          "AccessControl",
+          "ObjCMembers",
+          "RawDocComment",
+          "ObjC"
+        ],
+        "superclassUsr": "c:objc(cs)NSObject",
+        "superclassNames": [
+          "ObjectiveC.NSObject"
+        ],
+        "conformances": [
+          {
+            "kind": "Conformance",
+            "name": "Copyable",
+            "printedName": "Copyable",
+            "usr": "s:s8CopyableP",
+            "mangledName": "$ss8CopyableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Escapable",
+            "printedName": "Escapable",
+            "usr": "s:s9EscapableP",
+            "mangledName": "$ss9EscapableP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Equatable",
+            "printedName": "Equatable",
+            "usr": "s:SQ",
+            "mangledName": "$sSQ"
+          },
+          {
+            "kind": "Conformance",
+            "name": "Hashable",
+            "printedName": "Hashable",
+            "usr": "s:SH",
+            "mangledName": "$sSH"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CVarArg",
+            "printedName": "CVarArg",
+            "usr": "s:s7CVarArgP",
+            "mangledName": "$ss7CVarArgP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "_KeyValueCodingAndObservingPublishing",
+            "printedName": "_KeyValueCodingAndObservingPublishing",
+            "usr": "s:10Foundation37_KeyValueCodingAndObservingPublishingP",
+            "mangledName": "$s10Foundation37_KeyValueCodingAndObservingPublishingP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "_KeyValueCodingAndObserving",
+            "printedName": "_KeyValueCodingAndObserving",
+            "usr": "s:10Foundation27_KeyValueCodingAndObservingP",
+            "mangledName": "$s10Foundation27_KeyValueCodingAndObservingP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CustomStringConvertible",
+            "printedName": "CustomStringConvertible",
+            "usr": "s:s23CustomStringConvertibleP",
+            "mangledName": "$ss23CustomStringConvertibleP"
+          },
+          {
+            "kind": "Conformance",
+            "name": "CustomDebugStringConvertible",
+            "printedName": "CustomDebugStringConvertible",
+            "usr": "s:s28CustomDebugStringConvertibleP",
+            "mangledName": "$ss28CustomDebugStringConvertibleP"
+          }
+        ]
+      }
+    ],
+    "json_format_version": 8
+  },
+  "ConstValues": [
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 339,
+      "length": 2,
+      "value": "-2"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 367,
+      "length": 2,
+      "value": "-1"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 397,
+      "length": 1,
+      "value": "0"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 400,
+      "length": 14,
+      "value": "1"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 416,
+      "length": 19,
+      "value": "2"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 441,
+      "length": 17,
+      "value": "3"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 477,
+      "length": 3,
+      "value": "100"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 892,
+      "length": 1,
+      "value": "0"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 904,
+      "length": 10,
+      "value": "1"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 925,
+      "length": 16,
+      "value": "2"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 952,
+      "length": 18,
+      "value": "3"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 981,
+      "length": 21,
+      "value": "4"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1013,
+      "length": 16,
+      "value": "5"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1040,
+      "length": 17,
+      "value": "6"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1068,
+      "length": 28,
+      "value": "7"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1107,
+      "length": 28,
+      "value": "8"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1146,
+      "length": 23,
+      "value": "9"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1180,
+      "length": 23,
+      "value": "10"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1214,
+      "length": 13,
+      "value": "11"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1238,
+      "length": 14,
+      "value": "12"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1274,
+      "length": 3,
+      "value": "999"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "StringLiteral",
+      "offset": 1403,
+      "length": 2,
+      "value": "\"\""
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "StringLiteral",
+      "offset": 1435,
+      "length": 2,
+      "value": "\"\""
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "StringLiteral",
+      "offset": 1464,
+      "length": 2,
+      "value": "\"\""
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "StringLiteral",
+      "offset": 1494,
+      "length": 2,
+      "value": "\"\""
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "StringLiteral",
+      "offset": 1521,
+      "length": 2,
+      "value": "\"\""
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "StringLiteral",
+      "offset": 1549,
+      "length": 2,
+      "value": "\"\""
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "StringLiteral",
+      "offset": 1576,
+      "length": 2,
+      "value": "\"\""
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1659,
+      "length": 2,
+      "value": "-1"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1702,
+      "length": 1,
+      "value": "0"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1745,
+      "length": 1,
+      "value": "0"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1786,
+      "length": 1,
+      "value": "0"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 1828,
+      "length": 1,
+      "value": "0"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "BooleanLiteral",
+      "offset": 2583,
+      "length": 5,
+      "value": "false"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 2628,
+      "length": 1,
+      "value": "0"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 2658,
+      "length": 2,
+      "value": "20"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 2692,
+      "length": 6,
+      "value": "0xF000"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 5269,
+      "length": 1,
+      "value": "1"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "BooleanLiteral",
+      "offset": 5296,
+      "length": 5,
+      "value": "false"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 56766,
+      "length": 2,
+      "value": "-1"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 56826,
+      "length": 2,
+      "value": "-1"
+    },
+    {
+      "filePath": "\/Users\/stephengrigg\/Documents\/Throttle 2\/mft\/mft\/MFTSftpConnection.swift",
+      "kind": "IntegerLiteral",
+      "offset": 56888,
+      "length": 2,
+      "value": "-1"
+    }
+  ]
+}

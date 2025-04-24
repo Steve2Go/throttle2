@@ -12,23 +12,23 @@
 - SFTP & Traditional (Usually Samba) File Managment
 - File Thumnails
 - Torrent Creation (\*nix platform ignostic, server side)
+- Server Control
 
 ## Mac
 - Automaticly Mount your remote drives over SFTP using SSHFS and Fuse-t for full file managment in finder
 
 ## iOS
-- Built in File Browser using SFTP
+- Built in File Browser using SSH & SFTP
 - Split Screen control when mirroring. Image & video controls remain on device.
 - Server side thumbnails for media (Requires FFMpeg on your server), falls back to client side using VlcKit
 - Video playback and Image slideshows (On external display)
 
 ## To Come
-- Server Stats & Controls
-- Local Daemon (mac)
-- Better messaging on server actions (Success, fail etc)
-- Keyfile support for ssh key file authentication (Part implimented)
+- FFMpeg based or HTTP based video bridge for iOS (The last step required to enable key authentication for sftp)
+- Keyfile support for ssh key file authentication (Part implimented, not supported byt MobileVLCKit sftp, working on alternatives)
+- Local Daemon (Mac, with easy remote connection from iOS)
 
-Based on lessons learned from Mission for Mac & Throttle 1 (a fork of mission)
+Based on lessons learned from Mission, https://github.com/TheNightmanCodeth/mission with borrowed code and ideas.
 
 
 ## Installation
@@ -52,6 +52,6 @@ Throttle for iOS needs FFMpeg on the server to generate video thumbnails.
 An installer is included in the iOS app to help you install this. The Mac version does not have this requirement.
 You can still use Throttle without ffmpeg, but video thumbnails will be generic play icons.
 
-*Note for windows users - due to the vast difference between windows and \*nix systems, I've made the assumption that Windows Subsystem for Linux is installed. You can install it with `wsl --install` from powershell. If anyone wants to help me test this / expand windows supprt, let me know.
+*Note for windows users - due to the vast difference between windows and \*nix systems, I've made the assumption that you're using the built in openSSH, but it's largely untested. If anyone wants to help me test this / expand windows supprt, let me know.
 
 Enjoy! 

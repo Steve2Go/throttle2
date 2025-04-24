@@ -464,14 +464,17 @@ class SFTPFileBrowserViewModel: ObservableObject {
             print("❌ Missing server credentials")
             return
         }
+        @AppStorage("StreamingServerLocalPort") var localStreamPort = 8080
+        //var localStreamPort = 4001
         
         let port = server.sftpPort
         let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
         
         if videoItems.count == 1 {
-            let path = item.url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
+            let path = item.url.path //.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
             print("Found Video \(path)")
             let vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
+//            let vlcUrl = URL(string: "http://localhost:\(localStreamPort)\(path)")!
             
             // Create and set the configuration
             self.videoPlayerConfiguration = VideoPlayerConfiguration(singleItem: vlcUrl)
@@ -479,9 +482,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
         } else {
             var playlist: [URL] = []
             for item in videoItems {
-                let path = item.url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
+                let path = item.url.path //.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
                 print("Found Video \(path)")
                 playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!)
+//                playlist.append(URL(string: "http://localhost:\(localStreamPort)\(path)")!)
             }
             
             // Create and set the configuration
@@ -489,19 +493,6 @@ class SFTPFileBrowserViewModel: ObservableObject {
             self.showingVideoPlayer = true
         }
     }
-    
-//    func openFile(item: FileItem, server: ServerEntity) {
-//        let fileType = FileType.determine(from: item.url)
-//        
-//        switch fileType {
-//        case .video:
-//            openVideo(item: item, server: server)
-//        case .image:
-//            openImageBrowser(item)
-//        case .other:
-//            downloadFile(item)
-//        }
-//    }
     
     // MARK: - VLC Playlist Handling
     

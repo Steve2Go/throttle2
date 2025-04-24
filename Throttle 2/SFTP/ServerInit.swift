@@ -12,22 +12,33 @@ import Network
 extension Throttle_2App {
     
     func refeshTunnel(store: Store, torrentManager: TorrentManager){
+        
       //  ThumbnailLoader.shared.deactivate()
         TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
       // TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
         guard let server = store.selection else {return}
-        let localport = 4000 // update after tunnel logic
-        let port  = server.port
         
-        Task{
-            await SSHConnectionManager.shared.resetAllConnections()
-            if store.selection != nil {
-                setupStreamingServer(server: store.selection!)
+        let isTunnel = server.sftpRpc
+        
+        
+        if isTunnel {
+            let localport = 4000 // update after tunnel logic
+            let port  = server.port
+            
+            Task{
+                await SSHConnectionManager.shared.resetAllConnections()
+                let tmanager = try SSHTunnelManager(server: server, localPort: localport, remoteHost: "127.0.0.1", remotePort: Int(port))
+                try await tmanager.start()
+                TunnelManagerHolder.shared.storeTunnel(tmanager, withIdentifier: "transmission-rpc")
+                torrentManager.startPeriodicUpdates()
+                
+                
+                
+                if !store.magnetLink.isEmpty || store.selectedFile != nil {
+                    presenting.activeSheet = "adding"
+                }
             }
-            let tmanager = try SSHTunnelManager(server: server, localPort: localport, remoteHost: "127.0.0.1", remotePort: Int(port))
-            try await tmanager.start()
-            TunnelManagerHolder.shared.storeTunnel(tmanager, withIdentifier: "transmission-rpc")
-            torrentManager.startPeriodicUpdates()
+        } else{
             if !store.magnetLink.isEmpty || store.selectedFile != nil {
                 presenting.activeSheet = "adding"
             }
@@ -44,8 +55,6 @@ extension Throttle_2App {
             store.selectedTorrentId = nil
             
             if store.selection != nil {
-                //TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
-         //       setupStreamingServer(server: store.selection!)
                 
                 // load the keychain
                 let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
@@ -104,25 +113,7 @@ extension Throttle_2App {
                                     presenting.activeSheet = "adding"
                                 }
                             } catch let error as SSHTunnelError {
-                                switch error {
-                                case .missingCredentials:
-                                    print("Error: Missing credentials")
-                                case .connectionFailed(let underlyingError):
-                                    print("Error: Connection failed: \(underlyingError)")
-                                case .portForwardingFailed(let underlyingError):
-                                    print("Error: Port forwarding failed: \(underlyingError)")
-                                case .localProxyFailed(let underlyingError):
-                                    print("Error: Local proxy failed: \(underlyingError)")
-                                case .reconnectFailed(let underlyingError):
-                                    print("Error: Reconnect failed: \(underlyingError)")
-                                case .invalidServerConfiguration:
-                                    print("Error: Invalid server configuration")
-                                case .tunnelAlreadyConnected:
-                                    print("Error: Tunnel already connected")
-                                case .tunnelNotConnected:
-                                    print("Error: Tunnel not connected")
-                                }
-                            } catch {
+                                
                                 print("An unexpected error occurred: \(error)")
                             }
                         }
@@ -168,90 +159,6 @@ extension Throttle_2App {
 
     
     #endif
-    
-    func setupStreamingServer(server: ServerEntity) {
-            Task {
-                do {
-                    // Only proceed if SFTP browsing is enabled
-                    guard server.sftpBrowse else { return }
-                    
-                    // 1. Setup the HTTP server
-                    try await HttpStreamingManager.shared.setupServer(for: server)
-                    
-                    // Get the username from your server entity
-                    guard let username = server.sftpUser else {
-                        print("Missing username")
-                        return
-                    }
-                    @AppStorage("StreamingServerLocalPort") var localStreamPort = 8080
-
-                    // Get the specific port for this user's streaming server
-                    if let serverPort = HttpStreamingManager.shared.getServerPort(for: username) {
-                        print("Found streaming server port: \(serverPort)")
-                        
-                        // Now you can use this port to create your SSH tunnel
-                        let htunnel = try SSHTunnelManager(
-                            server: server,
-                            localPort: localStreamPort, // Your local port (e.g., 8080)
-                            remoteHost: "127.0.0.1",    // The streaming server binds to localhost on the remote machine
-                            remotePort: serverPort       // The specific port for this user's server
-                        )
-                        
-                        try await htunnel.start()
-                        TunnelManagerHolder.shared.storeTunnel(htunnel, withIdentifier: "http-streamer")
-                        //    ThumbnailLoader.shared.activate()
-                        print("HTTP streaming tunnel established")
-                        print("HTTP streaming setup completed for \(server.name ?? "unnamed server")")
-                    } else {
-                        print("Failed to get port for user \(username)")
-                    }
-                
-                        
-                    
-                } catch {
-                    print("Failed to setup HTTP streaming: \(error.localizedDescription)")
-                }
-            }
-        }
-        
-        // Clean up streaming when disconnecting
-        func cleanupStreamingServer(server: ServerEntity) {
-            Task {
-                // 1. Close the tunnel
-                TunnelManagerHolder.shared.removeTunnel(withIdentifier: "http-streamer")
-                
-                // 2. Stop the server
-                await HttpStreamingManager.shared.stopServer(for: server)
-            }
-        }
-    
-//    func setupStreamingServer(server: ServerEntity) {
-//        Task {
-//            do {
-//                
-//                // Check if the server is running, start if needed
-//                
-//                if !(try await HttpStreamingManager.shared.isServerRunning(server: server)) {
-//                    try await HttpStreamingManager.shared.startStreamingServer(server: server)
-//                    print("HTTP streaming server started successfully")
-//                } else {
-//                    print("HTTP streaming server is already running")
-//                }
-//                
-//                // Create the tunnel if needed
-//                //store.streamingUrl =  try await HttpStreamingManager.shared.getStreamingURL(for: "", server: server).absoluteString
-//                @AppStorage("StreamingServerPort") var serverPort = 8723 // Remote port for Python HTTP server
-//                @AppStorage("StreamingServerLocalPort") var localStreamPort = 8080 // Local port for streaming
-//                let htunnel = try SSHTunnelManager(server: server, localPort: localStreamPort, remoteHost: "127.0.0.1", remotePort: Int(serverPort))
-//                try await htunnel.start()
-//                TunnelManagerHolder.shared.storeTunnel(htunnel, withIdentifier: "http-streamer")
-//                
-//                print("HTTP streaming tunnel established")
-//            } catch {
-//                print("Failed to setup streaming server: \(error)")
-//            }
-//        }
-//    }
 }
 
 
@@ -276,3 +183,4 @@ class NetworkMonitor: ObservableObject {
         networkMonitor.start(queue: workerQueue)
     }
 }
+

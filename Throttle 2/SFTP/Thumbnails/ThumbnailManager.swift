@@ -20,7 +20,7 @@ public class ThumbnailManager: NSObject {
     // Memory cache to complement file cache
     private let memoryCache = NSCache<NSString, UIImage>()
     
-    // Connection managers by server
+    // Connection managers by server (kept for backward compatibility)
     private var connectionManagers = [String: SFTPConnectionManager]()
     private let connectionManagersLock = NSLock()
     
@@ -34,16 +34,11 @@ public class ThumbnailManager: NSObject {
     private var serverSemaphores = [String: DispatchSemaphore]()
     private let semaphoreAccess = NSLock()
     
-    // HTTP session for image downloads
-    private let urlSession: URLSession
+    // SSH client cache to reuse connections
+    private var sshClients = [String: SSHClient]()
+    private let sshClientsLock = NSLock()
     
     override init() {
-        // Configure URL session for HTTP downloads
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 10
-        config.timeoutIntervalForResource = 20
-        urlSession = URLSession(configuration: config)
-        
         super.init()
         createCacheDirectoryIfNeeded()
         memoryCache.countLimit = 150 // Increased memory cache size
@@ -55,7 +50,8 @@ public class ThumbnailManager: NSObject {
         }
     }
     
-    // Get or create a connection manager for a server
+    // This method is no longer used since we're using dd commands instead of SFTP
+    // Keeping the method for potential future use or backward compatibility
     private func getConnectionManager(for server: ServerEntity) -> SFTPConnectionManager {
         let serverKey = server.name ?? server.sftpHost ?? "default"
         
@@ -101,8 +97,7 @@ public class ThumbnailManager: NSObject {
             return semaphore
         } else {
             // Create a new semaphore with the server's max connections value
-            // Since HTTP is more efficient, we can use higher limits
-            let maxConnections = max(1, Int(server.thumbMax) * 2) // Double the limit for HTTP
+            let maxConnections = max(1, Int(server.thumbMax))
             let semaphore = DispatchSemaphore(value: maxConnections)
             serverSemaphores[key] = semaphore
             return semaphore
@@ -167,19 +162,8 @@ public class ThumbnailManager: NSObject {
                     
                     let thumbnail: Image
                     if fileType == .image {
-                        // For images, first try HTTP if tunnel available
-                        if let tunnel = TunnelManagerHolder.shared.getTunnel(withIdentifier: "http-streamer") {
-                            do {
-                                thumbnail = try await generateImageThumbnailViaHTTP(for: path, server: server, tunnel: tunnel)
-                            } catch {
-                                // If HTTP fails, fall back to original SFTP method
-                                print("HTTP image download failed: \(error.localizedDescription), falling back to SFTP")
-                                thumbnail = try await generateImageThumbnailViaSFTP(for: path, server: server)
-                            }
-                        } else {
-                            // No HTTP tunnel, use SFTP
-                            thumbnail = try await generateImageThumbnailViaSFTP(for: path, server: server)
-                        }
+                        // Use dd command over SSH for image thumbnails
+                        thumbnail = try await generateImageThumbnailViaDd(for: path, server: server)
                     } else if fileType == .video {
                         if server.ffThumb {
                             // Use server-side FFmpeg thumbnailing if enabled
@@ -226,67 +210,62 @@ public class ThumbnailManager: NSObject {
     }
     
     // MARK: - Image Thumbnail Generation
-    
-    // New method for HTTP-based image thumbnail generation
-    private func generateImageThumbnailViaHTTP(for path: String, server: ServerEntity, tunnel: SSHTunnelManager) async throws -> Image {
-        // Create HTTP URL
-        guard let httpURL = try await HttpStreamingManager.shared.createStreamingURL(
-            for: path,
-            server: server,
-            localPort: tunnel.localPort
-        ) else {
-            throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create HTTP URL"])
+
+    // Download image thumbnails using the improved downloadFile method
+    private func generateImageThumbnailViaDd(for path: String, server: ServerEntity) async throws -> Image {
+        // Get credentials
+        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        guard let username = server.sftpUser,
+              let password = keychain["sftpPassword" + (server.name ?? "")],
+              let hostname = server.sftpHost else {
+            throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing credentials"])
         }
         
-        print("Downloading image thumbnail via HTTP: \(httpURL)")
-        
-        // Download image data
-        let (data, response) = try await urlSession.data(from: httpURL)
-        
-        // Verify valid HTTP response
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            throw NSError(domain: "ThumbnailManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "HTTP error"])
-        }
-        
-        // Create image from data
-        guard let uiImage = UIImage(data: data) else {
-            throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to load image data"])
-        }
-        
-        // Cache and process
-        memoryCache.setObject(uiImage, forKey: path as NSString)
-        let thumb = processThumbnail(uiImage: uiImage, isVideo: false)
-        try? saveToCache(image: uiImage, for: path)
-        
-        return thumb
-    }
-    
-    // Original SFTP image thumbnail method (kept as fallback)
-    private func generateImageThumbnailViaSFTP(for path: String, server: ServerEntity) async throws -> Image {
-        // Get the connection manager for this server
-        let connectionManager = getConnectionManager(for: server)
-        
-        // Ensure connection is established
-        try await connectionManager.connect()
-        
-        // Create a temporary file for downloading
+        // Create a temporary file for storing the image data
         let tempDir = FileManager.default.temporaryDirectory
         let tempURL = tempDir.appendingPathComponent(UUID().uuidString + ".img")
+        
+        // Create the directory if needed
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
+        
+        // Create an empty file to ensure it exists
+        FileManager.default.createFile(atPath: tempURL.path, contents: nil)
         
         // Clean up temp file when done
         defer {
             try? FileManager.default.removeItem(at: tempURL)
         }
         
-        // Download the file with a progress handler that always returns true to continue
-        let progressHandler: (Double) -> Bool = { _ in return true }
-        try await connectionManager.downloadFile(remotePath: path, localURL: tempURL, progress: progressHandler)
+        // Create SSH connection
+        let connection = SSHConnection(
+            host: hostname,
+            port: Int(server.sftpPort),
+            username: username,
+            password: password
+        )
         
-        // Load the image data
+        // Clean up when done
+        defer {
+            Task {
+                await connection.disconnect()
+            }
+        }
+        
+        // Use our improved downloadFile method to get the image
+        var downloadProgress: Double = 0
+        try await connection.downloadFile(remotePath: path, localURL: tempURL) { progress in
+            downloadProgress = progress
+        }
+        
+        // Load the image from the downloaded file
         guard let imageData = try? Data(contentsOf: tempURL),
               let uiImage = UIImage(data: imageData) else {
             throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to load image data"])
+        }
+        
+        // Check if the image is valid (not empty)
+        if isEmptyImage(uiImage) {
+            throw NSError(domain: "ThumbnailManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "Empty or invalid image"])
         }
         
         // Cache the image for future use
@@ -296,11 +275,10 @@ public class ThumbnailManager: NSObject {
         try? saveToCache(image: uiImage, for: path)
         return thumb
     }
-    
+
     // MARK: - Video thumbs via FFmpeg (server-side)
-    
     private func generateFFmpegThumbnail(for path: String, server: ServerEntity) async throws -> Image {
-        // Using SSH commands directly for FFmpeg thumbnail generation
+        // Get credentials
         let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
         guard let username = server.sftpUser,
               let password = keychain["sftpPassword" + (server.name ?? "")],
@@ -308,60 +286,90 @@ public class ThumbnailManager: NSObject {
             throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing credentials"])
         }
         
-        // Create SSH client
-        let client = try await SSHClient.connect(
+        // Create SSH connection
+        let connection = SSHConnection(
             host: hostname,
             port: Int(server.sftpPort),
-            authenticationMethod: .passwordBased(username: username, password: password),
-            hostKeyValidator: .acceptAnything(),
-            reconnect: .never
+            username: username,
+            password: password
         )
         
         // Clean up when done
         defer {
             Task {
-                try? await client.close()
+                await connection.disconnect()
             }
         }
         
-        // Generate a unique temp filename
-        let tempThumbPath = "/tmp/thumb_\(UUID().uuidString).jpg"
+        // Generate a unique temp filename on the remote server
+        let remoteTempThumbPath = "/tmp/thumb_\(UUID().uuidString).jpg"
+        
+        // Create a temporary file locally for the downloaded thumbnail
+        let tempDir = FileManager.default.temporaryDirectory
+        let localTempURL = tempDir.appendingPathComponent(UUID().uuidString + ".jpg")
+        
+        // Create the directory if needed
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
+        
+        // Create an empty file to ensure it exists
+        FileManager.default.createFile(atPath: localTempURL.path, contents: nil)
+        
+        // Clean up local temp file when done
+        defer {
+            try? FileManager.default.removeItem(at: localTempURL)
+        }
         
         // Escape single quotes in paths
         let escapedPath = "'\(path.replacingOccurrences(of: "'", with: "'\\''"))'"
-        let escapedThumbPath = "'\(tempThumbPath.replacingOccurrences(of: "'", with: "'\\''"))'"
+        let escapedThumbPath = "'\(remoteTempThumbPath.replacingOccurrences(of: "'", with: "'\\''"))'"
         
         let timestamps = ["00:00:06.000","00:00:02.000", "00:00:00.000"]
         
         for timestamp in timestamps {
-            // Execute ffmpeg command with current timestamp and check its exit status
-            let ffmpegCmd = "ffmpeg -y -i \(escapedPath) -ss \(timestamp) -vframes 1 \(escapedThumbPath) 2>/dev/null; echo $?"
-            let exitCodeBuffer = try await client.executeCommand(ffmpegCmd)
-            let exitCode = Int32(String(buffer: exitCodeBuffer).trimmingCharacters(in: .whitespacesAndNewlines)) ?? 1
+            // Execute ffmpeg command with current timestamp
+            let ffmpegCmd = "ffmpeg -y -i \(escapedPath) -ss \(timestamp) -vframes 1 \(escapedThumbPath) 2>/dev/null || echo $?"
+            _ = try await connection.executeCommand(ffmpegCmd)
             
-            if exitCode == 0 {
-                // FFmpeg succeeded, try to read the file
-                let catCmd = "cat \(escapedThumbPath)"
-                let imageBuffer = try await client.executeCommand(catCmd)
-                
-                // Clean up temp file regardless of success
-                let cleanupCmd = "rm -f \(escapedThumbPath)"
-                _ = try? await client.executeCommand(cleanupCmd)
-                
-                // Convert buffer to UIImage
-                if let uiImage = UIImage(data: Data(buffer: imageBuffer)) {
+            // Check if the file was created
+            let testCmd = "[ -f \(escapedThumbPath) ] && echo 'success' || echo 'failed'"
+            let (_, testOutput) = try await connection.executeCommand(testCmd)
+            let testResult = testOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if testResult == "success" {
+                do {
+                    // Use our improved downloadFile method to get the thumbnail
+                    try await connection.downloadFile(remotePath: remoteTempThumbPath, localURL: localTempURL) { _ in }
+                    
+                    // Clean up remote temp file
+                    let cleanupCmd = "rm -f \(escapedThumbPath)"
+                    try? await connection.executeCommand(cleanupCmd)
+                    
+                    // Load the image from the downloaded file
+                    guard let imageData = try? Data(contentsOf: localTempURL),
+                          let uiImage = UIImage(data: imageData) else {
+                        continue // Try next timestamp if this one failed
+                    }
+                    
+                    // Check if the image is valid (not empty/black)
+                    if isEmptyImage(uiImage) {
+                        continue // Try next timestamp if this one is empty
+                    }
+                    
                     // Cache the image
                     memoryCache.setObject(uiImage, forKey: path as NSString)
                     
                     let thumb = processThumbnail(uiImage: uiImage, isVideo: true)
                     try? saveToCache(image: uiImage, for: path)
                     return thumb
+                } catch {
+                    print("Error downloading FFmpeg thumbnail: \(error)")
+                    // Continue to next timestamp if download failed
                 }
             }
             
             // Clean up if this attempt failed
             let cleanupCmd = "rm -f \(escapedThumbPath)"
-            _ = try? await client.executeCommand(cleanupCmd)
+            try? await connection.executeCommand(cleanupCmd)
         }
         
         throw NSError(domain: "ThumbnailManager", code: -3,
@@ -553,17 +561,31 @@ public class ThumbnailManager: NSObject {
         visiblePaths.removeAll()
         visiblePathsLock.unlock()
         
-        // Close all connection managers
+        // Close all connection managers (kept for backward compatibility)
         connectionManagersLock.lock()
         let managers = connectionManagers.values
         connectionManagers.removeAll()
         connectionManagersLock.unlock()
         
-        // Close each manager without capturing self
+        // Close all SSH clients
+        sshClientsLock.lock()
+        let clients = sshClients.values
+        sshClients.removeAll()
+        sshClientsLock.unlock()
+        
+        // Close each SFTP manager without capturing self
         for manager in managers {
             let weakManager = manager
             Task {
                 await weakManager.disconnect()
+            }
+        }
+        
+        // Close each SSH client without capturing self
+        for client in clients {
+            let weakClient = client
+            Task {
+                try? await weakClient.close()
             }
         }
         
@@ -578,11 +600,25 @@ public class ThumbnailManager: NSObject {
         connectionManagers.removeAll()
         connectionManagersLock.unlock()
         
+        // Clean up SSH clients
+        sshClientsLock.lock()
+        let clients = sshClients.values
+        sshClients.removeAll()
+        sshClientsLock.unlock()
+        
         // Note: We're not awaiting these disconnects since this is deinit
         for manager in managers {
             let weakManager = manager
             Task {
                 await weakManager.disconnect()
+            }
+        }
+        
+        // Close SSH clients
+        for client in clients {
+            let weakClient = client
+            Task {
+                try? await weakClient.close()
             }
         }
     }

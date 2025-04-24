@@ -29,6 +29,7 @@ struct Throttle_2App: App {
     @ObservedObject var presenting = Presenting()
     @ObservedObject var filter = TorrentFilters()
     @ObservedObject var store = Store()
+  //  @StateObject var proxyServer = SSHProxyServer.shared
     @StateObject var networkMonitor = NetworkMonitor()
     @State var isBackground: Timer?
     @State var tunnelClosed = false
@@ -36,6 +37,7 @@ struct Throttle_2App: App {
     @AppStorage("canAirplay") var canAirplay = false
 
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        .synchronizable(true)
 #if os(iOS)
     init() {
             // Initialize external display manager at app startup
@@ -116,7 +118,7 @@ struct Throttle_2App: App {
                                 DispatchQueue.main.async{
 //                                    //TunnelManagerHolder.shared.tearDownAllTunnels()
                                     manager.stopPeriodicUpdates()
-                                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                                    //TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
                                     tunnelClosed = true
                                     print("Background - stopping queue")
                                 }

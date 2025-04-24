@@ -1,15 +1,13 @@
 import Foundation
 import Citadel
-import NIOCore
-import NIOPosix
-import KeychainAccess
-//import mft
-import NIOEmbedded
+import NIO
 import NIOSSH
+import KeychainAccess
 
 enum SSHTunnelError: Error {
     case missingCredentials
     case connectionFailed(Error)
+    case tunnelEstablishmentFailed(Error)
     case portForwardingFailed(Error)
     case localProxyFailed(Error)
     case reconnectFailed(Error)
@@ -18,448 +16,360 @@ enum SSHTunnelError: Error {
     case tunnelNotConnected
 }
 
+/// Manages SSH tunnels for port forwarding
 class TunnelManagerHolder {
     static let shared = TunnelManagerHolder()
-
-    // Use a custom identifier for each tunnel instead of server name
-    var activeTunnels: [String: SSHTunnelManager] = [:]
+    private var activeTunnels: [String: SSHTunnelManager] = [:]
+    private let tunnelLock = NSLock()
 
     private init() {}
-
-    // Store a tunnel with a custom identifier
+    
+    /// Store a tunnel with a custom identifier
     func storeTunnel(_ tunnel: SSHTunnelManager, withIdentifier identifier: String) {
+        tunnelLock.lock()
+        defer { tunnelLock.unlock() }
         activeTunnels[identifier] = tunnel
     }
-
-
-    // Get a tunnel by its identifier
+    
+    /// Get a tunnel by its identifier
     func getTunnel(withIdentifier identifier: String) -> SSHTunnelManager? {
+        tunnelLock.lock()
+        defer { tunnelLock.unlock() }
         return activeTunnels[identifier]
     }
-
-    // Remove a tunnel by its identifier
+    
+    /// Remove a tunnel by its identifier
     func removeTunnel(withIdentifier identifier: String) {
-        if let tunnel = activeTunnels[identifier] {
+        tunnelLock.lock()
+        let tunnel = activeTunnels[identifier]
+        tunnelLock.unlock()
+        
+        if let tunnel = tunnel {
             tunnel.stop()
+            
+            tunnelLock.lock()
             activeTunnels.removeValue(forKey: identifier)
+            tunnelLock.unlock()
         }
     }
     
-    // Method to tear down all tunnels
+    /// Tear down all tunnels
     func tearDownAllTunnels() {
         print("TunnelManagerHolder: Tearing down all tunnels")
-
-        for (identifier, tunnel) in activeTunnels {
-            print("TunnelManagerHolder: Stopping tunnel with identifier: \(identifier)")
+        
+        tunnelLock.lock()
+        let tunnels = activeTunnels.values
+        activeTunnels.removeAll()
+        tunnelLock.unlock()
+        
+        for tunnel in tunnels {
             tunnel.stop()
         }
-
-        activeTunnels.removeAll()
+        
         print("TunnelManagerHolder: All tunnels have been torn down")
     }
 }
 
+/// A simple class that manages an SSH tunnel for port forwarding
 class SSHTunnelManager {
+    // SSH client connection
     private var client: SSHClient?
-    private let group: MultiThreadedEventLoopGroup
+    
+    // Server channel that listens on local port
+    private var serverChannel: Channel?
+    
+    // Configuration
     var localPort: Int
-    private var remoteHost: String
-    var remotePort: Int
-    private var server: ServerEntity
-    private var isConnected: Bool = false
-    private var localChannel: Channel?
-    private var healthCheckTimer: Timer?
-    private var healthCheckTask: Task<Void, Never>?
-    private var connectionTask: Task<Void, Error>?
-
+    private let remoteHost: String
+    private let remotePort: Int
+    private let server: ServerEntity
+    
+    // Other state
+    private var isStarted = false
+    private let tunnelLock = NSLock()
+    private var activeConnections = [ObjectIdentifier: Channel]()
+    private let connectionLock = NSLock()
+    
+    /// Initialize the tunnel manager
+    /// - Parameters:
+    ///   - server: Server configuration entity
+    ///   - localPort: Local port to listen on
+    ///   - remoteHost: Remote host to connect to (as seen from the SSH server)
+    ///   - remotePort: Remote port to connect to
     init(server: ServerEntity, localPort: Int, remoteHost: String, remotePort: Int) throws {
         print("SSHTunnelManager: Initializing tunnel")
-        self.group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        
+        // Validate server configuration
+        guard let sftpHost = server.sftpHost,
+              server.sftpPort != 0,
+              let sftpUser = server.sftpUser,
+              !sftpHost.isEmpty,
+              !sftpUser.isEmpty else {
+            throw SSHTunnelError.invalidServerConfiguration
+        }
+        
         self.server = server
         self.localPort = localPort
         self.remoteHost = remoteHost
         self.remotePort = remotePort
-
-        guard server.sftpHost != nil,
-              server.sftpPort != 0,
-              server.sftpUser != nil else {
-            throw SSHTunnelError.invalidServerConfiguration
-        }
     }
-
+    
     deinit {
         print("SSHTunnelManager: Deinitializing")
-
-        // Cancel any ongoing tasks
-        connectionTask?.cancel()
-        connectionTask = nil
-
-        // Clean up channels and connections
         stop()
-
-        // Shutdown the event loop group
-        try? group.syncShutdownGracefully()
     }
-
+    
+    /// Start the SSH tunnel
     func start() async throws {
-        print("SSHTunnelManager: Starting tunnel")
-
-        // Cancel any existing task first
-        connectionTask?.cancel()
-
-        // Create a new task for the connection
-        connectionTask = Task { [weak self] in
-            guard let self = self else {
-                throw SSHTunnelError.connectionFailed(NSError(domain: "SSHTunnelManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Self was deallocated"]))
-            }
-
-            try await self.connect()
-            try await self.startBasicProxy()
-
-            // Keep this task alive until cancelled to prevent premature deallocation
-            do {
-                    try await withTaskCancellationHandler {
-                        try await Task.sleep(nanoseconds: UInt64.max)
-                    } onCancel: {
-                        Task { [weak self] in
-                            self?.stop()
-                        }
-                    }
-                } catch {
-                    if error is CancellationError {
-                        print("Connection task cancelled normally")
-                    } else {
-                        throw error
-                    }
-                }
+        tunnelLock.lock()
+        
+        // Check if the tunnel is already running
+        guard !isStarted else {
+            tunnelLock.unlock()
+            print("Tunnel already started")
+            throw SSHTunnelError.tunnelAlreadyConnected
         }
-
-        // Wait for the connection to be established
-        try await connectionTask?.value
+        
+        // Mark as started and unlock to avoid deadlocks in subsequent operations
+        isStarted = true
+        tunnelLock.unlock()
+        
+        do {
+            // 1. Establish SSH connection
+            try await connectSSH()
+            
+            // 2. Setup local listening server
+            try await setupLocalServer()
+            
+            print("SSH Tunnel established: localhost:\(localPort) -> \(remoteHost):\(remotePort)")
+        } catch let error as SSHTunnelError {
+            // Propagate specific SSH tunnel errors
+            tunnelLock.lock()
+            isStarted = false
+            tunnelLock.unlock()
+            
+            stop()
+            throw error
+        } catch {
+            // Wrap other errors as connection failures
+            tunnelLock.lock()
+            isStarted = false
+            tunnelLock.unlock()
+            
+            stop()
+            throw SSHTunnelError.connectionFailed(error)
+        }
     }
-
-    private func connect() async throws {
-        guard let password = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")["sftpPassword" + (server.name ?? "")] else {
+    
+    /// Connect to the SSH server
+    private func connectSSH() async throws {
+        // Get credentials from keychain
+        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
             throw SSHTunnelError.missingCredentials
         }
-
-        client = try await SSHClient.connect(
-            host: server.sftpHost!,
-            port: Int(server.sftpPort),
-            authenticationMethod: .passwordBased(username: server.sftpUser!, password: password),
-            hostKeyValidator: .acceptAnything(),
-            reconnect: .always
-        )
-        isConnected = true
-        print("SSH Tunnel connected to \(server.sftpHost!):\(server.sftpPort)")
+        
+        do {
+            // Create SSH connection with password authentication
+            client = try await SSHClient.connect(
+                host: server.sftpHost!,
+                port: Int(server.sftpPort),
+                authenticationMethod: .passwordBased(username: server.sftpUser!, password: password),
+                hostKeyValidator: .acceptAnything(),
+                reconnect: .always
+            )
+            
+            print("SSH connection established to \(server.sftpHost!):\(server.sftpPort)")
+        } catch let error as NIOSSHError {
+            print("SSH connection failed: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
+        } catch let error as ChannelError where error == ChannelError.connectTimeout(.seconds(30)) {
+            print("SSH connection timed out: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
+        } catch {
+            print("SSH connection failed with unexpected error: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
+        }
     }
-
-    private func startBasicProxy() async throws {
+    
+    /// Create a local server that listens for connections and forwards them through the SSH tunnel
+    private func setupLocalServer() async throws {
         guard let client = client else {
             throw SSHTunnelError.tunnelNotConnected
         }
-
-        // Create a shared context for the tunnels
-        let tunnelContext = BasicTunnelContext(
-            sshClient: client,
-            remoteHost: remoteHost,
-            remotePort: remotePort
-        )
-
-        let bootstrap = ServerBootstrap(group: group)
-            .serverChannelOption(ChannelOptions.backlog, value: 512)
-            .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-            .childChannelInitializer { channel in
-                let handler = BasicTunnelHandler(context: tunnelContext)
-                return channel.pipeline.addHandler(handler)
-            }
-            .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-
-        self.localChannel = try await bootstrap.bind(host: "127.0.0.1", port: localPort).get()
-        print("Local HTTP proxy listening on port \(localPort)")
-    }
-
-
-    // Modified stop() method
-    func stop() {
-        print("SSHTunnelManager: Stopping tunnel")
-        if let localChannel = localChannel {
-            localChannel.pipeline.handler(type: BasicTunnelHandler.self).whenSuccess { handler in
-              //  (handler as? BasicTunnelHandler)?.cancelDownload()
-            }
-        }
-        isConnected = false
-
-        // Cancel the connection task
-        connectionTask?.cancel()
-        connectionTask = nil
-
-        // Take a snapshot of the channel before clearing
-        let channelToClose = localChannel
-        localChannel = nil
-
-        // Close the local channel on its own event loop
-        if let channel = channelToClose {
-            channel.eventLoop.scheduleTask(in: .milliseconds(50)) {
-                // Use a promise to ensure the close completes
-                let promise = channel.eventLoop.makePromise(of: Void.self)
-                channel.close(promise: promise)
-
-                // Log when the close completes
-                promise.futureResult.whenComplete { result in
-                    switch result {
-                    case .success:
-                        print("Local channel closed successfully")
-                    case .failure(let error):
-                        print("Local channel close error: \(error)")
-                    }
-                }
-            }
-        }
-
-        // Take a snapshot of the client before clearing
-        let clientToClose = client
-        client = nil
-
-        // Close the SSH client if it exists
-        if let client = clientToClose {
-            Task {
-                do {
-                    try await client.close()
-                    print("SSH client closed successfully")
-                } catch {
-                    print("SSH client close error: \(error)")
-                }
-            }
-        }
-    }
-}
-
-// A shared context to hold tunnel information
-class BasicTunnelContext {
-    let sshClient: SSHClient
-    let remoteHost: String
-    let remotePort: Int
-
-    init(sshClient: SSHClient, remoteHost: String, remotePort: Int) {
-        self.sshClient = sshClient
-        self.remoteHost = remoteHost
-        self.remotePort = remotePort
-    }
-}
-
-
-
-// Handler for SSH channel outbound data
-class BasicOutboundHandler: ChannelInboundHandler {
-    typealias InboundIn = ByteBuffer
-    typealias OutboundOut = ByteBuffer
-
-    func channelActive(context: ChannelHandlerContext) {
-        print("BasicOutbound: Channel active")
-    }
-
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        //print("BasicOutbound: Received data from remote")
-
-        // Just pass through the data
-     
-            context.fireChannelRead(data)
         
-    }
-}
-
-// Basic relay handler that just forwards data between channels
-class BasicRelayHandler: ChannelInboundHandler, RemovableChannelHandler {
-    typealias InboundIn = ByteBuffer
-    typealias OutboundOut = ByteBuffer
-
-    // Use weak reference to avoid circular dependencies
-    private var targetChannel: Channel?
-    private var channelContext: ChannelHandlerContext?
-    private var isClosing = false
-    private var relayLock = NSLock()
-    func channelActive(context: ChannelHandlerContext) {
-        self.channelContext = context
-        print("BasicRelay: Channel active")
-        context.fireChannelActive()
-    }
-
-    init(targetChannel: Channel) {
-        self.targetChannel = targetChannel
-    }
-    
-    
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        relayLock.lock()
-        defer { relayLock.unlock() }
-        
-        guard !isClosing,
-              let targetChannel = targetChannel,
-              targetChannel.isActive else {
-            return
-        }
-        
-        let buffer = self.unwrapInboundIn(data)
-        targetChannel.write(buffer, promise: nil)
-    }
-    
-    
-
-    func channelReadComplete(context: ChannelHandlerContext) {
-        relayLock.lock()
-        defer { relayLock.unlock() }
-        // Only flush if we're not closing and target channel is active
-        guard !isClosing, let targetChannel = targetChannel, targetChannel.isActive else { return }
         do {
-            targetChannel.flush()
-        }
-    }
-}
-
-class BasicTunnelHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
-    typealias InboundIn = ByteBuffer
-    typealias OutboundOut = ByteBuffer
-    
-    private let context: BasicTunnelContext
-    private weak var channelContext: ChannelHandlerContext?
-    private var remoteChannel: Channel?
-    private var pendingData: [ByteBuffer] = []
-    private var remoteConnected = false
-    private var connectionTask: Task<Void, Error>?
-    private var isShuttingDown = false
-    private let tunnelLock = NSLock()
-    
-    init(context: BasicTunnelContext) {
-        self.context = context
-    }
-    
-    deinit {
-        print("BasicTunnelHandler: Deinitializing")
-        initiateGracefulShutdown()
-    }
-    
-    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
-        if event is ChannelEvent, isShuttingDown {
-            return
-        }
-        context.fireUserInboundEventTriggered(event)
-    }
-
-    func channelActive(context: ChannelHandlerContext) {
-        print("BasicTunnel: Local connection established")
-        self.channelContext = context
-        
-        weak var weakSelf = self
-        weak var weakLocalChannel = context.channel
-        
-        connectionTask?.cancel()
-        
-        connectionTask = Task {
-            guard let self = weakSelf, let localChannel = weakLocalChannel else {
-                throw NSError(domain: "BasicTunnelHandler", code: -1, userInfo: [NSLocalizedDescriptionKey: "Handler or channel was deallocated"])
-            }
-            
-            do {
-                let originAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 0)
-                
-                let settings = SSHChannelType.DirectTCPIP(
-                    targetHost: self.context.remoteHost,
-                    targetPort: self.context.remotePort,
-                    originatorAddress: originAddress
-                )
-                
-                let remoteChannel = try await self.context.sshClient.createDirectTCPIPChannel(
-                    using: settings
-                ) { channel in
-                    let handler = BasicOutboundHandler()
-                    return channel.pipeline.addHandler(handler)
-                }
-                
-                self.remoteChannel = remoteChannel
-                
-                try await self.setupDataRelay(localChannel: localChannel, remoteChannel: remoteChannel)
-                
-                print("BasicTunnel: Remote connection established")
-                
-                // Process pending data on remote channel's event loop
-                remoteChannel.eventLoop.execute {
-                    self.remoteConnected = true
-                    if remoteChannel.isActive {
-                        for buffer in self.pendingData {
-                            remoteChannel.writeAndFlush(buffer, promise: nil)
-                        }
-                        self.pendingData.removeAll()
-                    } else {
-                        print("BasicTunnelHandler: Remote channel is not active. Skipping pending data.")
+            // Create a server bootstrap
+            let bootstrap = ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
+                .serverChannelOption(ChannelOptions.backlog, value: 256)
+                .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+                .childChannelInitializer { [weak self] channel in
+                    guard let self = self else {
+                        return channel.eventLoop.makeFailedFuture(SSHTunnelError.tunnelNotConnected)
                     }
+                    
+                    // Track this connection
+                    self.addActiveConnection(channel)
+                    
+                    // When this channel closes, remove it from tracking
+                    channel.closeFuture.whenComplete { [weak self] _ in
+                        self?.removeActiveConnection(channel)
+                    }
+                    
+                    // Create a task to handle this connection through the SSH tunnel
+                    let promise = channel.eventLoop.makePromise(of: Void.self)
+                    
+                    // Start an async task to handle the tunnel creation
+                    Task {
+                        do {
+                            // Set up a socket address to use for origin information
+                            let originAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 0)
+                            
+                            // Configure the DirectTCPIP settings (this is what creates the tunnel)
+                            let directTCPIPSettings = NIOSSH.SSHChannelType.DirectTCPIP(
+                                targetHost: self.remoteHost,
+                                targetPort: self.remotePort,
+                                originatorAddress: originAddress
+                            )
+                            
+                            // Create a tunnel channel through the SSH connection
+                            let sshChannel = try await client.createDirectTCPIPChannel(
+                                using: directTCPIPSettings
+                            ) { sshChannel in
+                                // No additional handlers needed, the channel automatically does the right thing
+                                return sshChannel.eventLoop.makeSucceededVoidFuture()
+                            }
+                            
+                            // Start forwarding data between the local connection and the SSH tunnel
+                            try await self.setupBidirectionalRelay(localChannel: channel, sshChannel: sshChannel)
+                            
+                            promise.succeed(())
+                        } catch {
+                            print("Failed to establish SSH tunnel connection: \(error)")
+                            try? await channel.close()
+                            
+                            // Map the error to our specific error type
+                            if error is NIOSSHError {
+                                promise.fail(SSHTunnelError.portForwardingFailed(error))
+                            } else if error is ChannelError {
+                                promise.fail(SSHTunnelError.localProxyFailed(error))
+                            } else {
+                                promise.fail(SSHTunnelError.tunnelEstablishmentFailed(error))
+                            }
+                        }
+                    }
+                    
+                    return promise.futureResult
                 }
-            } catch {
-                print("BasicTunnel: Failed to establish remote connection: \(error)")
-                weakLocalChannel?.close(mode: .all, promise: nil)
-            }
-        }
-    }
-    
-    private func setupDataRelay(localChannel: Channel, remoteChannel: Channel) async throws {
-        let promise = localChannel.eventLoop.makePromise(of: Void.self)
-        
-        remoteChannel.eventLoop.execute {
-            remoteChannel.pipeline.addHandler(
-                BasicRelayHandler(targetChannel: localChannel)
-            ).whenComplete { result in
-                switch result {
-                case .success:
-                    promise.succeed(())
-                case .failure(let error):
-                    promise.fail(error)
-                }
-            }
-        }
-        
-        try await promise.futureResult.get()
-    }
-    
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        tunnelLock.lock()
-        defer { tunnelLock.unlock() }
-        
-        guard !isShuttingDown else { return }
-        
-        let buffer = unwrapInboundIn(data)
-        
-        if let remoteChannel = self.remoteChannel,
-           remoteChannel.isActive,
-           self.remoteConnected {
-            remoteChannel.eventLoop.execute {
-                remoteChannel.writeAndFlush(buffer, promise: nil)
-            }
-        } else {
-            pendingData.append(buffer)
-        }
-    }
-    
-    func channelReadComplete(context: ChannelHandlerContext) {
-        // No need for explicit flush as we're using writeAndFlush
-    }
-    
-    private func initiateGracefulShutdown() {
-        tunnelLock.lock()
-        defer { tunnelLock.unlock() }
-        
-        guard !isShuttingDown else { return }
-        isShuttingDown = true
-        
-        channelContext?.eventLoop.execute {
-            self.connectionTask?.cancel()
-            self.pendingData.removeAll()
+                .childChannelOption(ChannelOptions.autoRead, value: true)
+                .childChannelOption(ChannelOptions.allowRemoteHalfClosure, value: true)
+                .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+                .childChannelOption(ChannelOptions.socketOption(.tcp_nodelay), value: 1)
             
-            if let remoteChannel = self.remoteChannel {
-                remoteChannel.close(promise: nil)
-            }
-            
-            self.channelContext?.close(promise: nil)
-            self.channelContext?.pipeline.removeHandler(self, promise: nil)
+            // Start the local server
+            serverChannel = try await bootstrap.bind(host: "127.0.0.1", port: localPort).get()
+            print("Local server listening on 127.0.0.1:\(localPort)")
+        } catch {
+            throw SSHTunnelError.localProxyFailed(error)
         }
+    }
+    
+    /// Set up relaying between the local connection and the SSH tunnel
+    private func setupBidirectionalRelay(localChannel: Channel, sshChannel: Channel) async throws {
+        do {
+            // Create a handler for local to SSH direction
+            let localToSSH = LocalToSSHRelayHandler(targetChannel: sshChannel)
+            let sshToLocal = SSHToLocalRelayHandler(targetChannel: localChannel)
+            
+            // Add the handlers to their respective channels
+            try await localChannel.pipeline.addHandler(localToSSH).get()
+            try await sshChannel.pipeline.addHandler(sshToLocal).get()
+        } catch {
+            // If we can't set up the relay, throw an appropriate error
+            print("Failed to set up bidirectional relay: \(error)")
+            throw SSHTunnelError.tunnelEstablishmentFailed(error)
+        }
+    }
+    
+    // Simple handlers to relay data between channels
+    private class LocalToSSHRelayHandler: ChannelInboundHandler {
+        typealias InboundIn = ByteBuffer
+        typealias OutboundOut = ByteBuffer
+        
+        private let targetChannel: Channel
+        
+        init(targetChannel: Channel) {
+            self.targetChannel = targetChannel
+        }
+        
+        func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+            let buffer = self.unwrapInboundIn(data)
+            targetChannel.writeAndFlush(buffer, promise: nil)
+        }
+    }
+    
+    private class SSHToLocalRelayHandler: ChannelInboundHandler {
+        typealias InboundIn = ByteBuffer
+        typealias OutboundOut = ByteBuffer
+        
+        private let targetChannel: Channel
+        
+        init(targetChannel: Channel) {
+            self.targetChannel = targetChannel
+        }
+        
+        func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+            let buffer = self.unwrapInboundIn(data)
+            targetChannel.writeAndFlush(buffer, promise: nil)
+        }
+    }
+    
+    /// Add a channel to the active connections tracking
+    private func addActiveConnection(_ channel: Channel) {
+        connectionLock.lock()
+        defer { connectionLock.unlock() }
+        activeConnections[ObjectIdentifier(channel)] = channel
+    }
+    
+    /// Remove a channel from the active connections tracking
+    private func removeActiveConnection(_ channel: Channel) {
+        connectionLock.lock()
+        defer { connectionLock.unlock() }
+        activeConnections.removeValue(forKey: ObjectIdentifier(channel))
+    }
+    
+    /// Stop the SSH tunnel
+    func stop() {
+        tunnelLock.lock()
+        isStarted = false
+        tunnelLock.unlock()
+        
+        print("SSHTunnelManager: Stopping tunnel")
+        
+        // Close all active connections
+        connectionLock.lock()
+        let connections = Array(activeConnections.values)
+        activeConnections.removeAll()
+        connectionLock.unlock()
+        
+        for connection in connections {
+            connection.close(promise: nil)
+        }
+        
+        // Close the local server
+        if let serverChannel = serverChannel {
+            serverChannel.close(promise: nil)
+            self.serverChannel = nil
+        }
+        
+        // Close the SSH client
+        if let client = client {
+            Task {
+                try? await client.close()
+            }
+            self.client = nil
+        }
+        
+        print("SSHTunnelManager: Tunnel stopped")
     }
 }

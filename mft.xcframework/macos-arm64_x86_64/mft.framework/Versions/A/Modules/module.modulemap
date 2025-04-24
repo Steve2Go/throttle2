@@ -1,0 +1,11 @@
+framework module mft {
+  umbrella header "mft.h"
+  export *
+
+  module * { export * }
+}
+
+module mft.Swift {
+  header "mft-Swift.h"
+  requires objc
+}

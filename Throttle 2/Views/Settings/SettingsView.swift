@@ -84,47 +84,8 @@ struct SettingsView: View {
                     description: "Show thumbnails in Torrent List when available",
                     control: Toggle("", isOn: $showThumbs)
                 )
-//                #if os(iOS)
-//                settingRow(
-//                    title: "Continue Playback",
-//                    description: "Offer to play the next video file after playback",
-//                    control: Toggle("", isOn: $usePlaylist)
-//                )
-//                if usePlaylist {
-//                    settingRow(
-//                        title: "Playback wait time",
-//                        description: "How long to play or cancel the next video file",
-//                        control: HStack {
-//                            Text("\(waitPlaylist) seconds")
-//                                .frame(minWidth: 80, alignment: .trailing)
-//                            Stepper("", value: $waitPlaylist, in: 1...60)
-//                        }
-//                    )
-//                }
-//#endif
-//                #if os(iOS)
-//                if isVLCInstalled() {
-//                    settingRow(
-//                        title: "Prefer VLC Player",
-//                        description: "Use VLC in preference to internal player",
-//                        control: Toggle("", isOn: $preferVLC)
-//                    )
-//                }
-//#endif
-                #if os(macOS)
-                settingRow(
-                    title: "Mount SFTP on Launch",
-                    description: "Mount SFTP on launch learn more here",
-                    control: Toggle("", isOn: $mountOnStart)
-                )
-               
-#else
-//            settingRow(
-//                title: primaryFiles ?  "Primary Action is Files" : "Primary Action is Details",
-//                    description: "Swtch between opening files and opening files as primaey action",
-//                    control: Toggle("", isOn: $primaryFiles)
-//                )
-                #endif
+     
+
             } header: {
                 Text("General")
             } footer: {
@@ -141,22 +102,7 @@ struct SettingsView: View {
                         Stepper("", value: $refreshRate, in: 1...60)
                     }
                 )
-//                #if os(macOS)
-//                settingRow(
-//                    title: "Use system generated thumbnails for all video",
-//                    description: "Reccomended if you have QL Video installed.",
-//                    control: Toggle("", isOn: $qlVideo)
-//                )
-////                VStack{
-////                    HStack{
-////                        Button("Get QL Video") {
-////                            openURL(URL(string:"https://github.com/Marginal/QLVideo/releases/latest")!)
-////                        }
-////                        Text("Enables video thumnails in Finder & improves Throttle thumbnails")
-////                    }
-////                    Text("Restart you Mac then clear cache below after installation.").font(.caption)
-////                }
-//#endif
+
                 
                     Button("Clear Cache"){
                         ThumbnailManager.shared.clearCache()

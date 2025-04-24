@@ -41,6 +41,8 @@ class VideoPlayerViewController: UIViewController {
         return view
     }()
     
+    
+    
     private lazy var gestureDetectionView: UIView = {
         let view = UIView()
         view.backgroundColor = .clear
@@ -511,11 +513,18 @@ class VideoPlayerViewController: UIViewController {
         let url = urls[currentIndex]
         print("Playing video at index \(currentIndex): \(url)")
         
+        // Create the VLC media with optimized options for HTTP streaming
         let media = VLCMedia(url: url)
         media.addOptions([
             "network-caching": 3000,
             "audio-track-auto-select": true,
-            ":sout-keep": true
+            ":sout-keep": true,
+            "http-reconnect": true,          // Add reconnection capability
+            "http-continuous": true,          // Continuous data reading
+            "rtsp-tcp": true,                // Force TCP for rtsp
+            "ipv4-timeout": 5000,            // 5 seconds for IPv4 timeout
+            "sub-track-auto-select": true,   // Auto-select subtitle track if available
+            "live-caching": 1000             // Reduce live caching for less latency
         ])
         
         mediaPlayer.media = media

@@ -190,6 +190,7 @@ struct ServerEditView: View {
     @State var installerView = false
 
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        .synchronizable(true)
     
     init(server: ServerEntity?, store: Store = .init(), onSave: ((ServerEntity) -> Void)? = nil, onDelete: ((ServerEntity) -> Void)? = nil) {
         self.server = server
