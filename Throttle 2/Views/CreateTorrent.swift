@@ -213,14 +213,6 @@ struct CreateTorrent: View {
             return
         }
         
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-        guard let username = store.selection?.sftpUser,
-              let password = keychain["sftpPassword" + (store.selection?.name ?? "")],
-              let hostname = store.selection?.sftpHost else {
-            isError = true
-            commandOutput += "\nError: Missing server credentials"
-            return
-        }
         
         // Create connection manager
         let connectionManager = SFTPConnectionManager(server: store.selection)
@@ -241,10 +233,7 @@ struct CreateTorrent: View {
         let escapedPath = filePath.replacingOccurrences(of: "'", with: "'\\''")
         
         // Create SSH connection
-        let ssh = SSHConnection(host: hostname,
-                              port: Int(store.selection!.sftpPort),
-                              username: username,
-                              password: password)
+        let ssh = SSHConnection(server: store.selection! )
         try await ssh.connect()
         
         // Upload the shell script to the server

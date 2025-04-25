@@ -22,8 +22,6 @@ struct iOSContentView: View {
     
     let isiPad = UIDevice.current.userInterfaceIdiom == .pad
     
-    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-    
     // Create a shared view builder for the TorrentListView with toolbar
     @ViewBuilder
     func torrentListWithToolbar() -> some View {

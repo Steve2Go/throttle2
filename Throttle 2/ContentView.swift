@@ -37,6 +37,7 @@ struct ContentView: View {
 #endif
     
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        .synchronizable(true)
     
     
     var body: some View {

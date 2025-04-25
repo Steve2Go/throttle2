@@ -2,6 +2,9 @@ import Foundation
 import SwiftUI
 import CoreData
 import KeychainAccess
+import Citadel
+import NIOSSH
+import NIO
 
 // Global server manager
 @MainActor
@@ -11,8 +14,36 @@ class ServerManager: ObservableObject {
     
     private init() {}
     
-    func connectToServer(_ server: ServerEntity) {
+    func connectSSH(_ server: ServerEntity)  async throws -> SSHClient {
+        var client: SSHClient?
+        @AppStorage("useCloudKit") var useCloudKit: Bool = true
+        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+        guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
+            throw SSHTunnelError.missingCredentials
+        }
         
+        do {
+            // Create SSH connection with password authentication
+            client = try await SSHClient.connect(
+                host: server.sftpHost!,
+                port: Int(server.sftpPort),
+                authenticationMethod: .passwordBased(username: server.sftpUser!, password: password),
+                hostKeyValidator: .acceptAnything(),
+                reconnect: .always
+            )
+            
+            print("SSH connection established to \(server.sftpHost!):\(server.sftpPort)")
+        } catch let error as NIOSSHError {
+            print("SSH connection failed: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
+        } catch let error as ChannelError where error == ChannelError.connectTimeout(.seconds(30)) {
+            print("SSH connection timed out: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
+        } catch {
+            print("SSH connection failed with unexpected error: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
+        }
+        return client!
     }
     
     func setServer(_ server: ServerEntity) {
@@ -33,7 +64,8 @@ func serverPath_to_url(_ path: String) -> String {
         return "" // fallback URL if server info missing
     }
     print("commence pass revial for server " + (server?.name ?? "Missing server name"))
-    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+    @AppStorage("useCloudKit") var useCloudKit: Bool = true
+    let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
     let password = keychain["httpPassword" + (server!.name ?? "")]
     print("pass retreived for server " + (server?.name ?? "Missing"))
     //handle password construction
@@ -68,7 +100,8 @@ func url_to_url(_ path: String) -> String {
           !urlPath.isEmpty else {
         return "" // fallback URL if server info missing
     }
-    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+    @AppStorage("useCloudKit") var useCloudKit: Bool = true
+    let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
     let password = keychain["httpPassword" + (server.name ?? "")]
     
     //handle password construction

@@ -116,9 +116,9 @@ struct Throttle_2App: App {
                         if scenePhase == .background {
                             isBackground = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
                                 DispatchQueue.main.async{
-//                                    //TunnelManagerHolder.shared.tearDownAllTunnels()
+                                    TunnelManagerHolder.shared.tearDownAllTunnels()
                                     manager.stopPeriodicUpdates()
-                                    //TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
                                     tunnelClosed = true
                                     print("Background - stopping queue")
                                 }

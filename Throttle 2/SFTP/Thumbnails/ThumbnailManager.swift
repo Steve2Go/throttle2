@@ -214,12 +214,7 @@ public class ThumbnailManager: NSObject {
     // Download image thumbnails using the improved downloadFile method
     private func generateImageThumbnailViaDd(for path: String, server: ServerEntity) async throws -> Image {
         // Get credentials
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-        guard let username = server.sftpUser,
-              let password = keychain["sftpPassword" + (server.name ?? "")],
-              let hostname = server.sftpHost else {
-            throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing credentials"])
-        }
+//
         
         // Create a temporary file for storing the image data
         let tempDir = FileManager.default.temporaryDirectory
@@ -237,12 +232,7 @@ public class ThumbnailManager: NSObject {
         }
         
         // Create SSH connection
-        let connection = SSHConnection(
-            host: hostname,
-            port: Int(server.sftpPort),
-            username: username,
-            password: password
-        )
+        let connection = SSHConnection(server: server)
         
         // Clean up when done
         defer {
@@ -278,21 +268,9 @@ public class ThumbnailManager: NSObject {
 
     // MARK: - Video thumbs via FFmpeg (server-side)
     private func generateFFmpegThumbnail(for path: String, server: ServerEntity) async throws -> Image {
-        // Get credentials
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-        guard let username = server.sftpUser,
-              let password = keychain["sftpPassword" + (server.name ?? "")],
-              let hostname = server.sftpHost else {
-            throw NSError(domain: "ThumbnailManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Missing credentials"])
-        }
-        
+
         // Create SSH connection
-        let connection = SSHConnection(
-            host: hostname,
-            port: Int(server.sftpPort),
-            username: username,
-            password: password
-        )
+        let connection = SSHConnection(server: server)
         
         // Clean up when done
         defer {

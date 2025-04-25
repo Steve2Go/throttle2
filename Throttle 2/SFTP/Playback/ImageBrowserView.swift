@@ -9,17 +9,11 @@ import KeychainAccess
 class RemoteImageLoader {
     private var downloadTask: Task<Data, Error>?
     private let url: URL
-    private let host: String
-    private let port: Int
-    private let username: String
-    private let password: String
+    private let server: ServerEntity
     
-    init(url: URL, host: String, port: Int, username: String, password: String) {
+    init(url: URL, server: ServerEntity) {
         self.url = url
-        self.host = host
-        self.port = port
-        self.username = username
-        self.password = password
+        self.server = server
     }
     
     func loadImage(progressHandler: ((Double) -> Void)? = nil) async throws -> Data {
@@ -46,12 +40,7 @@ class RemoteImageLoader {
             }
             
             // Create an SSH connection directly
-            let connection = SSHConnection(
-                host: host,
-                port: port,
-                username: username,
-                password: password
-            )
+            let connection = SSHConnection(server: server)
             
             // Use our improved downloadFile method to retrieve the image
             try await connection.downloadFile(remotePath: url.path, localURL: tempURL) { progress in
@@ -257,26 +246,11 @@ struct DDImageViewer: View {
         
         // Get connection details from the ServerManager
         let server = ServerManager.shared.selectedServer
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-        
-        // Properly unwrap optional values
-        guard let username = server?.sftpUser,
-              let serverName = server?.name,
-              let password = keychain["sftpPassword" + serverName],
-              let hostname = server?.sftpHost,
-              let port = server?.sftpPort else {
-            self.isLoading = false
-            self.errorMessage = "Missing connection credentials"
-            return
-        }
         
         // Create a new loader
         let imageLoader = RemoteImageLoader(
             url: url,
-            host: hostname,
-            port: Int(port),
-            username: username,
-            password: password
+            server: server!
         )
         loader = imageLoader
         
@@ -433,25 +407,14 @@ struct ExternalImageBrowserView: View {
         let task = Task {
             // Get server details
             let server = ServerManager.shared.selectedServer
-            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
             
-            guard let username = server?.sftpUser,
-                  let serverName = server?.name,
-                  let password = keychain["sftpPassword" + serverName],
-                  let hostname = server?.sftpHost,
-                  let port = server?.sftpPort else {
-                return
-            }
             
             do {
                 // Create loader for preloading
                 let url = imageUrls[index]
                 let imageLoader = RemoteImageLoader(
                     url: url,
-                    host: hostname,
-                    port: Int(port),
-                    username: username,
-                    password: password
+                    server: server!
                 )
                 
                 // Load the image data
@@ -563,27 +526,12 @@ struct EnhancedExternalDDImageViewer: View {
         
         // Get connection details from the ServerManager
         let server = ServerManager.shared.selectedServer
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-        
-        // Properly unwrap optional values
-        guard let username = server?.sftpUser,
-              let serverName = server?.name,
-              let password = keychain["sftpPassword" + serverName],
-              let hostname = server?.sftpHost,
-              let port = server?.sftpPort else {
-            self.isLoading = false
-            self.errorMessage = "Missing connection credentials"
-            sharedState.imageDidLoad() // Mark as loaded so slideshow can continue
-            return
-        }
+      
         
         // Create a new loader
         let imageLoader = RemoteImageLoader(
             url: url,
-            host: hostname,
-            port: Int(port),
-            username: username,
-            password: password
+            server: server!
         )
         loader = imageLoader
         

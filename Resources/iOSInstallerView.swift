@@ -168,24 +168,18 @@ struct DependencyInstallerView: View {
         isInstalling = true
         
         do {
-            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-            
-            guard let username = server.sftpUser,
-                  let password = keychain["sftpPassword" + (server.name ?? "")],
-                  let hostname = server.sftpHost else {
-                appendOutput("Error: Missing server credentials")
+            @AppStorage("useCloudKit") var useCloudKit: Bool = true
+            let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+   
+            guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
+                appendOutput("Error: Missing server Password")
                 return
             }
             
             // Connect to server
-            appendOutput("Connecting to server \(hostname)...")
-            let client = try await SSHClient.connect(
-                host: hostname,
-                port: Int(server.sftpPort),
-                authenticationMethod: .passwordBased(username: username, password: password),
-                hostKeyValidator: .acceptAnything(),
-                reconnect: .never
-            )
+            appendOutput("Connecting to server \(server.sftpHost!)...")
+            let client = try await ServerManager.shared.connectSSH(server)
+            // TODO: Move to sshcntection
             
             appendOutput("Connected successfully!")
             

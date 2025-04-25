@@ -28,7 +28,6 @@ class Store: NSObject, ObservableObject {
     @Published var connectTransmission = ""
     @Published var connectHttp = ""
     @AppStorage("selectedServerId") private var selectedServerId: String?
-    private let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
     //private var tunnelManager = SSHTunnelManager.shared
     
     @Published var selection: ServerEntity? {
@@ -128,7 +127,8 @@ class Store: NSObject, ObservableObject {
 
 // Helper function to get key information
 func getKeyAndPassphrase(for server: ServerEntity) -> (keyPath: String, passphrase: String?)? {
-    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+    @AppStorage("useCloudKit") var useCloudKit: Bool = true
+    let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
     guard let storedPath = server.sshKeyFullPath,
           let filename = server.sshKeyFilename else { return nil }
     
@@ -136,6 +136,7 @@ func getKeyAndPassphrase(for server: ServerEntity) -> (keyPath: String, passphra
     if FileManager.default.fileExists(atPath: storedPath) {
         #if os(macOS)
         let sshKeychain = Keychain(service: "com.apple.ssh.passphrases")
+            .synchronizable(true)
         let passphrase = try? sshKeychain.get(storedPath)
         #else
         let passphrase = try? keychain.get("passphrase-$filename)")
@@ -162,7 +163,8 @@ func getKeyAndPassphrase(for server: ServerEntity) -> (keyPath: String, passphra
         server.sshKeyFullPath = alternatePath
         
         #if os(macOS)
-        let sshKeychain = Keychain(service: "com.apple.ssh.passphrases")
+        @AppStorage("useCloudKit") var useCloudKit: Bool = true
+        let sshKeychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
         let passphrase = try? sshKeychain.get(alternatePath)
         #else
         let passphrase = try? keychain.get("passphrase-$filename)")
