@@ -11,6 +11,10 @@ class ServerManager: ObservableObject {
     
     private init() {}
     
+    func connectToServer(_ server: ServerEntity) {
+        
+    }
+    
     func setServer(_ server: ServerEntity) {
         selectedServer = server
         UserDefaults.standard.set(server.id?.uuidString, forKey: "selectedServer")
