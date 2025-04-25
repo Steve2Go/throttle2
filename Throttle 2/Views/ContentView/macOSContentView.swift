@@ -30,8 +30,8 @@ struct MacOSContentView: View {
     #if os(macOS)
     var mountManager = ServerMountManager()
 #endif
-    
-    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+
+    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true)
     
     var body: some View {
         NavigationSplitView(columnVisibility: $splitViewVisibility) {

@@ -2,6 +2,7 @@ import Foundation
 import Citadel
 import NIO
 import KeychainAccess
+import SwiftUI
 
 // This class manages SSH and SFTP connections using Citadel
 class SFTPConnectionManager {
@@ -43,7 +44,8 @@ class SFTPConnectionManager {
         useKey = server.sftpUsesKey
         
         // Get credentials from keychain
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        @AppStorage("useCloudKit") var useCloudKit: Bool = true
+        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
         
         if useKey {
             privateKey = keychain["sftpKey" + (server.name ?? "")] ?? ""

@@ -64,7 +64,6 @@
 		E7150E2E2D631D0A009C4217 /* Throttle 2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Throttle 2Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E7150E382D631D0A009C4217 /* Throttle 2UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Throttle 2UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = MobileVLCKit.xcframework; path = Pods/MobileVLCKit/MobileVLCKit.xcframework; sourceTree = "<group>"; };
-		E732C14A2DBA38E700D487F5 /* mft.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = mft.xcframework; sourceTree = "<group>"; };
 		E7BEDF612D6EF03300E72E6F /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
 		E7F968E72D89307700A19857 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		E7F96D8C2D8F611800A19857 /* QuickLookThumbnailing.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuickLookThumbnailing.framework; path = System/Library/Frameworks/QuickLookThumbnailing.framework; sourceTree = SDKROOT; };
@@ -231,7 +230,6 @@
 			isa = PBXGroup;
 			children = (
 				E706AFEF2D9993D6005825F4 /* Pods_Throttle_2.framework */,
-				E732C14A2DBA38E700D487F5 /* mft.xcframework */,
 				E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */,
 				E7BEDF612D6EF03300E72E6F /* UniformTypeIdentifiers.framework */,
 				2DA01AB29F5FBAAE606649AE /* Pods_Throttle_2.framework */,

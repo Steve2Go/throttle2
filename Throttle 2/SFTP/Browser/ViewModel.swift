@@ -412,7 +412,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
         }
         
         // Use existing code to open the selected video in VLC
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        @AppStorage("useCloudKit") var useCloudKit: Bool = true
+        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
         guard let username = server.sftpUser,
               let password = keychain["sftpPassword" + (server.name ?? "")],
               let hostname = server.sftpHost else {
@@ -457,7 +458,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
         }
         
         // Get credentials
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        @AppStorage("useCloudKit") var useCloudKit: Bool = true
+        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
         guard let username = server.sftpUser,
               let password = keychain["sftpPassword" + (server.name ?? "")],
               let hostname = server.sftpHost else {
@@ -473,7 +475,13 @@ class SFTPFileBrowserViewModel: ObservableObject {
         if videoItems.count == 1 {
             let path = item.url.path //.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
             print("Found Video \(path)")
-            let vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
+            var vlcUrl: URL!
+            //let vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
+            if server.sftpUsesKey == true {
+                vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@localhost:2222\(path)")!
+            } else {
+                vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
+            }
 //            let vlcUrl = URL(string: "http://localhost:\(localStreamPort)\(path)")!
             
             // Create and set the configuration
@@ -484,8 +492,12 @@ class SFTPFileBrowserViewModel: ObservableObject {
             for item in videoItems {
                 let path = item.url.path //.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
                 print("Found Video \(path)")
-                playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!)
-//                playlist.append(URL(string: "http://localhost:\(localStreamPort)\(path)")!)
+                //
+                if server.sftpUsesKey == true {
+                    playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@localhost:2222\(path)")!)
+                } else {
+                    playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!)
+                }
             }
             
             // Create and set the configuration

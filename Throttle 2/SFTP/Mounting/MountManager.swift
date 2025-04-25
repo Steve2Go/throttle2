@@ -180,6 +180,7 @@ class ServerMountManager: ObservableObject {
         let sshfsOptions = "password_stdin,ServerAliveInterval=30,ServerAliveCountMax=4,reconnect,auto_cache,kernel_cache,location=Throttle"
         
         let command = "echo \(password) | /usr/local/bin/sshfs \(user)@\(host):\(path) \(url) -o \(sshfsOptions)"
+        print("Fuse mounting with command: " + command)
         process.arguments = ["-c", command]
         
         // Setup termination handling
@@ -294,7 +295,7 @@ class ServerMountManager: ObservableObject {
         }
     }
     
-    func mountAllServers() {
+    func mountAllServers(_ servers: [ServerEntity]) {
         mountServers(servers)
     }
     

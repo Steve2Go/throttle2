@@ -61,6 +61,7 @@ struct ServersListView: View {
     @State private var showingAddServer = false
     @ObservedObject var presenting: Presenting
     @ObservedObject var store: Store
+    @AppStorage("useCloudKit") var useCloudKit: Bool = true
     
     var body: some View {
         VStack {
@@ -114,8 +115,7 @@ struct ServersListView: View {
     
     private func deleteServer(_ server: ServerEntity) {
         withAnimation {
-            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-                .synchronizable(true)
+            let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
             keychain["password" + (server.name ?? "")] = nil
             keychain["httpPassword" + (server.name ?? "")] = nil
             keychain["sftpPassword" + (server.name ?? "")] = nil
@@ -170,6 +170,7 @@ struct ServerEditView: View {
     @State private var sftpPort: String
     @State private var sftpUser: String
     @State private var sftpPassword: String
+    @State private var sftpPhrase: String
     @State private var sftpBrowse: Bool
     @State private var sftpRpc: Bool
     @State private var pathServer: String
@@ -181,6 +182,7 @@ struct ServerEditView: View {
     @State private var ffThumb: Bool
     @State private var thumbMax: String = "4"
     @State private var hasPython: Bool
+    @State private var videoDisabled : Bool
     
     // Updated SFTP Authentication
     @State private var sftpUsesKey: Bool
@@ -188,6 +190,7 @@ struct ServerEditView: View {
     @State private var showingSFTPKeyImporter: Bool = false
     @Environment(\.openURL) private var openURL
     @State var installerView = false
+    @AppStorage("useCloudKit") var useCloudKit: Bool = true
 
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
         .synchronizable(true)
@@ -223,8 +226,10 @@ struct ServerEditView: View {
         _sftpUsesKey = State(initialValue: server?.sftpUsesKey ?? false)
         ///Leaving a spare connection for the video player 
         _thumbMax = State(initialValue: String((Int(server?.thumbMax ?? 8) + 1)))
-        _sftpKey = State(initialValue: server?.sshKeyFullPath ?? "")
+        _sftpKey = State(initialValue: keychain["sftpKey" + (server?.name ?? "")] ?? "")
         _hasPython = State(initialValue: server?.hasPython ?? true)
+        _videoDisabled = State(initialValue: server?.videoDisabled ?? false)
+        _sftpPhrase = State(initialValue: keychain["sftpPhrase" + (server?.name ?? "")] ?? "")
     }
     
     var body: some View {
@@ -363,10 +368,11 @@ struct ServerEditView: View {
                                 .autocapitalization(.none)
                                 .autocorrectionDisabled()
                         }
+                        Toggle("Use SFTP Key", isOn: $sftpUsesKey)
                         
                         if sftpUsesKey {
                             HStack {
-                                Text("SFTP Key")
+                                Text("SSH Key")
                                 Spacer()
                                 Text(sftpKey.isEmpty ? "No key selected" : "Key selected")
                                     .foregroundColor(.secondary)
@@ -376,11 +382,19 @@ struct ServerEditView: View {
                                 .buttonStyle(.borderless)
                             }
                             HStack {
-                                Text("Pass Phrase")
+                                Text("Key Passphrase (optional)")
                                 Spacer()
-                                SecureField("Key pass phrase", text: $sftpPassword)
+                                SecureField("Key Passphrase", text: $sftpPhrase)
                                     .multilineTextAlignment(.trailing)
                             }
+                            HStack {
+                                Text("Password")
+                                Spacer()
+                                SecureField("User Password (Optional)", text: $sftpPassword)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            Text("Used for video operation. Only used over a tunnel secured by Key Authentication").font(.caption)
+                           //Toggle("Do not connect to SFTP for video streaming using a local password", isOn: $videoDisabled)
                         } else {
                             HStack {
                                 Text("Password")
@@ -411,7 +425,7 @@ struct ServerEditView: View {
                         TextField("SFTP Port", text: $sftpPort)
                         TextField("Server Path", text: $pathServer)
                         TextField("Username", text: $sftpUser)
-                        //Toggle("Use SFTP Key", isOn: $sftpUsesKey)
+                        Toggle("Use SFTP Key", isOn: $sftpUsesKey)
                         if sftpUsesKey {
                             HStack {
                                 Text(sftpKey.isEmpty ? "No SFTP key selected" : "SFTP key selected")
@@ -420,7 +434,16 @@ struct ServerEditView: View {
                                     showingSFTPKeyImporter = true
                                 }
                             }
-                            SecureField("Pass Phrase", text: $sftpPassword)
+                            HStack {
+                                SecureField("Key Passphrase", text: $sftpPhrase)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            HStack {
+                                SecureField("User Password", text: $sftpPassword)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            Text("Password is used for server side video operation by the iOS version of the app. Only used over a tunnel secured by Key Authentication.")
+                            //Toggle("Do not connect to SFTP for video streaming using a local password on iOS", isOn: $videoDisabled)
                         } else {
                             SecureField("Password", text: $sftpPassword)
                         }
@@ -446,7 +469,7 @@ struct ServerEditView: View {
             }
             .fileImporter(
                 isPresented: $showingSFTPKeyImporter,
-                allowedContentTypes: [UTType.plainText],
+                allowedContentTypes: [.item],
                 onCompletion: { result in
                     switch result {
                     case .success(let url):
@@ -491,89 +514,50 @@ struct ServerEditView: View {
         }
     }
     
+
     // MARK: - SSH Key Handling
     private func handleSSHKey(keyFileURL: URL) {
         do {
+            // Read the key content
             let keyContent = try String(contentsOf: keyFileURL)
             
-            // Generate a unique name for the key
-            let keyName = "throttle_\(sftpHost)_\(sftpUser)".replacingOccurrences(of: ".", with: "_")
+            // Store the full key content in the keychain with server name
+            keychain["sftpKey" + name] = keyContent
             
-            // Set up paths for both platforms
-            #if os(macOS)
-            let sshDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
-            #else
-            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            let sshDir = appSupport.appendingPathComponent("SSH")
-            #endif
+            // Store the passphrase if provided
+            if !sftpPhrase.isEmpty {
+                keychain["sftpPhrase" + name] = sftpPhrase
+            }
             
-            // Create SSH directory if it doesn't exist
-            try? FileManager.default.createDirectory(at: sshDir, withIntermediateDirectories: true)
+            // Set a flag indicating we're using a key - keep a reference to the file
+            // name but not the full path (since the actual content is in keychain)
+            let keyFileName = keyFileURL.lastPathComponent
+            //sftpKey = "key:" + keyFileName
+            sftpUsesKey = true
             
-            let keyPath = sshDir.appendingPathComponent(keyName)
-            
-            // Save the key
-            try keyContent.write(to: keyPath, atomically: true, encoding: .utf8)
-            
-            // Store both the filename and full path
-            sftpKey = keyPath.path
-            
-            #if os(macOS)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: keyPath.path)
-            updateSSHConfig(keyPath: keyPath.path)
-            #else
-            try FileManager.default.setAttributes([
-                FileAttributeKey.protectionKey: FileProtectionType.complete
-            ], ofItemAtPath: keyPath.path)
-            #endif
-            
+            print("SSH key saved to keychain: \(keyFileName)")
         } catch {
             print("Failed to process SSH key: \(error)")
         }
     }
-    
-    #if os(macOS)
-    private func updateSSHConfig(keyPath: String) {
-        let sshDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
-        let sshConfigPath = sshDir.appendingPathComponent("config").path
+
+    func saveToKeychain() {
+        keychain["password" + name] = password
         
-        var configContent = """
-        Host \(sftpHost)
-            HostName \(sftpHost)
-            User \(sftpUser)
-            Port \(sftpPort)
-            IdentityFile \(keyPath)
-            IdentitiesOnly yes
-        
-        """
-        
-        if FileManager.default.fileExists(atPath: sshConfigPath) {
-            if let existing = try? String(contentsOfFile: sshConfigPath) {
-                let lines = existing.components(separatedBy: .newlines)
-                var newConfig = [String]()
-                var skip = false
-                
-                for line in lines {
-                    if line.starts(with: "Host \(sftpHost)") {
-                        skip = true
-                        continue
-                    }
-                    if skip && line.starts(with: "Host ") {
-                        skip = false
-                    }
-                    if !skip {
-                        newConfig.append(line)
-                    }
-                }
-                
-                configContent = newConfig.joined(separator: "\n") + "\n" + configContent
+        if sftpUsesKey {
+            if !sftpPhrase.isEmpty {
+                keychain["sftpPhrase" + name] = sftpPhrase
             }
+            
+            if !sftpPassword.isEmpty {
+                keychain["sftpPassword" + name] = sftpPassword
+            }
+        } else {
+            keychain["sftpPassword" + name] = sftpPassword
         }
-        
-        try? configContent.write(toFile: sshConfigPath, atomically: true, encoding: .utf8)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: sshConfigPath)
     }
-    #endif
+    
+    
     
     func isWindowsFilePath(_ path: String) -> Bool {
         return path.contains(":") || path.contains("\\")
@@ -632,6 +616,7 @@ struct ServerEditView: View {
                 existingServer.protoHttps = protHttps
                 existingServer.thumbMax = Int32(Int(thumbMax)! - 1)
                 existingServer.hasPython = hasPython
+                existingServer.videoDisabled = videoDisabled
                 saveToKeychain()
                 store.selection = nil
                 store.selection = existingServer
@@ -662,6 +647,7 @@ struct ServerEditView: View {
                 newServer.sftpUsesKey = sftpUsesKey
                 newServer.thumbMax = Int32(Int(thumbMax)! - 1)
                 newServer.hasPython = hasPython
+                newServer.videoDisabled = videoDisabled
                 
                 saveToKeychain()
                 store.selection = nil
@@ -684,28 +670,19 @@ struct ServerEditView: View {
         }
     }
     
-    func saveToKeychain() {
-        keychain["password" + name] = password
-        
-        if sftpUsesKey {
-            if !sftpPassword.isEmpty {
-                #if os(macOS)
-                let sshKeychain = Keychain(service: "com.apple.ssh.passphrases")
-                try? sshKeychain.set(sftpPassword, key: sftpKey)
-                #else
-                let keyName = URL(fileURLWithPath: sftpKey).lastPathComponent
-                try? keychain.set(sftpPassword, key: "passphrase-\(keyName)")
-                #endif
-            }
-        } else {
-            keychain["sftpPassword" + name] = sftpPassword
-        }
+    func savePrivateKey(_ keyContent: String, for server: ServerEntity) throws {
+        try keychain.set(keyContent, key: "sftpKey" + (server.name ?? ""))
     }
+
+    func saveKeyPassphrase(_ passphrase: String, for server: ServerEntity) throws {
+        try keychain.set(passphrase, key: "sftpPhrase" + (server.name ?? ""))
+    }
+    
     
     private func deleteServer(_ server: ServerEntity) {
         withAnimation {
-            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-                .synchronizable(true)
+            @AppStorage("useCloudKit") var useCloudKit: Bool = true
+            let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
             keychain["password" + (server.name ?? "")] = nil
             keychain["httpPassword" + (server.name ?? "")] = nil
             keychain["sftpPassword" + (server.name ?? "")] = nil

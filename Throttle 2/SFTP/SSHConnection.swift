@@ -1,6 +1,20 @@
 import Foundation
 import Citadel
 import NIOCore
+import KeychainAccess
+
+// Error types for SSH operations
+enum SSHTunnelError: Error {
+    case missingCredentials
+    case connectionFailed(Error)
+    case tunnelEstablishmentFailed(Error)
+    case portForwardingFailed(Error)
+    case localProxyFailed(Error)
+    case reconnectFailed(Error)
+    case invalidServerConfiguration
+    case tunnelAlreadyConnected
+    case tunnelNotConnected
+}
 
 // Singleton manager to track and reset all connections
 class SSHConnectionManager {
@@ -12,11 +26,9 @@ class SSHConnectionManager {
     private init() {}
     
     func register(connection: SSHConnection) {
-        // Using synchronous code with actors or isolation context
         Task {
             await withCheckedContinuation { continuation in
                 connectionLock.lock()
-                // Only add if not already in the list
                 if !activeConnections.contains(where: { $0 === connection }) {
                     activeConnections.append(connection)
                 }
@@ -45,24 +57,19 @@ class SSHConnectionManager {
             continuation.resume(returning: connections)
         }
         
-        // Add a small delay between operations
         for connection in connectionsToReset {
             await connection.disconnect()
-            // Add a small delay to ensure disconnect completes
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
             await connection.resetState()
         }
         
-        // Allow a bit more time for all connections to fully reset
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
     }
     
-    // Call this method when app enters background
     func handleAppBackgrounding() async {
         await resetAllConnections()
     }
     
-    // Call this method when app will terminate
     func cleanupBeforeTermination() async {
         await resetAllConnections()
     }
@@ -70,24 +77,18 @@ class SSHConnectionManager {
 
 // Connection class for both SSH commands and SFTP operations
 class SSHConnection {
-    private let host: String
-    private let port: Int
-    private let username: String
-    private let password: String
+    private var server: ServerEntity
     private var client: SSHClient?
     private var sftpClient: SFTPClient?
     private var isConnecting: Bool = false
     private var connectionLock = NSLock()
     private var lastActiveTime: Date = Date()
     
-    // Connection timeout (1 minutes of inactivity)
+    // Connection timeout (1 minute of inactivity)
     private let connectionTimeout: TimeInterval = 60
     
-    init(host: String, port: Int = 22, username: String, password: String) {
-        self.host = host
-        self.port = port
-        self.username = username
-        self.password = password
+    init(server: ServerEntity) {
+        self.server = server
         
         // Register with the connection manager
         SSHConnectionManager.shared.register(connection: self)
@@ -146,9 +147,21 @@ class SSHConnection {
         }
         
         do {
+            // Get credentials from keychain
+            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+                .synchronizable(true)
+            guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
+                throw SSHTunnelError.missingCredentials
+            }
+            
+            // Validate server details
+            guard let host = server.sftpHost, let username = server.sftpUser else {
+                throw SSHTunnelError.missingCredentials
+            }
+            
             client = try await SSHClient.connect(
                 host: host,
-                port: port,
+                port: Int(server.sftpPort),
                 authenticationMethod: .passwordBased(username: username, password: password),
                 hostKeyValidator: .acceptAnything(),
                 reconnect: .never
@@ -163,6 +176,26 @@ class SSHConnection {
                 connectionLock.unlock()
                 continuation.resume()
             }
+            
+            print("SSH connection established to \(host):\(server.sftpPort)")
+        } catch let error as SSHTunnelError {
+            await withCheckedContinuation { continuation in
+                connectionLock.lock()
+                isConnecting = false
+                connectionLock.unlock()
+                continuation.resume()
+            }
+            print("SSH connection failed: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
+        } catch let error as ChannelError where error == ChannelError.connectTimeout(.seconds(30)) {
+            await withCheckedContinuation { continuation in
+                connectionLock.lock()
+                isConnecting = false
+                connectionLock.unlock()
+                continuation.resume()
+            }
+            print("SSH connection timed out: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
         } catch {
             await withCheckedContinuation { continuation in
                 connectionLock.lock()
@@ -170,7 +203,8 @@ class SSHConnection {
                 connectionLock.unlock()
                 continuation.resume()
             }
-            throw error
+            print("SSH connection failed with unexpected error: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
         }
     }
     
@@ -225,6 +259,16 @@ class SSHConnection {
         }
     }
     
+    // Simple method to get the client directly if needed
+    func getSSHClient() async throws -> SSHClient {
+        try await ensureValidConnection()
+        
+        guard let client = client else {
+            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
+        }
+        
+        return client
+    }
     
     func listDirectory(path: String, showHidden: Bool = false) async throws -> [FileItem] {
         // Escape the path properly for the shell
@@ -249,8 +293,8 @@ class SSHConnection {
         
         // Check for command success
         guard status == 0 else {
-            throw NSError(domain: "SSHConnection", code: Int(status),
-                         userInfo: [NSLocalizedDescriptionKey: "Failed to list directory via SSH"])
+            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: Int(status),
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to list directory via SSH"]))
         }
         
         // Parse the command output
@@ -301,7 +345,7 @@ class SSHConnection {
         try await ensureValidConnection()
         
         guard let client = client else {
-            throw NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
+            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
         }
         
         // Update last active time
@@ -334,7 +378,7 @@ class SSHConnection {
         try await ensureValidConnection()
         
         guard let client = client else {
-            throw NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
+            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
         }
         
         // Update last active time
@@ -349,7 +393,7 @@ class SSHConnection {
         try await ensureValidConnection()
         
         guard let client = client else {
-            throw NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
+            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
         }
         
         // Update last active time
@@ -373,7 +417,7 @@ class SSHConnection {
                 try await ensureValidConnection()
                 
                 guard let client = client else {
-                    throw NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"])
+                    throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
                 }
                 
                 // Update last active time
@@ -412,7 +456,8 @@ class SSHConnection {
         }
         
         // If we've reached here, all attempts failed
-        throw lastError ?? NSError(domain: "SSHConnection", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to connect to SFTP server after multiple attempts"])
+        throw SSHTunnelError.connectionFailed(lastError ?? NSError(domain: "SSHConnection", code: -2,
+                                  userInfo: [NSLocalizedDescriptionKey: "Failed to connect to SFTP server after multiple attempts"]))
     }
     
     /// List files in the specified directory path
@@ -425,7 +470,6 @@ class SSHConnection {
         return components
     }
     
-    /// Download a file from the remote server
     /// Download a file from the remote server using dd if available, falling back to SFTP
     func downloadFile(remotePath: String, localURL: URL, progress: @escaping (Double) -> Void = { _ in }) async throws {
         print("Starting download for \(remotePath)")
@@ -516,8 +560,8 @@ class SSHConnection {
         
         // Verify the file was transferred successfully
         if bytesTransferred == 0 {
-            throw NSError(domain: "SSHConnection", code: -5,
-                userInfo: [NSLocalizedDescriptionKey: "No data transferred with dd"])
+            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -5,
+                userInfo: [NSLocalizedDescriptionKey: "No data transferred with dd"]))
         }
         
         print("dd download completed: \(bytesTransferred) bytes")
@@ -647,6 +691,11 @@ class SSHConnection {
         return try await sftp.getAttributes(at: path)
     }
     
+    // Update the server entity
+    func updateServer(_ server: ServerEntity) {
+        self.server = server
+    }
+    
     func disconnect() async {
         let (currentClient, currentSFTP): (SSHClient?, SFTPClient?) = await withCheckedContinuation { continuation in
             connectionLock.lock()
@@ -712,4 +761,11 @@ class SSHConnection {
             await disconnect()
         }
     }
+}
+
+// Helper function to create an SSH connection from a server entity
+func connectSSH(_ server: ServerEntity) async throws -> SSHClient {
+    let connection = SSHConnection(server: server)
+    try await connection.connect()
+    return try await connection.getSSHClient()
 }
