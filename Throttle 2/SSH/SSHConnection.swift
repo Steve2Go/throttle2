@@ -2,8 +2,11 @@ import Foundation
 import Citadel
 import NIOCore
 import KeychainAccess
+<<<<<<< HEAD:Throttle 2/SSH/SSHConnection.swift
 import NIOSSH
 import KeychainAccess
+=======
+>>>>>>> main:Throttle 2/SFTP/SSHConnection.swift
 import SwiftUI
 
 // Error types for SSH operations
@@ -120,6 +123,7 @@ class SSHConnection {
                 authMethod = .passwordBased(username: server.sftpUser ?? "", password: password)
             }
             
+<<<<<<< HEAD:Throttle 2/SSH/SSHConnection.swift
             // Set up algorithms to increase compatibility with older servers
             var algorithms = SSHAlgorithms()
             algorithms.transportProtectionSchemes = .add([
@@ -135,6 +139,34 @@ class SSHConnection {
                 host: server.sftpHost ?? "",
                 port: Int(server.sftpPort),
                 authenticationMethod: authMethod,
+=======
+            // If we still don't have a connection after waiting, start over
+            await withCheckedContinuation { continuation in
+                connectionLock.lock()
+                isConnecting = true
+                connectionLock.unlock()
+                continuation.resume()
+            }
+        }
+        
+        do {
+            // Get credentials from keychain
+            @AppStorage("useCloudKit") var useCloudKit: Bool = true
+            let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+            guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
+                throw SSHTunnelError.missingCredentials
+            }
+            
+            // Validate server details
+            guard let host = server.sftpHost, let username = server.sftpUser else {
+                throw SSHTunnelError.missingCredentials
+            }
+            
+            client = try await SSHClient.connect(
+                host: host,
+                port: Int(server.sftpPort),
+                authenticationMethod: .passwordBased(username: username, password: password),
+>>>>>>> main:Throttle 2/SFTP/SSHConnection.swift
                 hostKeyValidator: .acceptAnything(),
                 reconnect: .never,
                 algorithms: algorithms,
@@ -154,6 +186,7 @@ class SSHConnection {
                 connectionLock.unlock()
                 continuation.resume()
             }
+<<<<<<< HEAD:Throttle 2/SSH/SSHConnection.swift
         } catch let error as NIOSSHError {
             await resetConnectionState()
             ToastManager.shared.show(message: "SSH connection failed with NIOSSHError: \(error)", icon: "exclamationmark.triangle", color: Color.red)
@@ -162,6 +195,36 @@ class SSHConnection {
         } catch {
             await resetConnectionState()
             print("SSH connection failed with error: \(error)")
+=======
+            
+            print("SSH connection established to \(host):\(server.sftpPort)")
+        } catch let error as SSHTunnelError {
+            await withCheckedContinuation { continuation in
+                connectionLock.lock()
+                isConnecting = false
+                connectionLock.unlock()
+                continuation.resume()
+            }
+            print("SSH connection failed: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
+        } catch let error as ChannelError where error == ChannelError.connectTimeout(.seconds(30)) {
+            await withCheckedContinuation { continuation in
+                connectionLock.lock()
+                isConnecting = false
+                connectionLock.unlock()
+                continuation.resume()
+            }
+            print("SSH connection timed out: \(error)")
+            throw SSHTunnelError.connectionFailed(error)
+        } catch {
+            await withCheckedContinuation { continuation in
+                connectionLock.lock()
+                isConnecting = false
+                connectionLock.unlock()
+                continuation.resume()
+            }
+            print("SSH connection failed with unexpected error: \(error)")
+>>>>>>> main:Throttle 2/SFTP/SSHConnection.swift
             throw SSHTunnelError.connectionFailed(error)
         }
     }

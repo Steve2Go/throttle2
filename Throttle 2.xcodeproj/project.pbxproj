@@ -77,7 +77,6 @@
 		E77CF6482D704F40002705A5 /* Exceptions for "Throttle 2" folder in "Throttle 2" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				CSSH.xcframework,
 				Info.plist,
 				"Preview Content/Preview Assets.xcassets",
 				SSH/CSSH.swift,
