@@ -12,8 +12,7 @@ import Network
 extension Throttle_2App {
     
     func refeshTunnel(store: Store, torrentManager: TorrentManager){
-        
-      //  ThumbnailLoader.shared.deactivate()
+
         TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
         TunnelManagerHolder.shared.removeTunnel(withIdentifier: "sftp")
         guard let server = store.selection else {return}
@@ -102,11 +101,7 @@ extension Throttle_2App {
                         try await sftp.start()
                         TunnelManagerHolder.shared.storeTunnel(sftp, withIdentifier: "sftp")
                         
-<<<<<<< HEAD:Throttle 2/SSH/ServerInit.swift
                         try await checkAndEnableLocalPasswordAuth(server: server!)
-=======
-                        //try await checkAndEnableLocalPasswordAuth(server: server!)
->>>>>>> main:Throttle 2/SFTP/ServerInit.swift
                     }
                 }
                 #endif
@@ -216,7 +211,6 @@ class NetworkMonitor: ObservableObject {
 
 
 /// Helper function to check and enable local password authentication
-<<<<<<< HEAD:Throttle 2/SSH/ServerInit.swift
 
 func checkAndEnableLocalPasswordAuth(server: ServerEntity) async throws {
     // Get sudo password from keychain
@@ -337,53 +331,6 @@ func checkAndEnableLocalPasswordAuth(server: ServerEntity) async throws {
         
         if testOutput.isEmpty {
             // Configuration is valid, restart SSH service
-=======
-func checkAndEnableLocalPasswordAuth(server: ServerEntity) async throws {
-    // Get SSH connection to the server using key authentication
-    let client = try await ServerManager.shared.connectSSH(server)
-    
-    // Get sudo password from keychain
-    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-    guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
-        print("Cannot configure local password auth: Missing password")
-        return
-    }
-    
-    // Check current sshd configuration for localhost password auth
-    let checkCmd = "grep -E 'Match Address 127.0.0.1|PasswordAuthentication' /etc/ssh/sshd_config || echo 'Not configured'"
-    let checkResult = try await client.executeCommand(checkCmd)
-    let checkOutput = String(buffer: checkResult).trimmingCharacters(in: .whitespacesAndNewlines)
-    
-    // If not properly configured, try to modify sshd_config with sudo
-    if !checkOutput.contains("Match Address 127.0.0.1") || !checkOutput.contains("PasswordAuthentication yes") {
-        print("Local password authentication not configured. Attempting to configure...")
-        
-        // Create backup of sshd_config with piped sudo password
-        let backupCmd = "echo '\(password)' | sudo -S cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak"
-        _ = try await client.executeCommand(backupCmd)
-        
-        // Append necessary configuration
-        let configLines = """
-        
-        # Added by Throttle for secure local tunnel access
-        Match Address 127.0.0.1
-            PasswordAuthentication yes
-        """
-        
-        let appendCmd = """
-        echo '\(password)' | sudo -S bash -c 'echo "\(configLines)" >> /etc/ssh/sshd_config'
-        """
-        
-        let appendResult = try await client.executeCommand(appendCmd)
-        
-        // Verify the changes
-        let verifyCmd = "grep -E 'Match Address 127.0.0.1|PasswordAuthentication' /etc/ssh/sshd_config"
-        let verifyResult = try await client.executeCommand(verifyCmd)
-        let verifyOutput = String(buffer: verifyResult).trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        if verifyOutput.contains("Match Address 127.0.0.1") && verifyOutput.contains("PasswordAuthentication yes") {
-            // Restart SSH service to apply changes with piped sudo password
->>>>>>> main:Throttle 2/SFTP/ServerInit.swift
             let restartCmd = """
             echo '\(password)' | sudo -S systemctl restart sshd 2>/dev/null || 
             echo '\(password)' | sudo -S service ssh restart 2>/dev/null || 
@@ -391,7 +338,6 @@ func checkAndEnableLocalPasswordAuth(server: ServerEntity) async throws {
             """
             _ = try await client.executeCommand(restartCmd)
             print("Successfully configured local password authentication")
-<<<<<<< HEAD:Throttle 2/SSH/ServerInit.swift
             
             // Test if it actually works now
             let finalTestCmd = """
@@ -411,12 +357,5 @@ func checkAndEnableLocalPasswordAuth(server: ServerEntity) async throws {
             _ = try await client.executeCommand(restoreCmd)
             print("Configuration failed validation. Restored backup. Error: \(testOutput)")
         }
-=======
-        } else {
-            print("Failed to configure local password authentication. VLC streaming may not work properly.")
-        }
-    } else {
-        print("Local password authentication already configured")
->>>>>>> main:Throttle 2/SFTP/ServerInit.swift
     }
 }

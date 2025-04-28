@@ -52,7 +52,6 @@ struct Throttle_2App: App {
         Window("Throttle 2", id: "main-window") {
             ContentView(presenting: presenting,manager: manager, filter: filter, store: store)
                 .environment(\.managedObjectContext, DataManager.shared.viewContext)
-                                .withGlobalToast()
                 .handlesExternalEvents(preferring: Set(arrayLiteral: "*"), allowing: Set(arrayLiteral: "*"))
                 .environmentObject(networkMonitor)
                 //.environment(\.managedObjectContext, persistenceController.container.viewContext)

@@ -14,41 +14,7 @@ class ServerManager: ObservableObject {
     
     private var connections: [UUID: SSHConnection] = [:]
     
-<<<<<<< HEAD
     private init() {}
-=======
-    func connectSSH(_ server: ServerEntity)  async throws -> SSHClient {
-        var client: SSHClient?
-        @AppStorage("useCloudKit") var useCloudKit: Bool = true
-        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
-        guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
-            throw SSHTunnelError.missingCredentials
-        }
-        
-        do {
-            // Create SSH connection with password authentication
-            client = try await SSHClient.connect(
-                host: server.sftpHost!,
-                port: Int(server.sftpPort),
-                authenticationMethod: .passwordBased(username: server.sftpUser!, password: password),
-                hostKeyValidator: .acceptAnything(),
-                reconnect: .always
-            )
-            
-            print("SSH connection established to \(server.sftpHost!):\(server.sftpPort)")
-        } catch let error as NIOSSHError {
-            print("SSH connection failed: \(error)")
-            throw SSHTunnelError.connectionFailed(error)
-        } catch let error as ChannelError where error == ChannelError.connectTimeout(.seconds(30)) {
-            print("SSH connection timed out: \(error)")
-            throw SSHTunnelError.connectionFailed(error)
-        } catch {
-            print("SSH connection failed with unexpected error: \(error)")
-            throw SSHTunnelError.connectionFailed(error)
-        }
-        return client!
-    }
->>>>>>> main
     
     func setServer(_ server: ServerEntity) {
         selectedServer = server
@@ -224,10 +190,10 @@ func local_to_serverPath(_ localPath: String) -> String {
 //    if relativePath.starts(with: basePath) {
 //        relativePath = String(relativePath.dropFirst(basePath.count))
 //    }
-//    
+//
 //    // Ensure relative path starts with a single /
 //    relativePath = "/" + relativePath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-//    
+//
 //    // Construct the full server path
 //    let serverBasePath = serverPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     //let fullPath = serverBasePath + relativePath

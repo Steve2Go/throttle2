@@ -169,12 +169,7 @@ struct DependencyInstallerView: View {
         isInstalling = true
         
         do {
-<<<<<<< HEAD
             let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true)
-=======
-            @AppStorage("useCloudKit") var useCloudKit: Bool = true
-            let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
->>>>>>> main
    
             guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
                 appendOutput("Error: Missing server Password")
