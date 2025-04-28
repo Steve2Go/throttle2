@@ -12,43 +12,43 @@ class ServerManager: ObservableObject {
     static let shared = ServerManager()
     @Published var selectedServer: ServerEntity?
     
-    private init() {}
+    private var connections: [UUID: SSHConnection] = [:]
     
-    func connectSSH(_ server: ServerEntity)  async throws -> SSHClient {
-        var client: SSHClient?
-        @AppStorage("useCloudKit") var useCloudKit: Bool = true
-        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
-        guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
-            throw SSHTunnelError.missingCredentials
-        }
-        
-        do {
-            // Create SSH connection with password authentication
-            client = try await SSHClient.connect(
-                host: server.sftpHost!,
-                port: Int(server.sftpPort),
-                authenticationMethod: .passwordBased(username: server.sftpUser!, password: password),
-                hostKeyValidator: .acceptAnything(),
-                reconnect: .always
-            )
-            
-            print("SSH connection established to \(server.sftpHost!):\(server.sftpPort)")
-        } catch let error as NIOSSHError {
-            print("SSH connection failed: \(error)")
-            throw SSHTunnelError.connectionFailed(error)
-        } catch let error as ChannelError where error == ChannelError.connectTimeout(.seconds(30)) {
-            print("SSH connection timed out: \(error)")
-            throw SSHTunnelError.connectionFailed(error)
-        } catch {
-            print("SSH connection failed with unexpected error: \(error)")
-            throw SSHTunnelError.connectionFailed(error)
-        }
-        return client!
-    }
+    private init() {}
     
     func setServer(_ server: ServerEntity) {
         selectedServer = server
         UserDefaults.standard.set(server.id?.uuidString, forKey: "selectedServer")
+    }
+    
+    func connectSSH(_ server: ServerEntity) async throws -> SSHClient {
+        // Get or create connection for this server
+        let connection = connections[server.id!] ?? SSHConnection(server: server)
+        connections[server.id!] = connection
+        
+        // Connect and return the client
+        try await connection.connect()
+        return try await connection.getSSHClient()
+    }
+    
+    // Clean up connections when needed
+    func closeConnection(for server: ServerEntity) {
+        if let connection = connections[server.id!] {
+            Task {
+                await connection.disconnect()
+                connections.removeValue(forKey: server.id!)
+            }
+        }
+    }
+    
+    // Clean up all connections
+    func closeAllConnections() {
+        Task {
+            for connection in connections.values {
+                await connection.disconnect()
+            }
+            connections.removeAll()
+        }
     }
 }
 

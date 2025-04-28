@@ -22,7 +22,6 @@ struct TorrentRowView: View {
     @AppStorage("showThumbs") var showThumbs: Bool = false
     var selecting: Bool
     @Binding var selected: [Int]
-    let doToast: (String, String, Color) -> Void
     @AppStorage("primaryFile") var primaryFiles: Bool = false
     #if os(iOS)
     var isiPad: Bool {
@@ -169,7 +168,7 @@ struct TorrentRowView: View {
                     Button {
                         Task {
                             try? await manager.toggleStar(for: torrent)
-                            doToast(manager.isStarred(torrent) ? "Removing Star" : "Starring" , manager.isStarred(torrent) ? "star.slash.fill" : "star.fill", Color.yellow)
+                            ToastManager.shared.show(message: manager.isStarred(torrent) ? "Removing Star" : "Starring", icon: manager.isStarred(torrent) ? "star.slash.fill" : "star.fill", color: Color.yellow)
                         }
                     } label: {
                         Image(systemName: manager.isStarred(torrent) ? "star.fill" : "star")
@@ -202,8 +201,9 @@ struct TorrentRowView: View {
                 Image( systemName: "trash")
             }
             Button {
+                
                 Task {
-                    doToast("Verifying" , "externaldrive.badge.questionmark", Color.yellow)
+                    ToastManager.shared.show(message: "Verifying" ,icon: "externaldrive.badge.questionmark", color: Color.yellow)
                     try await manager.verifyTorrents(ids: [torrent.id])
                 }
             } label: {
@@ -212,7 +212,7 @@ struct TorrentRowView: View {
             }
             Button {
                 Task {
-                    doToast("Announcing" , "megaphone.fill", Color.blue)
+                    ToastManager.shared.show(message: "Announcing" ,icon: "megaphone.fill", color: Color.blue)
                     try await manager.reannounceTorrents(ids: [torrent.id])
                 }
             } label: {
@@ -222,7 +222,7 @@ struct TorrentRowView: View {
             if torrent.status == 0 {
                 Button {
                     Task {
-                        doToast( "Starting" ,"play", Color.green)
+                        ToastManager.shared.show(message: "Starting" ,icon: "play", color: Color.green)
                         try await manager.startTorrents(ids: [torrent.id])
                     }
                 } label: {
@@ -232,7 +232,7 @@ struct TorrentRowView: View {
             }else {
                 Button {
                     Task {
-                        doToast( "Stopping" , "stop", Color.green)
+                        ToastManager.shared.show(message: "Stopping" ,icon: "stop", color: Color.red)
                         try await manager.stopTorrents(ids: [torrent.id])
                     }
                 } label: {

@@ -45,6 +45,7 @@ struct MacOSContentView: View {
         } content: {
             TorrentListView(manager: manager, store: store, presenting: presenting,  filter: filter ,isSidebarVisible: $isSidebarVisible)
             //.padding(.top, 10)
+                .withToast()
                 .navigationBarBackButtonHidden(true)
                 .toolbar{
                     ToolbarItem {

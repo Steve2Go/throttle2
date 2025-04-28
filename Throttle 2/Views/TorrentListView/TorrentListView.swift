@@ -42,21 +42,8 @@ struct TorrentListView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showDetailSheet = false
     @State private var showFileBrowser = false
-    
-    @State var showToast = false
-    @State var toastMessage = ""
-    @State var toastColor = Color.blue
-    @State var toastIcon = "info.square"
-    private let toastOptions = SimpleToastOptions(
-            hideAfter: 5
-        )
-    
-    public func doToast(msg: String, icon: String, color: Color){
-        toastMessage = msg
-        toastIcon = icon
-        toastColor = color
-        showToast = true
-    }
+
+
     
     #if os(iOS)
     var isiPad: Bool {
@@ -119,7 +106,6 @@ struct TorrentListView: View {
                             onRename: { renameTorrent(torrent) },
                             selecting: selecting,
                             selected: $selected,
-                            doToast: doToast
                         )
                     }
                 }.padding(.bottom, 0)
@@ -138,20 +124,13 @@ struct TorrentListView: View {
 //                }
         }
         
-        .simpleToast(isPresented: $showToast, options: toastOptions) {
-            Label(toastMessage, systemImage: toastIcon)
-            .padding()
-            .background(toastColor)
-            .foregroundColor(Color.white)
-            .cornerRadius(10)
-            .padding(.top)
-        }
+       
         .onChange(of: sortOption) {
-            doToast(msg: "Sorted by: \(sortOption)", icon: "arrow.down.app", color: Color.blue)
+            ToastManager.shared.show(message: "Sorted by: \(sortOption)", icon: "arrow.down.app", color: Color.blue)
             print("Sort option changed to: \(sortOption)")
         }
         .onChange(of: filterOption){
-            doToast(msg: "Showing: \(filterOption)", icon: "line.3.horizontal.decrease", color: Color.blue)
+            ToastManager.shared.show(message: "Showing: \(filterOption)", icon: "line.3.horizontal.decrease", color: Color.blue)
         }
         .refreshable {
             Task {
@@ -159,7 +138,6 @@ struct TorrentListView: View {
                 manager.isLoading.toggle()
             }
         }
-        
         .searchable(text: $searchQuery, prompt: "Search")
         
         .toolbar {
@@ -186,35 +164,19 @@ struct TorrentListView: View {
                             }
                             if selected != [] {
                                 Button("Start Selected", systemImage: "play") {
-                                    Task{
-                                        try await manager.startTorrents(ids: selected)
-                                        self.toastMessage = "Start Request Sent"
-                                        self.showToast = true
-                                    }
+                                    ToastManager.shared.show(message: "Start Request Sent", icon: "play", color: .green)
                                     selecting.toggle()
                                 }
                                 Button("Stop Selected", systemImage: "stop") {
-                                    Task{
-                                        try await manager.stopTorrents(ids: selected)
-                                        self.toastMessage = "Stop Request Sent"
-                                        self.showToast = true
-                                    }
+                                    ToastManager.shared.show(message: "Stop Request Sent", icon: "stop", color: .red)
                                     selecting.toggle()
                                 }
                                 Button("Verify Selected", systemImage: "externaldrive.badge.questionmark") {
-                                    Task{
-                                        try await manager.verifyTorrents(ids: selected)
-                                        self.toastMessage = "Verify Request Sent"
-                                        self.showToast = true
-                                    }
+                                    ToastManager.shared.show(message: "Verify Request Sent", icon: "externaldrive.badge.questionmark", color: .orange)
                                     selecting.toggle()
                                 }
                                 Button("Announce Selected", systemImage: "megaphone") {
-                                    Task{
-                                        try await manager.reannounceTorrents(ids: selected)
-                                        self.toastMessage = "Announce Request Sent"
-                                        self.showToast = true
-                                    }
+                                    ToastManager.shared.show(message: "Announce Request Sent", icon: "megaphone", color: .green)
                                     selecting.toggle()
                                 }
                                 Button("Delete Selected", systemImage: "trash") {
@@ -241,6 +203,7 @@ struct TorrentListView: View {
                 }
             }
         }
+        
         .onAppear {
 //            if TunnelManagerHolder.shared.getTunnel(withIdentifier: "http-streamer") != nil{
 //                activateThumbnails()
@@ -352,7 +315,7 @@ struct TorrentListView: View {
                         basePath: url + "/" + torrentName, //(store.selection?.pathServer) ?? "",
                         server: store.selection,
                         store: store
-                    )
+                    ).withToast()
                     #endif
                     
                 } else {

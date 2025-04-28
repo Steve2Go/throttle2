@@ -26,6 +26,7 @@ struct iOSContentView: View {
     @ViewBuilder
     func torrentListWithToolbar() -> some View {
         TorrentListView(manager: manager, store: store, presenting: presenting, filter: filter, isSidebarVisible: $isSidebarVisible)
+            .withToast()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: {

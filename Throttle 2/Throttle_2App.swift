@@ -9,6 +9,7 @@ import SwiftUI
 import KeychainAccess
 import UniformTypeIdentifiers
 import CoreData
+import SimpleToast
 
 let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "jfif", "bmp"]
 let videoExtensions: Set<String> = ["mp4", "mov", "avi", "mkv", "flv", "mpeg", "m4v", "wmv"]
@@ -51,10 +52,12 @@ struct Throttle_2App: App {
         Window("Throttle 2", id: "main-window") {
             ContentView(presenting: presenting,manager: manager, filter: filter, store: store)
                 .environment(\.managedObjectContext, DataManager.shared.viewContext)
+                                .withGlobalToast()
                 .handlesExternalEvents(preferring: Set(arrayLiteral: "*"), allowing: Set(arrayLiteral: "*"))
                 .environmentObject(networkMonitor)
                 //.environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .background(colorScheme == .dark ? Color.black : Color.white)
+                
                 .onAppear {
                     presenting.didStart = true
                 }

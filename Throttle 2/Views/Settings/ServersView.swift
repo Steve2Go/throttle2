@@ -191,6 +191,9 @@ struct ServerEditView: View {
     @Environment(\.openURL) private var openURL
     @State var installerView = false
     @AppStorage("useCloudKit") var useCloudKit: Bool = true
+    
+    @State private var showingKeyErrorAlert = false
+    @State private var keyErrorMessage = ""
 
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
         .synchronizable(true)
@@ -230,6 +233,11 @@ struct ServerEditView: View {
         _hasPython = State(initialValue: server?.hasPython ?? true)
         _videoDisabled = State(initialValue: server?.videoDisabled ?? false)
         _sftpPhrase = State(initialValue: keychain["sftpPhrase" + (server?.name ?? "")] ?? "")
+    }
+    
+    private enum KeyError: Error {
+        case invalidKeyFormat
+        case securityAccessDenied
     }
     
     var body: some View {
@@ -368,7 +376,7 @@ struct ServerEditView: View {
                                 .autocapitalization(.none)
                                 .autocorrectionDisabled()
                         }
-                        Toggle("Use SFTP Key", isOn: $sftpUsesKey)
+                        Toggle("Use SSH Key", isOn: $sftpUsesKey)
                         
                         if sftpUsesKey {
                             HStack {
@@ -503,6 +511,11 @@ struct ServerEditView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        .alert("SSH Key Error", isPresented: $showingKeyErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(keyErrorMessage)
+        }
         .sheet(isPresented: $installerView) {
             #if os(iOS)
             if server != nil {
@@ -518,45 +531,86 @@ struct ServerEditView: View {
     // MARK: - SSH Key Handling
     private func handleSSHKey(keyFileURL: URL) {
         do {
-            // Read the key content
-            let keyContent = try String(contentsOf: keyFileURL)
+            // Start accessing the security-scoped resource
+            guard keyFileURL.startAccessingSecurityScopedResource() else {
+                print("Failed to access security scoped resource")
+                keyErrorMessage = "Unable to access the selected file. Please try again."
+                showingKeyErrorAlert = true
+                return
+            }
             
-            // Store the full key content in the keychain with server name
-            keychain["sftpKey" + name] = keyContent
+            defer {
+                keyFileURL.stopAccessingSecurityScopedResource()
+            }
+            
+            // Read the key content exactly as-is
+            let keyContent = try String(contentsOf: keyFileURL, encoding: .utf8)
+            
+            if keyContent.isEmpty {
+                keyErrorMessage = "The selected SSH key file is empty."
+                showingKeyErrorAlert = true
+                return
+            }
+            
+            // Validate the key type
+            if !isKeyTypeSupported(keyContent) {
+                keyErrorMessage = "The selected SSH key type is not supported. Only ED25519 and RSA keys are supported."
+                showingKeyErrorAlert = true
+                return
+            }
+            
+            // Store the key using the SSHKeyManager
+            try SSHKeyManager.shared.storeKey(keyContent, for: name)
             
             // Store the passphrase if provided
             if !sftpPhrase.isEmpty {
-                keychain["sftpPhrase" + name] = sftpPhrase
+                try SSHKeyManager.shared.storePassphrase(sftpPhrase, for: name)
             }
             
-            // Set a flag indicating we're using a key - keep a reference to the file
-            // name but not the full path (since the actual content is in keychain)
-            let keyFileName = keyFileURL.lastPathComponent
-            //sftpKey = "key:" + keyFileName
             sftpUsesKey = true
-            
-            print("SSH key saved to keychain: \(keyFileName)")
+            print("SSH key saved successfully")
         } catch {
             print("Failed to process SSH key: \(error)")
-        }
-    }
-
-    func saveToKeychain() {
-        keychain["password" + name] = password
-        
-        if sftpUsesKey {
-            if !sftpPhrase.isEmpty {
-                keychain["sftpPhrase" + name] = sftpPhrase
-            }
-            
-            if !sftpPassword.isEmpty {
-                keychain["sftpPassword" + name] = sftpPassword
-            }
-        } else {
-            keychain["sftpPassword" + name] = sftpPassword
+            keyErrorMessage = "Failed to process the SSH key: \(error.localizedDescription)"
+            showingKeyErrorAlert = true
         }
     }
     
+    private func isKeyTypeSupported(_ keyContent: String) -> Bool {
+        // Check for OpenSSH format headers
+        let ed25519Header = "-----BEGIN OPENSSH PRIVATE KEY-----"
+        let rsaHeader = "-----BEGIN RSA PRIVATE KEY-----"
+        let opensshHeader = "-----BEGIN OPENSSH PRIVATE KEY-----"
+        
+        if keyContent.contains(ed25519Header) || keyContent.contains(rsaHeader) || keyContent.contains(opensshHeader) {
+            // For OpenSSH format, check the key type in the content
+            if keyContent.contains("ssh-ed25519") || keyContent.contains("ssh-rsa") {
+                return true
+            }
+            
+            // For RSA keys, check for specific patterns
+            if keyContent.contains("BEGIN RSA PRIVATE KEY") {
+                return true
+            }
+        }
+        
+        return false
+    }
+
+    func saveToKeychain() {
+        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+            .synchronizable(useCloudKit)
+        
+        // Save RPC password
+        keychain["password" + name] = password
+        
+        // Save SFTP password (used either for direct auth or for video operation)
+        if !sftpPassword.isEmpty {
+            keychain["sftpPassword" + name] = sftpPassword
+        }
+        
+        // Note: SSH key and passphrase are handled by SSHKeyManager in handleSSHKey
+    }
     
     
     func isWindowsFilePath(_ path: String) -> Bool {
@@ -650,8 +704,11 @@ struct ServerEditView: View {
                 newServer.videoDisabled = videoDisabled
                 
                 saveToKeychain()
+                //workaround to freshen server settings
                 store.selection = nil
-                store.selection = newServer
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    store.selection = newServer
+                }
                 onSave?(newServer)
             }
             
@@ -681,19 +738,23 @@ struct ServerEditView: View {
     
     private func deleteServer(_ server: ServerEntity) {
         withAnimation {
-            @AppStorage("useCloudKit") var useCloudKit: Bool = true
-            let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+                .synchronizable(useCloudKit)
+            
+            // Clear standard credentials
             keychain["password" + (server.name ?? "")] = nil
             keychain["httpPassword" + (server.name ?? "")] = nil
             keychain["sftpPassword" + (server.name ?? "")] = nil
             
-            // Clean up SSH key if it exists
-            if let keyPath = server.sshKeyFullPath,
-               FileManager.default.fileExists(atPath: keyPath) {
-                try? FileManager.default.removeItem(atPath: keyPath)
+            // Clean up SSH keys using SSHKeyManager
+            SSHKeyManager.shared.removeKeysFor(serverName: server.name ?? "")
+            
+            // Delete the server from Core Data
+            viewContext.delete(server)
+            if store.selection == server {
+                store.selection = nil
             }
             
-            viewContext.delete(server)
             do {
                 try viewContext.save()
                 print("Server deleted successfully")
@@ -702,11 +763,11 @@ struct ServerEditView: View {
             }
             
             store.selection = nil
-            store.selection = server
             
             DispatchQueue.main.async {
                 dismiss()
             }
         }
+    
     }
 }

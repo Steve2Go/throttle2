@@ -74,8 +74,10 @@
 		E77CF6482D704F40002705A5 /* Exceptions for "Throttle 2" folder in "Throttle 2" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				CSSH.xcframework,
 				Info.plist,
 				"Preview Content/Preview Assets.xcassets",
+				SSH/CSSH.swift,
 				"transmission-mac/transmission-cli",
 				"transmission-mac/transmission-create",
 				"transmission-mac/transmission-daemon",
@@ -84,7 +86,7 @@
 				"transmission-mac/transmission-show",
 			);
 			platformFiltersByRelativePath = {
-				SFTP/Mounting/MountManager.swift = (macos, );
+				SSH/Mounting/MountManager.swift = (macos, );
 				ffmpeg/macOS/ffmpegkit.xcframework = (macos, );
 				ffmpeg/macOS/libavcodec.xcframework = (macos, );
 				ffmpeg/macOS/libavdevice.xcframework = (macos, );
@@ -485,97 +487,9 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-				);
+				FRAMEWORK_SEARCH_PATHS = "";
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "";
 				INFOPLIST_FILE = "Throttle 2/Info.plist";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "This app requires access to documents to select files.";
@@ -666,6 +580,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				XROS_DEPLOYMENT_TARGET = 2.2;
@@ -689,97 +604,9 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-				);
+				FRAMEWORK_SEARCH_PATHS = "";
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = "";
 				INFOPLIST_FILE = "Throttle 2/Info.plist";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "This app requires access to documents to select files.";
@@ -870,6 +697,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				XROS_DEPLOYMENT_TARGET = 2.2;

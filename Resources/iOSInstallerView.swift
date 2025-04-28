@@ -11,6 +11,7 @@ struct DependencyInstallerView: View {
     @State private var installationComplete: Bool = false
     @State var showToast = false
     let server: ServerEntity
+
     
     private let toastOptions = SimpleToastOptions(
             hideAfter: 5
@@ -168,8 +169,7 @@ struct DependencyInstallerView: View {
         isInstalling = true
         
         do {
-            @AppStorage("useCloudKit") var useCloudKit: Bool = true
-            let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true)
    
             guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
                 appendOutput("Error: Missing server Password")

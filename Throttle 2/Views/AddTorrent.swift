@@ -25,6 +25,7 @@ struct AddTorrentView: View {
     @State private var showError = false
     @State private var fileBrowser = false
     @AppStorage("deleteOnSuccess") var deleteOnSuccess: Bool = true
+    @AppStorage("trigger") var trigger = true
     
     var body: some View {
         NavigationStack {
@@ -138,6 +139,12 @@ struct AddTorrentView: View {
                         }
                     }
                     .onChange(of: manager.sessionId) { 
+                        Task {
+                            await updateDownloadDirectory()
+                        }
+                    }
+                    
+                    .onChange(of: trigger) {
                         Task {
                             await updateDownloadDirectory()
                         }

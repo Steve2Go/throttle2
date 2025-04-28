@@ -171,7 +171,7 @@ struct ContentView: View {
         .onAppear {
             let serverArray = Array(servers)
             #if os(macOS)
-            mountManager.mountAllServers()
+            mountManager.mountAllServers(serverArray)
             #endif
             
             if presenting.didStart {
@@ -230,7 +230,10 @@ struct ContentView: View {
                 store.selectedFile!.startAccessingSecurityScopedResource()
                 #if os(iOS)
                 if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true  {
-                    presenting.activeSheet = "adding"
+                    Task{
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        presenting.activeSheet = "adding"
+                    }
                 }
                 #else
                 presenting.activeSheet = "adding"
