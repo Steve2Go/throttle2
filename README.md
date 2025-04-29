@@ -24,8 +24,6 @@
 - Video playback and Image slideshows (On external display)
 
 ## To Come
-- FFMpeg based or HTTP based video bridge for iOS (The last step required to enable key authentication for sftp)
-- Keyfile support for ssh key file authentication (Part implimented, not supported byt MobileVLCKit sftp, working on alternatives)
 - Local Daemon (Mac, with easy remote connection from iOS)
 
 Based on lessons learned from Mission, https://github.com/TheNightmanCodeth/mission with borrowed code and ideas.
@@ -46,6 +44,10 @@ https://github.com/Marginal/QLVideo/releases/latest
 
 ### iOS
 Use your sideloading method of choice - I've found https://sideloadly.io/ to work well.
+
+### There are security implications to using Key Authentication
+Currently if you use key authentication, we create a secure tunnel to play videos as VLCKit doen not support key authentication.
+VLC uses Password Authentication over this tunnel, but only on your servers localhost. If you don't want this, don't leave a password in server settings and video playback will be disabled.
 
 Throttle for iOS needs FFMpeg on the server to generate video thumbnails. 
 

@@ -1,6 +1,5 @@
 #if os(iOS)
 import SwiftUI
-//import mft
 import KeychainAccess
 import Citadel
 import SimpleToast
@@ -45,9 +44,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     let basePath: String
     let initialPath: String
-    // Keep both connection methods for gradual transition
-    //var sftpConnection: MFTSftpConnection!
-    var connectionManager: SFTPConnectionManager
+    
+    // Using SSHConnection instead of SFTPConnectionManager
+    private var sshConnection: SSHConnection
+    var server: ServerEntity
     
     var downloadTask: Task<Void, Error>?
     weak var delegate: SFTPFileBrowserViewModelDelegate?
@@ -72,10 +72,11 @@ class SFTPFileBrowserViewModel: ObservableObject {
         self.initialPath = currentPath
         self.isInitialPathAFile = false // Will be determined after connection
         
-        // Initialize the connection manager
-        self.connectionManager = SFTPConnectionManager(server: server)
-        // The connection manager initializes the MFT connection, so we can reference it
-       // self.sftpConnection = connectionManager.mftConnection
+        // Save server for later use
+        self.server = server ?? ServerEntity() // Fallback to avoid force unwrap
+        
+        // Initialize the SSH connection
+        self.sshConnection = SSHConnection(server: self.server)
         
         // Connect to the server
         connectToServer()
@@ -84,15 +85,15 @@ class SFTPFileBrowserViewModel: ObservableObject {
     private func connectToServer() {
         Task {
             do {
-                try await connectionManager.connect()
+                try await sshConnection.connect()
                 
                 // Check if the initial path is a file
                 await checkIfInitialPathIsFile()
             } catch {
                 await MainActor.run {
                     self.isLoading = false
-                    ToastManager.shared.show(message: "Failed to create connect: \(error)", icon: "exclamationmark.triangle", color: Color.red)
-                    print("SFTP Connection Error: \(error)")
+                    ToastManager.shared.show(message: "Failed to create connection: \(error)", icon: "exclamationmark.triangle", color: Color.red)
+                    print("SSH Connection Error: \(error)")
                 }
             }
         }
@@ -105,7 +106,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
         
         Task {
             do {
-                try await connectionManager.createDirectory(atPath: newFolderPath)
+                try await sshConnection.createDirectory(path: newFolderPath)
                 
                 await MainActor.run {
                     self.fetchItems() // Refresh directory after creation
@@ -126,8 +127,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
             self.isLoading = true
             
             do {
-                // Get directory contents using the connection manager
-                let fileItems = try await connectionManager.contentsOfDirectory(atPath: currentPath)
+                // Get directory contents using the SSH connection
+                let fileItems = try await listDirectoryContents(path: currentPath)
                 
                 // Calculate "up one" display text
                 let upOneValue = NSString(string: NSString(string: self.currentPath).deletingLastPathComponent).lastPathComponent
@@ -166,10 +167,15 @@ class SFTPFileBrowserViewModel: ObservableObject {
                 self.refreshTrigger = UUID()
             } catch {
                 self.isLoading = false
-                ToastManager.shared.show(message: "SFTP Lising Error: \(error)", icon: "exclamationmark.triangle", color: Color.red)
+                ToastManager.shared.show(message: "SFTP Listing Error: \(error)", icon: "exclamationmark.triangle", color: Color.red)
                 print("SFTP Directory Listing Error: \(error)")
             }
         }
+    }
+    
+    // List directory contents using the SSHConnection's listDirectory method
+    private func listDirectoryContents(path: String) async throws -> [FileItem] {
+        return try await sshConnection.listDirectory(path: path)
     }
     
     func updateImageUrls() {
@@ -222,34 +228,54 @@ class SFTPFileBrowserViewModel: ObservableObject {
     // Check if the initial path points to a file rather than a directory
     private func checkIfInitialPathIsFile() async {
         do {
-            // Get file info
-            let fileInfo = try await connectionManager.infoForFile(atPath: initialPath)
-            
-            if !fileInfo.isDirectory {
-                // It's a file, set up the pseudo-folder with just this file
-                let filename = URL(fileURLWithPath: initialPath).lastPathComponent
-                
-                // Create a FileItem for the single file
-                let fileItem = FileItem(
-                    name: filename,
-                    url: URL(fileURLWithPath: initialPath),
-                    isDirectory: false,
-                    size: Int(fileInfo.size),
-                    modificationDate: fileInfo.mtime
-                )
-                
-                await MainActor.run {
-                    self.isInitialPathAFile = true
-                    self.initialFileItem = fileItem
-                    self.items = [fileItem] // Set items to contain only this file
-                    self.isLoading = false
-                    self.updateImageUrls()
-                }
-            } else {
+            // Get file info by trying to list the directory
+            // If it succeeds, it's a directory; if it fails, check if it's a file
+            do {
+                _ = try await listDirectoryContents(path: initialPath)
                 // It's a directory, proceed normally
                 await MainActor.run {
                     self.isInitialPathAFile = false
                     self.fetchItems()
+                }
+            } catch {
+                // It might be a file, try to get its attributes
+                // Execute a command to check if it's a file and get its info
+                let escapedPath = initialPath.replacingOccurrences(of: "'", with: "'\\''")
+                let command = "stat -c \"%s %Y\" '\(escapedPath)' 2>/dev/null || echo 'error'"
+                
+                let (_, output) = try await sshConnection.executeCommand(command)
+                let components = output.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ")
+                
+                if components.count == 2 && components[0] != "error" {
+                    // It's a file, set up the pseudo-folder with just this file
+                    let size = Int(components[0]) ?? 0
+                    let modTime = TimeInterval(Int(components[1]) ?? 0)
+                    let modDate = Date(timeIntervalSince1970: modTime)
+                    
+                    let filename = URL(fileURLWithPath: initialPath).lastPathComponent
+                    
+                    // Create a FileItem for the single file
+                    let fileItem = FileItem(
+                        name: filename,
+                        url: URL(fileURLWithPath: initialPath),
+                        isDirectory: false,
+                        size: size,
+                        modificationDate: modDate
+                    )
+                    
+                    await MainActor.run {
+                        self.isInitialPathAFile = true
+                        self.initialFileItem = fileItem
+                        self.items = [fileItem] // Set items to contain only this file
+                        self.isLoading = false
+                        self.updateImageUrls()
+                    }
+                } else {
+                    // Not a valid file, fallback to directory mode
+                    await MainActor.run {
+                        self.isInitialPathAFile = false
+                        self.fetchItems()
+                    }
                 }
             }
         } catch {
@@ -272,7 +298,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
                 if item.isDirectory {
                     try await recursiveDelete(atPath: item.url.path)
                 } else {
-                    try await connectionManager.removeFile(atPath: item.url.path)
+                    try await sshConnection.removeFile(path: item.url.path)
                 }
                 
                 self.isLoading = false
@@ -290,7 +316,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
         var allPaths: [(path: String, isDirectory: Bool)] = []
         
         func collectPaths(currentPath: String) async throws {
-            let entries = try await connectionManager.contentsOfDirectory(atPath: currentPath)
+            let entries = try await listDirectoryContents(path: currentPath)
             for entry in entries {
                 // Skip special entries
                 if entry.name == "." || entry.name == ".." { continue }
@@ -311,14 +337,14 @@ class SFTPFileBrowserViewModel: ObservableObject {
         // Delete all collected entries: files first, then directories
         for (entryPath, isDirectory) in allPaths {
             if isDirectory {
-                try await connectionManager.removeDirectory(atPath: entryPath)
+                try await sshConnection.removeDirectory(path: entryPath)
             } else {
-                try await connectionManager.removeFile(atPath: entryPath)
+                try await sshConnection.removeFile(path: entryPath)
             }
         }
         
         // Finally, remove the root directory
-        try await connectionManager.removeDirectory(atPath: path)
+        try await sshConnection.removeDirectory(path: path)
     }
     
     // Rename a file or directory
@@ -331,7 +357,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
             let newPath = "\(parentPath)/\(newName)".replacingOccurrences(of: "//", with: "/")
             
             do {
-                try await connectionManager.moveItem(atPath: item.url.path, toPath: newPath)
+                try await sshConnection.rename(oldPath: item.url.path, newPath: newPath)
                 
                 self.isLoading = false
                 self.fetchItems() // Refresh the directory after renaming
@@ -340,6 +366,25 @@ class SFTPFileBrowserViewModel: ObservableObject {
                 self.isLoading = false
                 print("❌ Failed to rename item: \(error)")
             }
+        }
+    }
+    
+    // MARK: - File Access and Opening
+    
+    func openFile(item: FileItem, server: ServerEntity) {
+        let fileType = FileType.determine(from: item.url)
+        
+        switch fileType {
+        case .video:
+            if preferVLC && isVLCInstalled() {
+                openVideoInVLC(item: item, server: server)
+            } else {
+                openVideo(item: item, server: server)
+            }
+        case .image:
+            openImageBrowser(item)
+        case .other:
+            downloadFile(item)
         }
     }
     
@@ -354,6 +399,11 @@ class SFTPFileBrowserViewModel: ObservableObject {
         // For macOS, you might want to check differently or always return true
         return false
         #endif
+    }
+    
+    // To be compatible with the property used in openFile
+    var preferVLC: Bool {
+        return UserDefaults.standard.bool(forKey: "preferVLC")
     }
     
     func openVideoInVLC(item: FileItem, server: ServerEntity) {
@@ -458,35 +508,35 @@ class SFTPFileBrowserViewModel: ObservableObject {
             print("❌ Missing server credentials")
             return
         }
-        @AppStorage("StreamingServerLocalPort") var localStreamPort = 8080
-        //var localStreamPort = 4001
         
         let port = server.sftpPort
         let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
         
         if videoItems.count == 1 {
-            let path = item.url.path //.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
+            let path = item.url.path
             print("Found Video \(path)")
-            var vlcUrl: URL!
-            //let vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
+            var videoUrl: URL!
+            //videoUrl = URL(string: "http://127.0.0.1:9090\(path)")!
+            
             if server.sftpUsesKey == true {
-                vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@localhost:2222\(path)")!
+                //videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@localhost:2222\(path)")!
+                videoUrl = URL(string: "ftp://localhost:2121\(path)")!
             } else {
-                vlcUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
+                videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
             }
-//            let vlcUrl = URL(string: "http://localhost:\(localStreamPort)\(path)")!
             
             // Create and set the configuration
-            self.videoPlayerConfiguration = VideoPlayerConfiguration(singleItem: vlcUrl)
+            self.videoPlayerConfiguration = VideoPlayerConfiguration(singleItem: videoUrl)
             self.showingVideoPlayer = true
         } else {
             var playlist: [URL] = []
             for item in videoItems {
-                let path = item.url.path //.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
+                let path = item.url.path
                 print("Found Video \(path)")
-                //
+                //playlist.append(URL(string: "http://127.0.0.1:9090\(path)")!)
                 if server.sftpUsesKey == true {
-                    playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@localhost:2222\(path)")!)
+                    playlist.append(URL(string: "ftp://localhost:2121\(path)")!)
+                    //playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@localhost:2222\(path)")!)
                 } else {
                     playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!)
                 }
@@ -688,12 +738,11 @@ class SFTPFileBrowserViewModel: ObservableObject {
                     try FileManager.default.removeItem(at: localURL)
                 }
                 
-                // Download the file
-                try await connectionManager.downloadFile(
-                    remotePath: item.url.path,
-                    localURL: localURL,
-                    progress: progressHandler
-                )
+                // Download the file using SSHConnection
+                try await sshConnection.downloadFile(remotePath: item.url.path, localURL: localURL, progress: { progress in
+                    // Call our handler and ignore its return value
+                    _ = progressHandler(progress)
+                })
                 
                 // Verify download succeeded
                 if FileManager.default.fileExists(atPath: localURL.path) {
@@ -764,18 +813,4 @@ class SFTPFileBrowserViewModel: ObservableObject {
     }
 }
 
-//// MARK: - SFTPUploadHandler Conformance
-//extension SFTPFileBrowserViewModel: SFTPUploadHandler {
-//    func getConnection() -> MFTSftpConnection {
-//        return sftpConnection
-//    }
-//    
-//    func getConnectionManager() -> SFTPConnectionManager? {
-//        return connectionManager
-//    }
-//    
-//    func refreshItems() {
-//        self.fetchItems()
-//    }
-//}
 #endif

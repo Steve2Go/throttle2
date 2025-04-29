@@ -338,6 +338,31 @@ class SSHConnection {
         return (0, output)
     }
     
+    func executeInteractiveCommand(_ command: String) async throws -> ExecCommandStream {
+            try await ensureValidConnection()
+            
+            guard let client = client else {
+                throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
+            }
+            
+            // Update last active time
+            lastActiveTime = Date()
+            
+            // For interactive commands, we use executeCommandPair which gives us
+            // direct access to stdin/stdout streams
+            return try await client.executeCommandPair(command)
+        }
+        
+        /// Helper method to execute a command and get binary data directly
+        func executeCommandForData(_ command: String, maxSize: Int = 1024 * 1024 * 10) async throws -> Data {
+            // Ensure we have a valid SSH client
+            let sshClient = try await getSSHClient()
+            // Execute the command and retrieve raw bytes
+            let byteBuffer = try await sshClient.executeCommand(command, maxResponseSize: maxSize, mergeStreams: true)
+            return Data(buffer: byteBuffer)
+        }
+    
     // Helper method for multi-line commands specifically
     func executeMultiLineCommand(_ commands: [String], maxResponseSize: Int? = nil) async throws -> (status: Int32, output: String) {
         // Join commands with proper line endings and execute with merged streams
@@ -358,22 +383,7 @@ class SSHConnection {
         return try await client.executeCommandPair(command)
     }
     
-    // Execute interactive shell commands - useful for multi-line commands that need
-    // more context or state between lines
-    func executeInteractiveCommand(_ command: String) async throws -> ExecCommandStream {
-        try await ensureValidConnection()
-        
-        guard let client = client else {
-            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
-        }
-        
-        // Update last active time
-        lastActiveTime = Date()
-        
-        // For interactive commands, we use executeCommandPair which gives us
-        // direct access to stdin/stdout streams
-        return try await client.executeCommandPair(command)
-    }
+
     
     // MARK: - SFTP Operations
     

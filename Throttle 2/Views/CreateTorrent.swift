@@ -34,6 +34,9 @@ struct CreateTorrent: View {
     @State private var comment = ""
     @State var progressPercentage: Double = 0.0
     
+    // Using @State for the connection property since we're in a struct
+    @State private var sshConnection: SSHConnection?
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -180,6 +183,15 @@ struct CreateTorrent: View {
             isRemote = true
             #endif
         }
+        .onDisappear {
+            // Clean up connection if view disappears
+            Task {
+                if let conn = sshConnection {
+                    await conn.disconnect()
+                    sshConnection = nil
+                }
+            }
+        }
     }
     
     func openFile(path: String) {
@@ -213,12 +225,18 @@ struct CreateTorrent: View {
             return
         }
         
+        guard let serverEntity = store.selection else {
+            isError = true
+            commandOutput += "\nError: No server selected"
+            return
+        }
         
-        // Create connection manager
-        let connectionManager = SFTPConnectionManager(server: store.selection)
+        // Create a reusable SSH connection
+        let connection = SSHConnection(server: serverEntity)
+        self.sshConnection = connection
         
         // Connect to the server
-        try await connectionManager.connect()
+        try await connection.connect()
         
         // Set initial progress
         await MainActor.run {
@@ -232,10 +250,6 @@ struct CreateTorrent: View {
         let escapedOutputFile = outputFile.replacingOccurrences(of: "'", with: "'\\''")
         let escapedPath = filePath.replacingOccurrences(of: "'", with: "'\\''")
         
-        // Create SSH connection
-        let ssh = SSHConnection(server: store.selection! )
-        try await ssh.connect()
-        
         // Upload the shell script to the server
         let scriptPath = "/tmp/torrent_creator.sh"
         
@@ -248,14 +262,14 @@ struct CreateTorrent: View {
         
         // Use cat and shell redirection to create the file
         let createScriptCmd = "cat > '\(scriptPath)' << 'EOFSCRIPT'\n\(scriptContent)\nEOFSCRIPT"
-        let (_, _) = try await ssh.executeCommand(createScriptCmd)
+        let (_, _) = try await connection.executeCommand(createScriptCmd)
         
         await MainActor.run {
             progressPercentage = 0.15 // Script uploaded
         }
         
         // Make the script executable
-        let (_, _) = try await ssh.executeCommand("chmod +x '\(scriptPath)'")
+        let (_, _) = try await connection.executeCommand("chmod +x '\(scriptPath)'")
         
         await MainActor.run {
             progressPercentage = 0.2 // Script ready
@@ -316,7 +330,7 @@ struct CreateTorrent: View {
         }
         
         // Execute the background command - this should return quickly
-        let (_, bgOutput) = try await ssh.executeCommand(backgroundCmd)
+        let (_, bgOutput) = try await connection.executeCommand(backgroundCmd)
         
         // Start monitoring for the output file
         commandOutput += "\nMonitoring for torrent file creation..."
@@ -344,14 +358,14 @@ struct CreateTorrent: View {
             attempts += 1
             
             // 1. Check the log file for new output
-            let (_, logSizeStr) = try await ssh.executeCommand("stat -c%s \(logFile) 2>/dev/null || echo '0'")
+            let (_, logSizeStr) = try await connection.executeCommand("stat -c%s \(logFile) 2>/dev/null || echo '0'")
             let currentLogSize = Int(logSizeStr.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
             
             var updatedProgressLine = false
             
             if currentLogSize > lastLogSize {
                 // Get only the new content since last check
-                let (_, newContent) = try await ssh.executeCommand("tail -c +\(lastLogSize + 1) \(logFile)")
+                let (_, newContent) = try await connection.executeCommand("tail -c +\(lastLogSize + 1) \(logFile)")
                 
                 if !newContent.isEmpty {
                     // Look for total size information
@@ -460,7 +474,7 @@ struct CreateTorrent: View {
             }
             
             // 2. Check if the output file exists
-            let (_, checkOutput) = try await ssh.executeCommand("[ -f '\(escapedOutputFile)' ] && echo 'success' || echo 'failed'")
+            let (_, checkOutput) = try await connection.executeCommand("[ -f '\(escapedOutputFile)' ] && echo 'success' || echo 'failed'")
             
             if checkOutput.contains("success") {
                 fileExists = true
@@ -474,16 +488,16 @@ struct CreateTorrent: View {
                 break
             } else {
                 // 3. Check if process is still running
-                let (_, pidFileExists) = try await ssh.executeCommand("[ -f /tmp/torrent_pid_\(jobId) ] && echo 'yes' || echo 'no'")
+                let (_, pidFileExists) = try await connection.executeCommand("[ -f /tmp/torrent_pid_\(jobId) ] && echo 'yes' || echo 'no'")
                 
                 if pidFileExists.contains("yes") {
-                    let (_, pidContent) = try await ssh.executeCommand("cat /tmp/torrent_pid_\(jobId)")
+                    let (_, pidContent) = try await connection.executeCommand("cat /tmp/torrent_pid_\(jobId)")
                     let pid = pidContent.trimmingCharacters(in: .whitespacesAndNewlines)
                     
-                    let (_, processCheck) = try await ssh.executeCommand("ps -p \(pid) -o pid= || echo 'NOT_RUNNING'")
+                    let (_, processCheck) = try await connection.executeCommand("ps -p \(pid) -o pid= || echo 'NOT_RUNNING'")
                     if processCheck.contains("NOT_RUNNING") {
                         // Process ended but no file found - check log for errors
-                        let (_, finalLog) = try await ssh.executeCommand("cat \(logFile)")
+                        let (_, finalLog) = try await connection.executeCommand("cat \(logFile)")
                         if !finalLog.contains("success") && !finalLog.contains("pieces") {
                             isError = true
                             commandOutput += "\nProcess completed but no torrent file was created."
@@ -496,7 +510,7 @@ struct CreateTorrent: View {
                         }
                         
                         // Re-check for file one last time
-                        let (_, finalCheck) = try await ssh.executeCommand("[ -f '\(escapedOutputFile)' ] && echo 'success' || echo 'failed'")
+                        let (_, finalCheck) = try await connection.executeCommand("[ -f '\(escapedOutputFile)' ] && echo 'success' || echo 'failed'")
                         if finalCheck.contains("success") {
                             fileExists = true
                             commandOutput += "\nTorrent file created successfully!"
@@ -581,8 +595,9 @@ struct CreateTorrent: View {
                 try fileManager.removeItem(at: outputURL)
             }
             
-            // Download using Citadel connection
-            let progressHandler: (Double) -> Bool = { progress in
+            // Download using our single SSH connection
+            // Create a modified progress handler that matches the expected signature
+            let progressHandler: (Double) -> Void = { progress in
                 let current = UInt64(progress * 100000) // Estimate of bytes for progress display
                 let total = UInt64(100000)
                 let percentage = Int(progress * 100)
@@ -596,16 +611,17 @@ struct CreateTorrent: View {
                 }
                 
                 // Update the download line in-place
-                var lines = commandOutput.components(separatedBy: "\n")
-                if downloadLineIndex < lines.count {
-                    lines[downloadLineIndex] = downloadProgressLine
-                    commandOutput = lines.joined(separator: "\n")
+                Task { @MainActor in
+                    var lines = commandOutput.components(separatedBy: "\n")
+                    if downloadLineIndex < lines.count {
+                        lines[downloadLineIndex] = downloadProgressLine
+                        commandOutput = lines.joined(separator: "\n")
+                    }
                 }
-                
-                return true // Continue downloading
             }
             
-            try await connectionManager.downloadFile(
+            // Use the same SSH connection for downloading
+            try await connection.downloadFile(
                 remotePath: outputFile,
                 localURL: outputURL,
                 progress: progressHandler
@@ -619,7 +635,7 @@ struct CreateTorrent: View {
             }
             
             // Clean up temp files
-            let (_, _) = try await ssh.executeCommand("rm -f '\(escapedOutputFile)' '\(scriptPath)' /tmp/torrent_pid_\(jobId) \(logFile)")
+            let (_, _) = try await connection.executeCommand("rm -f '\(escapedOutputFile)' '\(scriptPath)' /tmp/torrent_pid_\(jobId) \(logFile)")
             commandOutput += "\nCleaned up temporary files"
         } catch {
             isError = true
@@ -631,12 +647,6 @@ struct CreateTorrent: View {
         }
         
         isDownloading = false
-        
-        // Clean up connections
-        Task {
-            try? await connectionManager.disconnect()
-            try? await ssh.disconnect()
-        }
     }
     
     // Helper function to format file sizes nicely

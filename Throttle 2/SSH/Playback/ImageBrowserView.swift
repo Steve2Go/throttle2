@@ -105,13 +105,13 @@ struct ImageBrowserView: View {
     let imageUrls: [URL]
     @State private var currentIndex: Int
     @State private var isAnimating: Bool = false
-    let sftpConnection: SFTPFileBrowserViewModel
+    let sftpViewModel: SFTPFileBrowserViewModel
     @Environment(\.dismiss) private var dismiss
     
     init(imageUrls: [URL], initialIndex: Int, sftpConnection: SFTPFileBrowserViewModel) {
         self.imageUrls = imageUrls
         self._currentIndex = State(initialValue: initialIndex)
-        self.sftpConnection = sftpConnection
+        self.sftpViewModel = sftpConnection
     }
     
     var body: some View {
@@ -141,9 +141,10 @@ struct ImageBrowserView: View {
             VStack {
                 TabView(selection: $currentIndex) {
                     ForEach(0..<imageUrls.count, id: \.self) { index in
-                        DDImageViewer(
+                        // Use SSHImageViewer instead of DDImageViewer
+                        SSHImageViewer(
                             url: imageUrls[index],
-                            connectionManager: sftpConnection.connectionManager
+                            server: ServerManager.shared.selectedServer ?? sftpViewModel.server
                         )
                         .tag(index)
                     }
@@ -171,8 +172,8 @@ struct ImageBrowserView: View {
                     
                     Button(action: {
                         if let currentItem = imageUrls.indices.contains(currentIndex) ?
-                            sftpConnection.items.first(where: { $0.url == imageUrls[currentIndex] }) : nil {
-                            sftpConnection.downloadFile(currentItem)
+                            sftpViewModel.items.first(where: { $0.url == imageUrls[currentIndex] }) : nil {
+                            sftpViewModel.downloadFile(currentItem)
                         }
                     }) {
                         Image(systemName: "square.and.arrow.down")
@@ -189,10 +190,10 @@ struct ImageBrowserView: View {
     }
 }
 
-// MARK: - DD Image Viewer (using DD command)
-struct DDImageViewer: View {
+// MARK: - SSH Image Viewer (using SSH connection)
+struct SSHImageViewer: View {
     let url: URL
-    let connectionManager: SFTPConnectionManager
+    let server: ServerEntity
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var imageData: Data?
@@ -243,13 +244,10 @@ struct DDImageViewer: View {
         loader?.cancel()
         loadingTask?.cancel()
         
-        // Get connection details from the ServerManager
-        let server = ServerManager.shared.selectedServer
-        
         // Create a new loader
         let imageLoader = RemoteImageLoader(
             url: url,
-            server: server!
+            server: server
         )
         loader = imageLoader
         
@@ -282,7 +280,7 @@ struct DDImageViewer: View {
 struct ExternalImageBrowserView: View {
     let imageUrls: [URL]
     @ObservedObject var sharedState: ImageBrowserSharedState
-    let connectionManager: SFTPConnectionManager
+    let server: ServerEntity
     @State private var fadeOpacity: Double = 1.0
     @State private var preloadedImages: [Int: Data] = [:]
     @State private var preloadTasks: [Int: Task<Void, Never>] = [:]
@@ -294,9 +292,9 @@ struct ExternalImageBrowserView: View {
             // Modified TabView with animation disabled (we'll handle our own animations)
             TabView(selection: $sharedState.currentIndex) {
                 ForEach(0..<imageUrls.count, id: \.self) { index in
-                    EnhancedExternalDDImageViewer(
+                    EnhancedExternalSSHImageViewer(
                         url: imageUrls[index],
-                        connectionManager: connectionManager,
+                        server: server,
                         sharedState: sharedState,
                         preloadedImageData: preloadedImages[index],
                         fadeOpacity: index == sharedState.currentIndex ? fadeOpacity : 0.0
@@ -404,16 +402,12 @@ struct ExternalImageBrowserView: View {
         guard index >= 0 && index < imageUrls.count else { return }
         
         let task = Task {
-            // Get server details
-            let server = ServerManager.shared.selectedServer
-            
-            
             do {
                 // Create loader for preloading
                 let url = imageUrls[index]
                 let imageLoader = RemoteImageLoader(
                     url: url,
-                    server: server!
+                    server: server
                 )
                 
                 // Load the image data
@@ -443,9 +437,9 @@ struct ExternalImageBrowserView: View {
 }
 
 // MARK: - Enhanced External Image Viewer with Preloading Support
-struct EnhancedExternalDDImageViewer: View {
+struct EnhancedExternalSSHImageViewer: View {
     let url: URL
-    let connectionManager: SFTPConnectionManager
+    let server: ServerEntity
     @ObservedObject var sharedState: ImageBrowserSharedState
     let preloadedImageData: Data?
     let fadeOpacity: Double
@@ -523,14 +517,10 @@ struct EnhancedExternalDDImageViewer: View {
         loader?.cancel()
         loadingTask?.cancel()
         
-        // Get connection details from the ServerManager
-        let server = ServerManager.shared.selectedServer
-      
-        
-        // Create a new loader
+        // Create a new loader using the specified server
         let imageLoader = RemoteImageLoader(
             url: url,
-            server: server!
+            server: server
         )
         loader = imageLoader
         
@@ -995,7 +985,7 @@ extension UIViewController {
 class ImageBrowserViewController: UIViewController {
     private var imageUrls: [URL]
     private var initialIndex: Int
-    private var sftpConnection: SFTPFileBrowserViewModel
+    private var sftpViewModel: SFTPFileBrowserViewModel
     
     private var hostingController: UIHostingController<AnyView>?
     private var externalWindow: UIWindow?
@@ -1004,7 +994,7 @@ class ImageBrowserViewController: UIViewController {
     init(imageUrls: [URL], initialIndex: Int, sftpConnection: SFTPFileBrowserViewModel) {
         self.imageUrls = imageUrls
         self.initialIndex = initialIndex
-        self.sftpConnection = sftpConnection
+        self.sftpViewModel = sftpConnection
         super.init(nibName: nil, bundle: nil)
     }
     
@@ -1047,7 +1037,7 @@ class ImageBrowserViewController: UIViewController {
         let imageBrowserView = ImageBrowserView(
             imageUrls: imageUrls,
             initialIndex: initialIndex,
-            sftpConnection: sftpConnection
+            sftpConnection: sftpViewModel
         )
         
         // Create a host controller for the SwiftUI view
@@ -1073,11 +1063,14 @@ class ImageBrowserViewController: UIViewController {
         // Use a state object to share between views
         let sharedState = ImageBrowserSharedState(currentIndex: initialIndex)
         
+        // Get the server from the ViewModel
+        let server = ServerManager.shared.selectedServer ?? sftpViewModel.server
+        
         // Create the SwiftUI view for the external display
         let imageBrowserView = ExternalImageBrowserView(
             imageUrls: imageUrls,
             sharedState: sharedState,
-            connectionManager: sftpConnection.connectionManager
+            server: server
         )
         
         // Create a host controller for the external display
@@ -1099,8 +1092,8 @@ class ImageBrowserViewController: UIViewController {
             onDownload: { [weak self] in
                 if let self = self, self.imageUrls.indices.contains(sharedState.currentIndex) {
                     let currentUrl = self.imageUrls[sharedState.currentIndex]
-                    if let currentItem = self.sftpConnection.items.first(where: { $0.url == currentUrl }) {
-                        self.sftpConnection.downloadFile(currentItem)
+                    if let currentItem = self.sftpViewModel.items.first(where: { $0.url == currentUrl }) {
+                        self.sftpViewModel.downloadFile(currentItem)
                     }
                 }
             }

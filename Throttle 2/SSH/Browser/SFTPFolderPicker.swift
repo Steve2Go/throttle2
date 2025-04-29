@@ -12,18 +12,16 @@ class FileBrowserViewModel: ObservableObject {
     @Published var upOne = ""
     let basePath: String
     
-    // Keep both connection methods for gradual transition
-    //var sftpConnection: MFTSftpConnection!
-    private var connectionManager: SFTPConnectionManager
+    // Store the server entity for SSH connections
+    let server: ServerEntity?
+    
+    // Use SSH connection instead of connection manager
+    private var sshConnection: SSHConnection?
 
     init(currentPath: String, basePath: String, server: ServerEntity?) {
         self.currentPath = currentPath
         self.basePath = basePath
-        
-        // Initialize the connection manager
-        self.connectionManager = SFTPConnectionManager(server: server)
-        // The connection manager initializes the MFT connection, so we can reference it
-        //self.sftpConnection = connectionManager.mftConnection
+        self.server = server
         
         // Connect to the server
         connectToServer()
@@ -32,12 +30,24 @@ class FileBrowserViewModel: ObservableObject {
     private func connectToServer() {
         Task {
             do {
-                try await connectionManager.connect()
-                await fetchItems()
+                // Create and connect a new SSH connection
+                if let server = server {
+                    let connection = SSHConnection(server: server)
+                    try await connection.connect()
+                    
+                    // Store the connection for future use
+                    self.sshConnection = connection
+                    
+                    // Fetch initial directory listing
+                    await fetchItems()
+                } else {
+                    throw NSError(domain: "FileBrowser", code: -1,
+                                 userInfo: [NSLocalizedDescriptionKey: "Server configuration missing"])
+                }
             } catch {
                 await MainActor.run {
                     self.isLoading = false
-                    print("SFTP Connection Error: \(error)")
+                    print("SSH Connection Error: \(error)")
                 }
             }
         }
@@ -48,14 +58,46 @@ class FileBrowserViewModel: ObservableObject {
         
         Task {
             do {
-                try await connectionManager.createDirectory(atPath: newFolderPath)
-                await fetchItems() // Refresh directory after creation
+                // Use the existing connection or create a new one if needed
+                let connection = try await getOrCreateConnection()
+                
+                // Create the directory using SSH
+                try await connection.createDirectory(path: newFolderPath)
+                
+                // Refresh directory listing
+                await fetchItems()
             } catch {
                 await MainActor.run {
                     print("❌ Failed to create folder: \(error)")
                 }
             }
         }
+    }
+    
+    // Helper to get or create an SSH connection
+    private func getOrCreateConnection() async throws -> SSHConnection {
+        // Create a new connection if we don't have one
+        if sshConnection == nil {
+            guard let server = server else {
+                throw NSError(domain: "FileBrowser", code: -1,
+                             userInfo: [NSLocalizedDescriptionKey: "Server configuration missing"])
+            }
+            
+            // Create and connect a new SSH connection
+            let connection = SSHConnection(server: server)
+            try await connection.connect()
+            
+            // Store for future use
+            self.sshConnection = connection
+        }
+        
+        // Return the existing or newly created connection
+        guard let connection = sshConnection else {
+            throw NSError(domain: "FileBrowser", code: -2,
+                         userInfo: [NSLocalizedDescriptionKey: "Failed to create SSH connection"])
+        }
+        
+        return connection
     }
     
     func fetchItems() async {
@@ -67,18 +109,50 @@ class FileBrowserViewModel: ObservableObject {
         }
         
         do {
-            // Get directory contents using the connection manager
-            let fileItems = try await connectionManager.contentsOfDirectory(atPath: currentPath)
+            // Get or create a connection
+            let connection = try await getOrCreateConnection()
+            
+            // Get directory contents using the SSH connection
+            // The connection.listDirectory returns SFTPPathComponent, so we need to convert to FileItem
+            let sftpComponents = try await connection.listDirectory(path: currentPath)
+            
+            // Convert SFTPPathComponent to FileItem objects
+            let fileItems = sftpComponents.compactMap { component -> FileItem? in
+                // Skip "." and ".." entries
+                if component.filename == "." || component.filename == ".." {
+                    return nil
+                }
+                
+                // Create a URL for the item
+                let url = URL(fileURLWithPath: "\(currentPath)/\(component.filename)")
+                                .standardized
+                
+                // Check if it's a directory based on the attributes
+                let isDirectory = component.attributes.permissions != nil &&
+                                 (component.attributes.permissions! & 0x4000) != 0
+                
+                // Get the size and modification date
+                let size = isDirectory ? nil : Int(component.attributes.size ?? 0)
+                let modDate = component.attributes.accessModificationTime?.modificationTime ?? Date()
+                
+                return FileItem(
+                    name: component.filename,
+                    url: url,
+                    isDirectory: isDirectory,
+                    size: size,
+                    modificationDate: modDate
+                )
+            }
             
             // Calculate "up one" display text
             let upOneValue = NSString(string: NSString(string: currentPath).deletingLastPathComponent).lastPathComponent
             
-            // Sort items: Folders first, then by modification date (newest first)
-            let sortedItems = fileItems.sorted {
-                if $0.isDirectory == $1.isDirectory {
-                    return $0.modificationDate > $1.modificationDate // Sort by date within each group
+            // Sort items with explicit type annotations to avoid compiler inference issues
+            let sortedItems = fileItems.sorted { (a: FileItem, b: FileItem) -> Bool in
+                if a.isDirectory == b.isDirectory {
+                    return a.modificationDate > b.modificationDate // Sort by date within each group
                 }
-                return $0.isDirectory && !$1.isDirectory // Folders first
+                return a.isDirectory && !b.isDirectory // Folders first
             }
             
             await MainActor.run {
@@ -89,7 +163,7 @@ class FileBrowserViewModel: ObservableObject {
         } catch {
             await MainActor.run {
                 self.isLoading = false
-                print("SFTP Directory Listing Error: \(error)")
+                print("SSH Directory Listing Error: \(error)")
             }
         }
     }
@@ -121,37 +195,41 @@ class FileBrowserViewModel: ObservableObject {
             await fetchItems()
         }
     }
+    
+    // Cleanup resources when view model is deallocated
+    deinit {
+        // Clean up SSH connection
+        if let connection = sshConnection {
+            Task {
+                await connection.disconnect()
+            }
+        }
+    }
 }
-
-
-// MARK: - FileBrowserView
-import SwiftUI
-import Combine
-import KeychainAccess
 
 
 // MARK: - FileBrowserView
 struct FileBrowserView: View {
     @StateObject private var viewModel: FileBrowserViewModel
-       @State private var showNewFolderPrompt = false
-       @State private var newFolderName = ""
-       @State private var selectFiles: Bool
-       @State private var showUploadView = false
+    @State private var showNewFolderPrompt = false
+    @State private var newFolderName = ""
+    @State private var selectFiles: Bool
+    @State private var showUploadView = false
     @State private var currentPath: String = ""
        
-       let onFolderSelected: (String) -> Void
-       @Environment(\.dismiss) private var dismiss
+    let onFolderSelected: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
 
-       init(currentPath: String, basePath: String, server: ServerEntity?, onFolderSelected: @escaping (String) -> Void, selectFiles: Bool = false) {
-           _viewModel = StateObject(wrappedValue: FileBrowserViewModel(currentPath: currentPath, basePath: basePath, server: server))
-           self.onFolderSelected = onFolderSelected
-           _selectFiles = State(initialValue: selectFiles)
-           _currentPath = State(initialValue: currentPath)
-       }
+    init(currentPath: String, basePath: String, server: ServerEntity?, onFolderSelected: @escaping (String) -> Void, selectFiles: Bool = false) {
+        _viewModel = StateObject(wrappedValue: FileBrowserViewModel(currentPath: currentPath, basePath: basePath, server: server))
+        self.onFolderSelected = onFolderSelected
+        _selectFiles = State(initialValue: selectFiles)
+        _currentPath = State(initialValue: currentPath)
+    }
        
-       private var uploadManager: SFTPUploadManager {
-           SFTPUploadManager(uploadHandler: viewModel)
-       }
+    private var uploadManager: SFTPUploadManager {
+        SFTPUploadManager(uploadHandler: viewModel)
+    }
 
 
     var body: some View {
@@ -364,12 +442,11 @@ struct FileBrowserView: View {
     }
 }
 
-// upload conformance
+// Update the upload handler conformance to use the updated protocol
 extension FileBrowserViewModel: SFTPUploadHandler {
-    
-    // Implementing the required methods
-    func getConnectionManager() -> SFTPConnectionManager? {
-        return connectionManager
+    // Instead of providing a connection manager, provide the server entity
+    func getServer() -> ServerEntity? {
+        return server
     }
     
     func refreshItems() {

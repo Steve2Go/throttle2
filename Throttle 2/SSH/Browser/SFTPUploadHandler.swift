@@ -1,18 +1,18 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import Citadel
-//import mft
 import NIO
 
+// Updated protocol to use SSHConnection instead of SFTPConnectionManager
 protocol SFTPUploadHandler {
-    // Get the connection manager for SFTP operations
-    func getConnectionManager() -> SFTPConnectionManager?
+    // Get the server entity for SSH operations
+    func getServer() -> ServerEntity?
     
     var currentPath: String { get }
     func refreshItems()
 }
 
-// Update SFTPUploadManager to work with both connection types
+// Update SFTPUploadManager to work with SSHConnection
 class SFTPUploadManager: ObservableObject {
     @Published var isUploading = false
     @Published var uploadProgress: Double = 0
@@ -23,6 +23,7 @@ class SFTPUploadManager: ObservableObject {
     private var totalFiles = 0
     private var processedFiles = 0
     private var uploadTask: Task<Void, Error>?
+    private var sshConnection: SSHConnection?
     
     init(uploadHandler: SFTPUploadHandler) {
         self.uploadHandler = uploadHandler
@@ -38,13 +39,19 @@ class SFTPUploadManager: ObservableObject {
         currentUploadFileName = localURL.lastPathComponent
         uploadProgress = 0
         
-        // Check if we can use the ConnectionManager
-        if let connectionManager = uploadHandler.getConnectionManager() {
-            uploadWithCitadel(localURL: localURL, connectionManager: connectionManager)
+        // Create a new SSH connection using the server from the handler
+        if let server = uploadHandler.getServer() {
+            uploadWithSSH(localURL: localURL, server: server)
+        } else {
+            Task { @MainActor in
+                self.error = "Server configuration not found"
+                self.isUploading = false
+                localURL.stopAccessingSecurityScopedResource()
+            }
         }
     }
     
-    private func uploadWithCitadel(localURL: URL, connectionManager: SFTPConnectionManager) {
+    private func uploadWithSSH(localURL: URL, server: ServerEntity) {
         uploadTask = Task {
             do {
                 defer { localURL.stopAccessingSecurityScopedResource() }
@@ -52,8 +59,12 @@ class SFTPUploadManager: ObservableObject {
                 let destinationPath = "\(self.uploadHandler.currentPath)/\(localURL.lastPathComponent)"
                     .replacingOccurrences(of: "//", with: "/")
                 
+                // Create a new SSH connection
+                let connection = SSHConnection(server: server)
+                self.sshConnection = connection
+                
                 // Upload the file with progress monitoring
-                try await connectionManager.uploadFile(
+                try await connection.uploadFile(
                     localURL: localURL,
                     remotePath: destinationPath
                 ) { progress in
@@ -61,9 +72,11 @@ class SFTPUploadManager: ObservableObject {
                     Task { @MainActor in
                         self.uploadProgress = progress
                     }
-                    // Check if the upload was cancelled
-                    return !Task.isCancelled
                 }
+                
+                // Clean up connection when done
+                await connection.disconnect()
+                self.sshConnection = nil
                 
                 await MainActor.run {
                     self.uploadHandler.refreshItems()
@@ -71,6 +84,14 @@ class SFTPUploadManager: ObservableObject {
                     self.uploadProgress = 1.0
                 }
             } catch {
+                // Clean up connection on error
+                if let connection = self.sshConnection {
+                    Task {
+                        await connection.disconnect()
+                        self.sshConnection = nil
+                    }
+                }
+                
                 if error is CancellationError {
                     print("Upload cancelled by user")
                 } else {
@@ -97,13 +118,19 @@ class SFTPUploadManager: ObservableObject {
         currentUploadFileName = localURL.lastPathComponent
         uploadProgress = 0
         
-        // Check if we can use the ConnectionManager
-        if let connectionManager = uploadHandler.getConnectionManager() {
-            uploadFolderWithCitadel(localURL: localURL, connectionManager: connectionManager)
+        // Create a new SSH connection using the server from the handler
+        if let server = uploadHandler.getServer() {
+            uploadFolderWithSSH(localURL: localURL, server: server)
+        } else {
+            Task { @MainActor in
+                self.error = "Server configuration not found"
+                self.isUploading = false
+                localURL.stopAccessingSecurityScopedResource()
+            }
         }
     }
     
-    private func uploadFolderWithCitadel(localURL: URL, connectionManager: SFTPConnectionManager) {
+    private func uploadFolderWithSSH(localURL: URL, server: ServerEntity) {
         uploadTask = Task {
             do {
                 defer {
@@ -118,8 +145,12 @@ class SFTPUploadManager: ObservableObject {
                     .replacingOccurrences(of: "//", with: "/")
                 print("📂 Creating base remote directory: \(destinationBase)")
                 
+                // Create a new SSH connection
+                let connection = SSHConnection(server: server)
+                self.sshConnection = connection
+                
                 // Create the base directory
-                try await connectionManager.createDirectory(atPath: destinationBase)
+                try await connection.createDirectory(path: destinationBase)
                 
                 // Get all contents
                 let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .nameKey]
@@ -176,7 +207,7 @@ class SFTPUploadManager: ObservableObject {
                 for path in directories {
                     try Task.checkCancellation()
                     print("📂 Creating directory: \(path)")
-                    try await connectionManager.createDirectory(atPath: path)
+                    try await connection.createDirectory(path: path)
                 }
                 
                 // Then upload all files
@@ -204,7 +235,7 @@ class SFTPUploadManager: ObservableObject {
                     let fileSize = (fileAttributes[.size] as? NSNumber)?.uint64Value ?? 1 // Avoid division by zero
                     
                     // Upload the file with progress monitoring
-                    try await connectionManager.uploadFile(
+                    try await connection.uploadFile(
                         localURL: fileURL,
                         remotePath: destinationPath
                     ) { fileProgress in
@@ -214,9 +245,6 @@ class SFTPUploadManager: ObservableObject {
                         Task { @MainActor in
                             self.uploadProgress = overallProgress
                         }
-                        
-                        // Check if the upload was cancelled
-                        return !Task.isCancelled
                     }
                     
                     self.processedFiles += 1
@@ -228,12 +256,24 @@ class SFTPUploadManager: ObservableObject {
                     }
                 }
                 
+                // Clean up connection when done
+                await connection.disconnect()
+                self.sshConnection = nil
+                
                 await MainActor.run {
                     self.uploadHandler.refreshItems()
                     self.isUploading = false
                     self.uploadProgress = 1.0
                 }
             } catch {
+                // Clean up connection on error
+                if let connection = self.sshConnection {
+                    Task {
+                        await connection.disconnect()
+                        self.sshConnection = nil
+                    }
+                }
+                
                 if error is CancellationError {
                     print("Upload cancelled by user")
                 } else {
@@ -247,13 +287,19 @@ class SFTPUploadManager: ObservableObject {
         }
     }
     
-   
-    
     func cancelUpload() {
-        // Cancel the task if using Citadel
+        // Cancel the task
         uploadTask?.cancel()
         
-        // Regardless of which method was used, update the UI
+        // Also disconnect the SSH connection if one exists
+        if let connection = sshConnection {
+            Task {
+                await connection.disconnect()
+                self.sshConnection = nil
+            }
+        }
+        
+        // Update the UI
         Task { @MainActor in
             self.isUploading = false
             self.error = "Upload cancelled"
@@ -336,9 +382,10 @@ struct SFTPUploadView: View {
 }
 
 #if os(iOS)
+// Update the SFTPFileBrowserViewModel conformance to the new protocol
 extension SFTPFileBrowserViewModel: SFTPUploadHandler {
-    func getConnectionManager() -> SFTPConnectionManager? {
-        return connectionManager
+    func getServer() -> ServerEntity? {
+        return server
     }
     
     func refreshItems() {

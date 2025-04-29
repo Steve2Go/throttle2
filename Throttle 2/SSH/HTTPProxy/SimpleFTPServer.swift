@@ -29,7 +29,18 @@ class SimpleFTPServer: ObservableObject {
     }
     
     deinit {
-        stop()
+        print("SimpleFTPServer deinit called")
+        
+        // Only call synchronous cleanup here to avoid retain cycles
+        listener?.cancel()
+        listener = nil
+        
+        // Don't create Task inside deinit
+        // Just release all references
+        sshConnection = nil
+        activeConnections.removeAll()
+        
+        print("SimpleFTPServer deinit completed")
     }
     
     func start() async throws {
@@ -45,8 +56,8 @@ class SimpleFTPServer: ObservableObject {
         let connection = SSHConnection(server: server)
         try await connection.connect()
         
-        // Test the SFTP connection
-        let sftp = try await connection.connectSFTP()
+        // Test the connection with a simple command
+        _ = try await connection.executeCommand("echo Connected")
         
         // Keep the connection
         self.sshConnection = connection
@@ -67,7 +78,7 @@ class SimpleFTPServer: ObservableObject {
             let clientHandler = FTPSimpleHandler(
                 connection: connection,
                 id: connectionId,
-                sftpConnection: self.sshConnection!,
+                sshConnection: self.sshConnection!,
                 onDisconnect: { [weak self] id in
                     self?.handleClientDisconnect(id: id)
                 }
@@ -151,26 +162,31 @@ class SimpleFTPServer: ObservableObject {
     }
     
     func stop() {
-        // Stop the listener
+        print("Stopping FTP server...")
+        
+        // Stop the listener first
         listener?.cancel()
         listener = nil
         
-        // Close all active connections
+        // Copy active connections to a local array to avoid mutation while iterating
         connectionLock.lock()
         let handlers = activeConnections.values
         activeConnections.removeAll()
         connectionLock.unlock()
         
+        // Stop each handler
         for handler in handlers {
             handler.stop()
         }
         
-        // Close the SFTP connection
+        // Close the SFTP connection - but make sure we're not creating strong reference cycles
         if let connection = sshConnection {
+            let localConnection = connection // Local copy to avoid capturing self in Task
+            sshConnection = nil // Clear reference immediately
+            
             Task {
-                await connection.disconnect()
+                await localConnection.disconnect()
             }
-            sshConnection = nil
         }
         
         // Update status
@@ -191,26 +207,34 @@ class FTPSimpleHandler {
     private let id: UUID
     
     // SFTP backend
-    private let sftpConnection: SSHConnection
-    private var sftpClient: SFTPClient?
+    private let sshConnection: SSHConnection
     
     // State
     private var isAuthenticated = true // Always authenticated
     private var currentDirectory = "/"
     private var dataMode = DataConnectionMode.passive
+    private var passiveListener: NWListener?
     private var dataConnection: NWConnection?
-    private var dataPort: UInt16 = 0
     private var dataHost: String = ""
+    private var dataPort: UInt16 = 0
+    private var restPosition: UInt64 = 0
+    private var restEnabled = false
+    
+    // Command buffer to handle partial commands
+    private var commandBuffer = Data()
     
     // Callback for disconnection
     private let onDisconnect: (UUID) -> Void
     
+    // Flag to track if we're already in cleanup
+    private var isCleaningUp = false
+    
     // Initializer
-    init(connection: NWConnection, id: UUID, sftpConnection: SSHConnection, 
+    init(connection: NWConnection, id: UUID, sshConnection: SSHConnection,
          onDisconnect: @escaping (UUID) -> Void) {
         self.connection = connection
         self.id = id
-        self.sftpConnection = sftpConnection
+        self.sshConnection = sshConnection
         self.onDisconnect = onDisconnect
     }
     
@@ -224,17 +248,6 @@ class FTPSimpleHandler {
             case .ready:
                 print("FTP client connected")
                 self.sendResponse(220, "Anonymous FTP server ready")
-                
-                // Initialize SFTP client immediately
-                Task {
-                    do {
-                        self.sftpClient = try await self.sftpConnection.connectSFTP()
-                        print("SFTP client initialized")
-                    } catch {
-                        print("Error initializing SFTP client: \(error)")
-                    }
-                }
-                
                 self.receiveCommands()
                 
             case .failed(let error):
@@ -256,54 +269,128 @@ class FTPSimpleHandler {
     
     // Stop handling the connection
     func stop() {
-        connection.cancel()
+        passiveListener?.cancel()
+        passiveListener = nil
         dataConnection?.cancel()
-        
-        // Clean up SFTP client if needed
-        if let sftp = sftpClient {
-            Task {
-                do {
-                    try await sftp.close()
-                } catch {
-                    print("Error closing SFTP client: \(error)")
-                }
-            }
-        }
+        dataConnection = nil
+        connection.cancel()
     }
     
     // Clean up resources
     private func cleanup() {
+        // Prevent multiple cleanups
+        if isCleaningUp { return }
+        isCleaningUp = true
+        
         stop()
         onDisconnect(id)
     }
     
-    // Receive FTP commands
+    // Receive FTP commands - simplified to avoid range errors
     private func receiveCommands() {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self] data, _, isComplete, error in
-            guard let self = self else { return }
+            guard let self = self, !self.isCleaningUp else { return }
             
             if let data = data, !data.isEmpty {
-                if let command = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
-                    self.handleCommand(command)
-                }
+                // Append to command buffer
+                self.commandBuffer.append(data)
+                
+                // Process commands using safer string-based approach
+                self.processCommandBuffer()
                 
                 // Continue receiving
                 self.receiveCommands()
             } else if isComplete || error != nil {
+                print("Connection closed or error: \(String(describing: error))")
                 self.cleanup()
             }
         }
     }
     
-    // Send FTP response
+    // Process the command buffer with a safer string-based approach
+    private func processCommandBuffer() {
+        // Convert buffer to string for easier processing
+        if let commandString = String(data: commandBuffer, encoding: .utf8) {
+            // Split by CRLF
+            let commands = commandString.components(separatedBy: "\r\n")
+            
+            // If we have complete commands (more than one component or ends with CRLF)
+            if commands.count > 1 || commandString.hasSuffix("\r\n") {
+                // Process all but potentially the last component (which might be incomplete)
+                for i in 0..<commands.count-1 {
+                    let command = commands[i].trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !command.isEmpty {
+                        handleCommand(command)
+                    }
+                }
+                
+                // If the string ends with CRLF, process the last component too
+                if commandString.hasSuffix("\r\n") {
+                    let lastCommand = commands.last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    if !lastCommand.isEmpty {
+                        handleCommand(lastCommand)
+                    }
+                    
+                    // Clear buffer completely
+                    commandBuffer.removeAll()
+                } else {
+                    // Keep only the last incomplete command in the buffer
+                    commandBuffer = Data((commands.last ?? "").utf8)
+                }
+            }
+        }
+    }
+    
+    // Send FTP response with improved error handling
     private func sendResponse(_ code: Int, _ message: String) {
         let response = "\(code) \(message)\r\n"
         let data = Data(response.utf8)
         
+        print("FTP response: \(response.trimmingCharacters(in: .newlines))")
+        
         connection.send(content: data, completion: .contentProcessed { [weak self] error in
             if let error = error {
-                print("Error sending response: \(error)")
-                self?.cleanup()
+                // Handle broken pipe errors differently - they happen when client disconnects
+                if let posixError = error as? POSIXError, posixError.code == .EPIPE {
+                    print("Client disconnected before response was sent")
+                } else {
+                    print("Error sending response: \(error)")
+                    self?.cleanup()
+                }
+            }
+        })
+    }
+    
+    // Send multi-line response
+    private func sendMultilineResponse(_ code: Int, _ lines: [String]) {
+        guard !lines.isEmpty else { return }
+        
+        var response = ""
+        
+        // Format according to RFC 959
+        if lines.count == 1 {
+            response = "\(code) \(lines[0])\r\n"
+        } else {
+            for (index, line) in lines.enumerated() {
+                if index == lines.count - 1 {
+                    response += "\(code) \(line)\r\n"
+                } else {
+                    response += "\(code)-\(line)\r\n"
+                }
+            }
+        }
+        
+        let data = Data(response.utf8)
+        print("FTP multi-line response: \(code)")
+        
+        connection.send(content: data, completion: .contentProcessed { [weak self] error in
+            if let error = error {
+                if let posixError = error as? POSIXError, posixError.code == .EPIPE {
+                    print("Client disconnected before multi-line response was sent")
+                } else {
+                    print("Error sending multi-line response: \(error)")
+                    self?.cleanup()
+                }
             }
         })
     }
@@ -333,52 +420,33 @@ class FTPSimpleHandler {
         case "TYPE":
             sendResponse(200, "Type set to \(argument)")
             
+        // File information commands
+        case "SIZE":
+            handleSize(path: argument)
+            
         // Data connection commands
         case "PASV":
             handlePassive()
         case "PORT":
             handlePort(argument)
+        case "EPSV":
+            handleExtendedPassive(argument)
             
-        // Navigation and listing commands - very minimal
+        // Navigation and listing commands
         case "CWD":
-            // Just accept any directory change
-            currentDirectory = argument
-            sendResponse(250, "Directory changed to \(argument)")
+            handleChangeDirectory(argument)
         case "CDUP":
-            // Move up one directory
-            if currentDirectory != "/" {
-                if let lastSlashIndex = currentDirectory.lastIndex(of: "/") {
-                    currentDirectory = String(currentDirectory[..<lastSlashIndex])
-                    if currentDirectory.isEmpty {
-                        currentDirectory = "/"
-                    }
-                }
-            }
-            sendResponse(250, "Directory changed to \(currentDirectory)")
+            handleChangeDirectory("..")
         case "LIST":
-            // For LIST, just send a minimal response
-            sendResponse(150, "Opening data connection for directory listing")
-            
-            // Set up data connection
-            setupDataConnection { connection in
-                // Send a minimal directory listing
-                let listingText = "-rw-r--r-- 1 user group 0 Jan 01 2022 file.txt\r\n"
-                let listingData = Data(listingText.utf8)
-                
-                connection.send(content: listingData, completion: .contentProcessed { [weak self] error in
-                    if let error = error {
-                        print("Error sending listing: \(error)")
-                    }
-                    
-                    // Close the data connection
-                    connection.cancel()
-                    self?.sendResponse(226, "Transfer complete")
-                })
-            }
+            handleList(argument)
             
         // File transfer commands - these are the important ones
         case "RETR":
             handleRetrieve(argument)
+            
+        case "REST":
+            handleRest(argument)
+            
         case "STOR":
             handleStore(argument)
             
@@ -387,8 +455,20 @@ class FTPSimpleHandler {
             sendResponse(221, "Goodbye")
             cleanup()
             
+        // Extended features
+        case "FEAT":
+            // List supported features
+            sendMultilineResponse(211, [
+                "Features:",
+                " SIZE",
+                " PASV",
+                " UTF8",
+                " EPSV",
+                "End"
+            ])
+            
         // Respond OK to common commands we don't need to fully implement
-        case "FEAT", "OPTS", "MODE", "STRU", "NOOP", "STAT":
+        case "OPTS", "MODE", "STRU", "NOOP", "STAT":
             sendResponse(200, "Command OK")
             
         // For anything else
@@ -397,41 +477,329 @@ class FTPSimpleHandler {
         }
     }
     
+    private func handleRest(_ argument: String) {
+        if let position = UInt64(argument) {
+            restPosition = position
+            restEnabled = true
+            sendResponse(350, "Restarting at \(position). Send RETR to initiate transfer.")
+        } else {
+            sendResponse(501, "Invalid REST parameter")
+        }
+    }
+    
+    // Handle directory change
+    private func handleChangeDirectory(_ path: String) {
+        if path.isEmpty {
+            sendResponse(250, "Directory unchanged")
+            return
+        }
+        
+        // Handle special cases
+        if path == "/" {
+            currentDirectory = "/"
+            sendResponse(250, "Directory changed to /")
+            return
+        }
+        
+        if path == ".." {
+            // Move up one level
+            if currentDirectory == "/" {
+                sendResponse(250, "Already at root directory")
+                return
+            }
+            
+            let components = currentDirectory.split(separator: "/")
+            if components.isEmpty {
+                currentDirectory = "/"
+            } else {
+                currentDirectory = "/" + components.dropLast().joined(separator: "/")
+                if currentDirectory == "" {
+                    currentDirectory = "/"
+                }
+            }
+            
+            sendResponse(250, "Directory changed to \(currentDirectory)")
+            return
+        }
+        
+        // Combine paths for relative navigation
+        var targetPath: String
+        if path.hasPrefix("/") {
+            // Absolute path
+            targetPath = path
+        } else {
+            // Relative path
+            if currentDirectory.hasSuffix("/") {
+                targetPath = currentDirectory + path
+            } else {
+                targetPath = currentDirectory + "/" + path
+            }
+        }
+        
+        // Normalize path (handle double slashes, etc)
+        targetPath = normalizePath(targetPath)
+        
+        // Verify the directory exists
+        Task {
+            // Using a simple command to check if directory exists
+            let checkCmd = "[ -d \"\(targetPath)\" ] && echo 'exists' || echo 'notfound'"
+            
+            do {
+                let (_, output) = try await sshConnection.executeCommand(checkCmd)
+                let result = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                if result == "exists" {
+                    currentDirectory = targetPath
+                    sendResponse(250, "Directory changed to \(targetPath)")
+                } else {
+                    sendResponse(550, "Directory not found")
+                }
+            } catch {
+                print("Error checking directory: \(error)")
+                sendResponse(550, "Error checking directory")
+            }
+        }
+    }
+    
+    // Normalize a path
+    private func normalizePath(_ path: String) -> String {
+        var components = path.split(separator: "/")
+        var stack: [String] = []
+        
+        for component in components {
+            if component == ".." {
+                if !stack.isEmpty {
+                    stack.removeLast()
+                }
+            } else if component != "." && !component.isEmpty {
+                stack.append(String(component))
+            }
+        }
+        
+        let result = "/" + stack.joined(separator: "/")
+        return result.isEmpty ? "/" : result
+    }
+    
+    // Handle SIZE command (get file size)
+    private func handleSize(path: String) {
+        // Combine current directory with path if not absolute
+        let fullPath = path.hasPrefix("/") ? path : "\(currentDirectory)/\(path)"
+        let normalizedPath = normalizePath(fullPath)
+        
+        Task {
+            do {
+                // Execute a size command on the server
+                let command = "stat -c %s \"\(normalizedPath)\" 2>/dev/null || stat -f %z \"\(normalizedPath)\" 2>/dev/null || echo 'notfound'"
+                let (_, output) = try await sshConnection.executeCommand(command)
+                
+                let sizeStr = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                if sizeStr == "notfound" {
+                    sendResponse(550, "File not found")
+                } else if let size = Int(sizeStr) {
+                    sendResponse(213, "\(size)")
+                } else {
+                    sendResponse(550, "Could not determine file size")
+                }
+            } catch {
+                print("Error getting file size: \(error)")
+                sendResponse(550, "Error getting file size")
+            }
+        }
+    }
+    
     // Handle PASV command
     private func handlePassive() {
+        // Cancel any existing passive listener
+        passiveListener?.cancel()
+        passiveListener = nil
+        dataConnection = nil
+        
         // Create a passive listener
         let parameters = NWParameters.tcp
-        let listener = try? NWListener(using: parameters)
         
-        // Get the port
-        if let port = listener?.port, let portInt = port.rawValue {
-            dataPort = UInt16(portInt)
+        // Add a timeout for data connections
+        parameters.multipathServiceType = .handover
+        
+        do {
+            // Try to bind to fixed ports (better for firewall rules)
+            var listener: NWListener?
+            var port: UInt16 = 0
+            
+            // Try specific ports first - choose a range less likely to have conflicts
+            for tryPort in 60000...60100 {
+                do {
+                    let endpoint = NWEndpoint.Port(rawValue: UInt16(tryPort))
+                    listener = try NWListener(using: parameters, on: endpoint!)
+                    port = UInt16(tryPort)
+                    print("Successfully bound to port \(port) for PASV")
+                    break
+                } catch {
+                    // Continue trying if this port fails
+                    continue
+                }
+            }
+            
+            // If we couldn't bind to any specific port, try letting the system assign one
+            if listener == nil {
+                listener = try NWListener(using: parameters)
+                if let assignedPort = listener?.port?.rawValue {
+                    port = assignedPort
+                    print("System assigned port \(port) for PASV")
+                }
+            }
+            
+            guard let listener = listener, port > 0 else {
+                throw NSError(domain: "FTPServer", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "Failed to get valid port for passive mode"])
+            }
+            
+            passiveListener = listener
             
             // Calculate the passive mode response
-            let ipParts = [127, 0, 0, 1] // Localhost
-            let portHi = Int(dataPort / 256)
-            let portLo = Int(dataPort % 256)
+            let portHi = Int(port / 256)
+            let portLo = Int(port % 256)
             
+            let ipParts = [127, 0, 0, 1] // Localhost
             let pasvResponse = ipParts.map(String.init).joined(separator: ",") + ",\(portHi),\(portLo)"
             sendResponse(227, "Entering Passive Mode (\(pasvResponse))")
             
             // Set up listener for data connection
-            listener?.newConnectionHandler = { [weak self] connection in
-                guard let self = self else { return }
+            listener.newConnectionHandler = { [weak self] connection in
+                guard let self = self else {
+                    listener.cancel()
+                    return
+                }
                 
                 // Accept only one connection
-                listener?.cancel()
+                listener.cancel()
+                self.passiveListener = nil
                 
                 self.dataConnection = connection
-                connection.start(queue: .global())
                 
-                print("FTP data connection established (passive)")
+                // Configure the connection
+                connection.stateUpdateHandler = { state in
+                    if case .ready = state {
+                        print("FTP data connection established (passive)")
+                    }
+                }
+                
+                connection.start(queue: .global())
+            }
+            
+            // Set up listener state handler
+            listener.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    print("FTP passive listener ready on port \(port)")
+                case .failed(let error):
+                    print("FTP passive listener failed: \(error)")
+                default:
+                    break
+                }
             }
             
             // Start the listener
-            listener?.start(queue: .global())
-        } else {
-            sendResponse(425, "Cannot open data connection")
+            listener.start(queue: .global())
+        } catch {
+            print("Error setting up passive mode: \(error)")
+            sendResponse(425, "Cannot open data connection - \(error.localizedDescription)")
+        }
+    }
+    
+    // Handle EPSV command (Extended Passive Mode)
+    private func handleExtendedPassive(_ argument: String) {
+        if argument.uppercased() == "ALL" {
+            // Client requesting to use EPSV exclusively
+            sendResponse(200, "EPSV ALL command successful")
+            return
+        }
+        
+        // Cancel any existing passive listener
+        passiveListener?.cancel()
+        passiveListener = nil
+        dataConnection = nil
+        
+        // Create a new listener for EPSV
+        let parameters = NWParameters.tcp
+        do {
+            // Try to bind to fixed ports (better for firewall rules)
+            var listener: NWListener?
+            var port: UInt16 = 0
+            
+            // Try specific ports first - choose a range less likely to have conflicts
+            for tryPort in 60000...60100 {
+                do {
+                    let endpoint = NWEndpoint.Port(rawValue: UInt16(tryPort))
+                    listener = try NWListener(using: parameters, on: endpoint!)
+                    port = UInt16(tryPort)
+                    print("Successfully bound to port \(port) for EPSV")
+                    break
+                } catch {
+                    // Continue trying if this port fails
+                    continue
+                }
+            }
+            
+            // If we couldn't bind to any specific port, try letting the system assign one
+            if listener == nil {
+                listener = try NWListener(using: parameters)
+                if let assignedPort = listener?.port?.rawValue {
+                    port = assignedPort
+                    print("System assigned port \(port) for EPSV")
+                }
+            }
+            
+            guard let listener = listener, port > 0 else {
+                throw NSError(domain: "FTPServer", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "Failed to get valid port for extended passive mode"])
+            }
+            
+            passiveListener = listener
+            
+            // Set up listener for data connection
+            listener.newConnectionHandler = { [weak self] connection in
+                guard let self = self else {
+                    listener.cancel()
+                    return
+                }
+                
+                // Accept only one connection
+                listener.cancel()
+                self.passiveListener = nil
+                
+                self.dataConnection = connection
+                
+                // Configure the connection
+                connection.stateUpdateHandler = { state in
+                    if case .ready = state {
+                        print("FTP data connection established (EPSV)")
+                    }
+                }
+                
+                connection.start(queue: .global())
+            }
+            
+            // Set up listener state handler
+            listener.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    print("FTP extended passive listener ready on port \(port)")
+                case .failed(let error):
+                    print("FTP extended passive listener failed: \(error)")
+                default:
+                    break
+                }
+            }
+            
+            // Start the listener
+            listener.start(queue: .global())
+            
+            // Send the EPSV response (format: |||port|)
+            sendResponse(229, "Entering Extended Passive Mode (|||" + String(port) + "|)")
+        } catch {
+            print("Error setting up extended passive mode: \(error)")
+            sendResponse(425, "Cannot open data connection - \(error.localizedDescription)")
         }
     }
     
@@ -453,10 +821,78 @@ class FTPSimpleHandler {
         }
     }
     
-    // Handle RETR command
-    private func handleRetrieve(_ path: String) {
+    // Handle LIST command
+    private func handleList(_ path: String) {
+        // Determine which directory to list
+        let targetPath: String
+        if path.isEmpty {
+            targetPath = currentDirectory
+        } else if path.hasPrefix("/") {
+            targetPath = path
+        } else {
+            targetPath = currentDirectory + (currentDirectory.hasSuffix("/") ? "" : "/") + path
+        }
+        
         // Send status
-        sendResponse(150, "Opening data connection for file transfer")
+        sendResponse(150, "Opening data connection for directory listing")
+        
+        // Set up data connection
+        setupDataConnection { [weak self] connection in
+            guard let self = self else { return }
+            
+            Task {
+                do {
+                    // Get a directory listing using ls -la
+                    let command = "ls -la \"\(targetPath)\" 2>/dev/null || echo 'No such directory'"
+                    let (_, output) = try await self.sshConnection.executeCommand(command)
+                    
+                    // Send the listing
+                    let data = Data((output + "\r\n").utf8)
+                    
+                    connection.send(content: data, completion: .contentProcessed { error in
+                        if let error = error {
+                            print("Error sending directory listing: \(error)")
+                        }
+                        
+                        // Close the data connection
+                        connection.cancel()
+                        
+                        // Send completion status
+                        self.sendResponse(226, "Directory send OK")
+                    })
+                } catch {
+                    print("Error listing directory: \(error)")
+                    connection.cancel()
+                    self.sendResponse(550, "Failed to list directory")
+                }
+            }
+        }
+    }
+    
+    // Handle RETR command with direct streaming using cat command
+    private func handleRetrieve(_ path: String) {
+        // Determine the full path
+        let fullPath: String
+        if path.hasPrefix("/") {
+            fullPath = path
+        } else {
+            fullPath = currentDirectory + (currentDirectory.hasSuffix("/") ? "" : "/") + path
+        }
+        
+        // Normalize the path
+        let normalizedPath = normalizePath(fullPath)
+        
+        // Check if REST is enabled
+        let hasRestPosition = restEnabled
+        let startPosition = restPosition
+        
+        // Reset REST flag after use
+        restEnabled = false
+        
+        print("Processing RETR for path: \(normalizedPath) using cat\(hasRestPosition ? " starting at position \(startPosition)" : "")")
+        
+        // Send status
+        sendResponse(150, "Opening data connection for file transfer\(hasRestPosition ? " (restarting from position \(startPosition))" : "")")
         
         // Start data connection
         setupDataConnection { [weak self] connection in
@@ -464,54 +900,91 @@ class FTPSimpleHandler {
             
             Task {
                 do {
-                    guard let sftp = self.sftpClient else {
-                        self.sendResponse(550, "SFTP client not initialized")
-                        return
+                    // Create a command stream for the file
+                    print("Starting file stream with cat\(hasRestPosition ? " at offset \(startPosition)" : "")")
+                    
+                    // Try to get file size first
+                    let sizeCommand = "stat -c %s '\(normalizedPath)' 2>/dev/null || stat -f %z '\(normalizedPath)' 2>/dev/null || echo 'unknown'"
+                    let (_, sizeOutput) = try await self.sshConnection.executeCommand(sizeCommand)
+                    let sizeStr = sizeOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let totalSize = Int(sizeStr) != nil ? Int(sizeStr)! : -1
+                    
+                    // Build command based on whether we need to start at a specific position
+                    var command: String
+                    if hasRestPosition && startPosition > 0 {
+                        // Use dd with skip to start at the specified position
+                        let blockSize = 512
+                        let skipBlocks = startPosition / UInt64(blockSize)
+                        let skipBytes = startPosition % UInt64(blockSize)
+                        
+                        if skipBytes == 0 {
+                            // Simple case - we can start exactly at a block boundary
+                            command = "dd if='\(normalizedPath)' bs=\(blockSize) skip=\(skipBlocks) 2>/dev/null"
+                        } else {
+                            // More complex case - we need to skip partial blocks
+                            // Use dd to skip blocks and then tail to skip remaining bytes
+                            command = "dd if='\(normalizedPath)' bs=\(blockSize) skip=\(skipBlocks) 2>/dev/null | tail -c +\(skipBytes+1)"
+                        }
+                    } else {
+                        // Just use cat for the whole file
+                        command = "cat '\(normalizedPath)'"
                     }
                     
-                    // Open the file
-                    let file = try await sftp.openFile(filePath: path, flags: .read)
+                    // Execute the streaming command
+                    let cmdStream = try await self.sshConnection.executeCommandWithStreams(command)
                     
-                    // Get file size
-                    let attributes = try await file.readAttributes()
-                    let fileSize = attributes.size ?? 0
+                    // Setup reading and sending
+                    var totalSent = 0
+                    let actualStartPosition = hasRestPosition ? Int(startPosition) : 0
                     
-                    // Read and send the file in chunks
-                    var offset: UInt64 = 0
-                    let chunkSize: UInt32 = 32768 // 32 KB chunks
-                    
-                    while offset < fileSize {
-                        // Read a chunk
-                        let data = try await file.read(from: offset, length: chunkSize)
-                        
-                        // Convert to Data
-                        var buffer = data
-                        let byteBuffer = buffer.readData(length: buffer.readableBytes)
-                        
-                        // Send the chunk
-                        connection.send(content: byteBuffer, completion: .contentProcessed { error in
-                            if let error = error {
-                                print("Error sending file chunk: \(error)")
+                    // Read from the command output stream
+                    for try await chunk in cmdStream.stdout {
+                        if chunk.readableBytes > 0 {
+                            // Convert ByteBuffer to Data
+                            let dataToSend = Data(buffer: chunk)
+                            
+                            // Send this chunk with synchronization
+                            let sendSemaphore = DispatchSemaphore(value: 0)
+                            var sendError: Error? = nil
+                            
+                            connection.send(content: dataToSend, completion: .contentProcessed { error in
+                                sendError = error
+                                sendSemaphore.signal()
+                            })
+                            
+                            // Wait for send completion
+                            _ = sendSemaphore.wait(timeout: .now() + 10.0)
+                            
+                            if let error = sendError {
+                                print("Error sending data: \(error)")
+                                break
                             }
-                        })
-                        
-                        // Update offset
-                        offset += UInt64(data.readableBytes)
-                        
-                        // Break if we reached the end
-                        if data.readableBytes < Int(chunkSize) {
-                            break
+                            
+                            // Update total sent and log progress
+                            totalSent += dataToSend.count
+                            
+                            if totalSize > 0 {
+                                let progress = Double(totalSent + actualStartPosition) / Double(totalSize) * 100
+                                if Int(progress) % 5 == 0 { // Log every 5%
+                                    print("Transfer progress: \(Int(progress))% (\(totalSent + actualStartPosition)/\(totalSize))")
+                                }
+                            } else if totalSent % (5 * 1024 * 1024) < dataToSend.count { // Log every 5MB
+                                print("Transferred \(totalSent) bytes (starting at position \(actualStartPosition))")
+                            }
                         }
                     }
                     
-                    // Close the file
-                    try await file.close()
-                    
-                    // Close the data connection
+                    // Close the data connection when done
                     connection.cancel()
                     
                     // Send completion status
-                    self.sendResponse(226, "Transfer complete")
+                    if totalSent > 0 {
+                        self.sendResponse(226, "Transfer complete")
+                        print("RETR completed successfully: \(totalSent) bytes transferred (starting at \(actualStartPosition))")
+                    } else {
+                        self.sendResponse(550, "Failed to transfer file")
+                        print("RETR failed: No data transferred")
+                    }
                 } catch {
                     print("Error retrieving file: \(error)")
                     self.sendResponse(550, "Error retrieving file: \(error.localizedDescription)")
@@ -523,6 +996,17 @@ class FTPSimpleHandler {
     
     // Handle STOR command
     private func handleStore(_ path: String) {
+        // Determine the full path
+        let fullPath: String
+        if path.hasPrefix("/") {
+            fullPath = path
+        } else {
+            fullPath = currentDirectory + (currentDirectory.hasSuffix("/") ? "" : "/") + path
+        }
+        
+        // Normalize the path
+        let normalizedPath = normalizePath(fullPath)
+        
         // Send status
         sendResponse(150, "Opening data connection for file upload")
         
@@ -530,67 +1014,55 @@ class FTPSimpleHandler {
         setupDataConnection { [weak self] connection in
             guard let self = self else { return }
             
-            Task {
-                do {
-                    guard let sftp = self.sftpClient else {
-                        self.sendResponse(550, "SFTP client not initialized")
-                        return
-                    }
-                    
-                    // Open the file for writing
-                    let file = try await sftp.openFile(filePath: path, flags: [.write, .create, .truncate])
-                    
-                    // Receive and write data
-                    var offset: UInt64 = 0
-                    
-                    // Function to receive data
-                    func receiveAndWrite() {
-                        connection.receive(minimumIncompleteLength: 1, maximumLength: 32768) { data, _, isComplete, error in
-                            if let data = data, !data.isEmpty {
-                                // Create byte buffer
-                                var buffer = ByteBuffer()
-                                buffer.writeBytes([UInt8](data))
+            // Create a temporary file to store the upload
+            let tempDir = FileManager.default.temporaryDirectory
+            let tempFilePath = tempDir.appendingPathComponent(UUID().uuidString)
+            let tempFileURL = tempFilePath
+            
+            // Create the file
+            FileManager.default.createFile(atPath: tempFilePath.path, contents: nil)
+            let fileHandle = try? FileHandle(forWritingTo: tempFileURL)
+            
+            // Function to receive data
+            func receiveAndWrite() {
+                connection.receive(minimumIncompleteLength: 1, maximumLength: 32768) { data, _, isComplete, error in
+                    if let data = data, !data.isEmpty, let fileHandle = fileHandle {
+                        // Write data to the temp file
+                        try? fileHandle.write(contentsOf: data)
+                        
+                        // Continue receiving
+                        receiveAndWrite()
+                    } else if isComplete || error != nil {
+                        // Close the file handle
+                        try? fileHandle?.close()
+                        
+                        // Upload the file to SFTP
+                        Task {
+                            do {
+                                try await self.sshConnection.uploadFile(localURL: tempFileURL, remotePath: normalizedPath)
                                 
-                                // Write to file
-                                Task {
-                                    do {
-                                        try await file.write(buffer, at: offset)
-                                        offset += UInt64(data.count)
-                                        
-                                        // Continue receiving
-                                        receiveAndWrite()
-                                    } catch {
-                                        print("Error writing file: \(error)")
-                                        self.sendResponse(550, "Error writing file: \(error.localizedDescription)")
-                                        connection.cancel()
-                                    }
-                                }
-                            } else if isComplete || error != nil {
-                                // Close the file
-                                Task {
-                                    do {
-                                        try await file.close()
-                                        self.sendResponse(226, "Transfer complete")
-                                    } catch {
-                                        print("Error closing file: \(error)")
-                                        self.sendResponse(550, "Error closing file: \(error.localizedDescription)")
-                                    }
-                                }
+                                // Clean up temp file
+                                try? FileManager.default.removeItem(at: tempFileURL)
                                 
-                                // Close the connection
-                                connection.cancel()
+                                // Send completion status
+                                self.sendResponse(226, "Transfer complete")
+                            } catch {
+                                print("Error uploading file: \(error)")
+                                self.sendResponse(550, "Error uploading file: \(error.localizedDescription)")
+                                
+                                // Clean up temp file
+                                try? FileManager.default.removeItem(at: tempFileURL)
                             }
                         }
+                        
+                        // Close the connection
+                        connection.cancel()
                     }
-                    
-                    // Start receiving data
-                    receiveAndWrite()
-                } catch {
-                    print("Error storing file: \(error)")
-                    self.sendResponse(550, "Error storing file: \(error.localizedDescription)")
-                    connection.cancel()
                 }
             }
+            
+            // Start receiving data
+            receiveAndWrite()
         }
     }
     
@@ -598,36 +1070,55 @@ class FTPSimpleHandler {
     private func setupDataConnection(completion: @escaping (NWConnection) -> Void) {
         if dataMode == .passive {
             // In passive mode, we wait for the client to connect to us
-            // The dataConnection should already be set up
             if let connection = dataConnection {
+                print("Using existing data connection")
                 completion(connection)
             } else {
-                sendResponse(425, "No data connection established")
+                print("Waiting for client to connect to passive port...")
+                
+                // Set a timeout for the connection
+                DispatchQueue.global().asyncAfter(deadline: .now() + 10.0) { [weak self] in
+                    if let self = self, let connection = self.dataConnection {
+                        // Got a connection within the timeout
+                        print("Data connection established within timeout")
+                        completion(connection)
+                    } else if let self = self {
+                        print("Timed out waiting for data connection")
+                        self.sendResponse(425, "No data connection established within timeout")
+                    }
+                }
             }
         } else {
             // In active mode, we connect to the client
-            let connection = NWConnection(
-                host: NWEndpoint.Host(dataHost),
-                port: NWEndpoint.Port(rawValue: dataPort)!,
-                using: .tcp
-            )
-            
-            connection.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    print("FTP data connection established (active)")
-                    completion(connection)
-                case .failed(let error):
-                    print("FTP data connection failed: \(error)")
-                case .cancelled:
-                    print("FTP data connection cancelled")
-                default:
-                    break
+            if let port = NWEndpoint.Port(rawValue: dataPort) {
+                print("Connecting to client in active mode at \(dataHost):\(dataPort)")
+                
+                let connection = NWConnection(
+                    host: NWEndpoint.Host(dataHost),
+                    port: port,
+                    using: .tcp
+                )
+                
+                connection.stateUpdateHandler = { state in
+                    switch state {
+                    case .ready:
+                        print("FTP data connection established (active)")
+                        completion(connection)
+                    case .failed(let error):
+                        print("FTP data connection failed: \(error)")
+                    case .cancelled:
+                        print("FTP data connection cancelled")
+                    default:
+                        break
+                    }
                 }
+                
+                connection.start(queue: .global())
+                dataConnection = connection
+            } else {
+                print("Invalid data port: \(dataPort)")
+                sendResponse(425, "Cannot open data connection: invalid port")
             }
-            
-            connection.start(queue: .global())
-            dataConnection = connection
         }
     }
 }
@@ -679,49 +1170,6 @@ class SimpleFTPServerManager {
         for server in servers {
             server.stop()
         }
-    }
-}
-
-// Integration with your app
-extension Throttle_2App {
-    func setupSimpleFTPServer(store: Store) {
-        guard let server = store.selection, server.sftpUsesKey == true else { return }
-        
-        #if os(iOS)
-        Task {
-            do {
-                // Clean up any existing servers
-                SimpleFTPServerManager.shared.removeServer(withIdentifier: "sftp-ftp")
-                
-                // Create and start a new FTP server
-                let ftpServer = SimpleFTPServer(server: server)
-                try await ftpServer.start()
-                
-                // Store the server
-                SimpleFTPServerManager.shared.storeServer(ftpServer, withIdentifier: "sftp-ftp")
-                
-                print("Simple FTP Server started on localhost:2121")
-            } catch {
-                print("Failed to start FTP server: \(error)")
-                
-                // Show error toast
-                ToastManager.shared.show(
-                    message: "Failed to start FTP server: \(error.localizedDescription)",
-                    icon: "exclamationmark.triangle",
-                    color: Color.red
-                )
-            }
-        }
-        #endif
-    }
-    
-    // Replace your SFTP setup code with this
-    func setupSFTPIfNeeded(store: Store) {
-        guard let server = store.selection, server.sftpUsesKey == true else { return }
-        
-        #if os(iOS)
-        setupSimpleFTPServer(store)
-        #endif
     }
 }
 
@@ -796,5 +1244,48 @@ struct SimpleFTPServerMonitorView: View {
         .padding()
         .background(Color.secondary.opacity(0.1))
         .cornerRadius(8)
+    }
+}
+
+// Integration with your app
+extension Throttle_2App {
+    func setupSimpleFTPServer(store: Store) {
+        guard let server = store.selection, server.sftpUsesKey == true else { return }
+        
+        #if os(iOS)
+        Task {
+            do {
+                // Clean up any existing servers
+                SimpleFTPServerManager.shared.removeServer(withIdentifier: "sftp-ftp")
+                
+                // Create and start a new FTP server
+                let ftpServer = SimpleFTPServer(server: server)
+                try await ftpServer.start()
+                
+                // Store the server
+                SimpleFTPServerManager.shared.storeServer(ftpServer, withIdentifier: "sftp-ftp")
+                
+                print("Simple FTP Server started on localhost:2121")
+            } catch {
+                print("Failed to start FTP server: \(error)")
+                
+                // Show error toast
+                ToastManager.shared.show(
+                    message: "Failed to start FTP server: \(error.localizedDescription)",
+                    icon: "exclamationmark.triangle",
+                    color: Color.red
+                )
+            }
+        }
+        #endif
+    }
+    
+    // Replace your SFTP setup code with this
+    func setupSFTPIfNeeded(store: Store) {
+        guard let server = store.selection, server.sftpUsesKey == true else { return }
+        
+        #if os(iOS)
+        setupSimpleFTPServer(store: store)
+        #endif
     }
 }

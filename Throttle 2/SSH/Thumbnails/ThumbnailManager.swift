@@ -20,9 +20,9 @@ public class ThumbnailManager: NSObject {
     // Memory cache to complement file cache
     private let memoryCache = NSCache<NSString, UIImage>()
     
-    // Connection managers by server (kept for backward compatibility)
-    private var connectionManagers = [String: SFTPConnectionManager]()
-    private let connectionManagersLock = NSLock()
+    // Cache of SSH connections by server identifier
+    private var connections = [String: SSHConnection]()
+    private let connectionsLock = NSLock()
     
     // Cache directory for saved thumbnails
     private var cacheDirectory: URL? {
@@ -33,10 +33,6 @@ public class ThumbnailManager: NSObject {
     // Semaphore dictionary to limit connections per server
     private var serverSemaphores = [String: DispatchSemaphore]()
     private let semaphoreAccess = NSLock()
-    
-    // SSH client cache to reuse connections
-    private var sshClients = [String: SSHClient]()
-    private let sshClientsLock = NSLock()
     
     override init() {
         super.init()
@@ -50,20 +46,19 @@ public class ThumbnailManager: NSObject {
         }
     }
     
-    // This method is no longer used since we're using dd commands instead of SFTP
-    // Keeping the method for potential future use or backward compatibility
-    private func getConnectionManager(for server: ServerEntity) -> SFTPConnectionManager {
+    // Get or create an SSH connection for a server
+    private func getConnection(for server: ServerEntity) -> SSHConnection {
         let serverKey = server.name ?? server.sftpHost ?? "default"
         
-        connectionManagersLock.lock()
-        defer { connectionManagersLock.unlock() }
+        connectionsLock.lock()
+        defer { connectionsLock.unlock() }
         
-        if let manager = connectionManagers[serverKey] {
-            return manager
+        if let connection = connections[serverKey] {
+            return connection
         } else {
-            let newManager = SFTPConnectionManager(server: server)
-            connectionManagers[serverKey] = newManager
-            return newManager
+            let newConnection = SSHConnection(server: server)
+            connections[serverKey] = newConnection
+            return newConnection
         }
     }
     
@@ -211,11 +206,8 @@ public class ThumbnailManager: NSObject {
     
     // MARK: - Image Thumbnail Generation
 
-    // Download image thumbnails using the improved downloadFile method
+    // Download image thumbnails using the improved downloadFile method with connection reuse
     private func generateImageThumbnailViaDd(for path: String, server: ServerEntity) async throws -> Image {
-        // Get credentials
-//
-        
         // Create a temporary file for storing the image data
         let tempDir = FileManager.default.temporaryDirectory
         let tempURL = tempDir.appendingPathComponent(UUID().uuidString + ".img")
@@ -231,15 +223,8 @@ public class ThumbnailManager: NSObject {
             try? FileManager.default.removeItem(at: tempURL)
         }
         
-        // Create SSH connection
-        let connection = SSHConnection(server: server)
-        
-        // Clean up when done
-        defer {
-            Task {
-                await connection.disconnect()
-            }
-        }
+        // Get reusable SSH connection for this server
+        let connection = getConnection(for: server)
         
         // Use our improved downloadFile method to get the image
         var downloadProgress: Double = 0
@@ -266,18 +251,10 @@ public class ThumbnailManager: NSObject {
         return thumb
     }
 
-    // MARK: - Video thumbs via FFmpeg (server-side)
+    // MARK: - Video thumbs via FFmpeg (server-side) with connection reuse
     private func generateFFmpegThumbnail(for path: String, server: ServerEntity) async throws -> Image {
-
-        // Create SSH connection
-        let connection = SSHConnection(server: server)
-        
-        // Clean up when done
-        defer {
-            Task {
-                await connection.disconnect()
-            }
-        }
+        // Get reusable SSH connection for this server
+        let connection = getConnection(for: server)
         
         // Generate a unique temp filename on the remote server
         let remoteTempThumbPath = "/tmp/thumb_\(UUID().uuidString).jpg"
@@ -539,31 +516,16 @@ public class ThumbnailManager: NSObject {
         visiblePaths.removeAll()
         visiblePathsLock.unlock()
         
-        // Close all connection managers (kept for backward compatibility)
-        connectionManagersLock.lock()
-        let managers = connectionManagers.values
-        connectionManagers.removeAll()
-        connectionManagersLock.unlock()
+        // Get and clean up all SSH connections
+        connectionsLock.lock()
+        let activeConnections = connections.values
+        connections.removeAll()
+        connectionsLock.unlock()
         
-        // Close all SSH clients
-        sshClientsLock.lock()
-        let clients = sshClients.values
-        sshClients.removeAll()
-        sshClientsLock.unlock()
-        
-        // Close each SFTP manager without capturing self
-        for manager in managers {
-            let weakManager = manager
+        // Disconnect all SSH connections without holding a lock
+        for connection in activeConnections {
             Task {
-                await weakManager.disconnect()
-            }
-        }
-        
-        // Close each SSH client without capturing self
-        for client in clients {
-            let weakClient = client
-            Task {
-                try? await weakClient.close()
+                await connection.disconnect()
             }
         }
         
@@ -573,30 +535,15 @@ public class ThumbnailManager: NSObject {
     
     deinit {
         // Properly clean up connection managers without capturing self
-        connectionManagersLock.lock()
-        let managers = connectionManagers.values
-        connectionManagers.removeAll()
-        connectionManagersLock.unlock()
-        
-        // Clean up SSH clients
-        sshClientsLock.lock()
-        let clients = sshClients.values
-        sshClients.removeAll()
-        sshClientsLock.unlock()
+        connectionsLock.lock()
+        let activeConnections = connections.values
+        connections.removeAll()
+        connectionsLock.unlock()
         
         // Note: We're not awaiting these disconnects since this is deinit
-        for manager in managers {
-            let weakManager = manager
+        for connection in activeConnections {
             Task {
-                await weakManager.disconnect()
-            }
-        }
-        
-        // Close SSH clients
-        for client in clients {
-            let weakClient = client
-            Task {
-                try? await weakClient.close()
+                await connection.disconnect()
             }
         }
     }

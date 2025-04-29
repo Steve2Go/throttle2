@@ -164,6 +164,7 @@ struct iOSContentView: View {
         .sheet( isPresented: $presenting.isCreating) {
             //NavigationStack{
             CreateTorrent(store: store, presenting: presenting)
+               
         //}
     }
         

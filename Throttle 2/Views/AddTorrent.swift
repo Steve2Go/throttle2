@@ -75,6 +75,7 @@ struct AddTorrentView: View {
                             .onAppear {
                                 if downloadDir.isEmpty {
                                     Task {
+                                        try? await Task.sleep(nanoseconds: 1_000_000_000)
                                         await updateDownloadDirectory()
                                     }
                                 }
@@ -138,17 +139,17 @@ struct AddTorrentView: View {
                             Text(server.name ?? "Unknown").tag(server as ServerEntity?)
                         }
                     }
-                    .onChange(of: manager.sessionId) { 
+                    .onChange(of: manager.sessionId) {
                         Task {
                             await updateDownloadDirectory()
                         }
                     }
                     
-                    .onChange(of: trigger) {
-                        Task {
-                            await updateDownloadDirectory()
-                        }
-                    }
+//                    .onChange(of: trigger) {
+//                        Task {
+//                            await updateDownloadDirectory()
+//                        }
+//                    }
                     .pickerStyle(MenuPickerStyle())
                 }
                 if store.selectedFile != nil {
@@ -189,6 +190,13 @@ struct AddTorrentView: View {
             }
             .padding()
             .frame(minWidth: 400, maxWidth: 600, minHeight: 300)
+        }.onAppear {
+            if downloadDir.isEmpty {
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    await updateDownloadDirectory()
+                }
+            }
         }
         
         .sheet(isPresented: $fileBrowser) {

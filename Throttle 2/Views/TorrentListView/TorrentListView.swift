@@ -293,7 +293,7 @@ struct TorrentListView: View {
                         basePath: url + "/" + torrentName, //(store.selection?.pathServer) ?? "",
                         server: store.selection,
                         store: store
-                    )
+                    ).withToast()
                     #endif
                     
                 } else {
