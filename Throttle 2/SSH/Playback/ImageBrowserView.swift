@@ -87,16 +87,29 @@ class ImageBrowserSharedState: ObservableObject {
     @Published var isImageLoaded = false
     @Published var isPlayingSlideshow = false
     
+    // Keep track of loaded states for individual images
+    private var loadedImages: Set<Int> = []
+    
     init(currentIndex: Int) {
         self.currentIndex = currentIndex
     }
     
     func imageDidLoad() {
+        // Mark this index as loaded
+        loadedImages.insert(currentIndex)
         isImageLoaded = true
     }
     
     func imageWillChange() {
-        isImageLoaded = false
+        // Only set isImageLoaded to false if the new index isn't already loaded
+        if !loadedImages.contains(currentIndex) {
+            isImageLoaded = false
+        }
+    }
+    
+    // Clear cache if needed (e.g., when memory pressure occurs)
+    func clearLoadedImageCache() {
+        loadedImages.removeAll()
     }
 }
 
@@ -725,6 +738,17 @@ struct ImageBrowserControlView: View {
                 startCountdown()
             }
         }
+        .onChange(of: sharedState.currentIndex) { _ in
+            // When index changes, wait for image to load before starting countdown again
+            if sharedState.isPlayingSlideshow {
+                stopCountdown()
+                // Only start countdown if image is already loaded
+                if sharedState.isImageLoaded {
+                    startCountdown()
+                }
+                // Otherwise, the onChange handler for isImageLoaded will start it
+            }
+        }
     }
     
     // MARK: - Slideshow Functions
@@ -747,11 +771,13 @@ struct ImageBrowserControlView: View {
         remainingTime = slideshowInterval
         countdownActive = true
         
-        slideshowCounter = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            if remainingTime > 0 {
-                remainingTime -= 0.1
+        slideshowCounter = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [self] _ in
+            //guard let self = self else { return }
+            
+            if self.remainingTime > 0 {
+                self.remainingTime -= 0.1
             } else {
-                advanceSlide()
+                self.advanceSlide()
             }
         }
     }
@@ -777,20 +803,23 @@ struct ImageBrowserControlView: View {
     }
     
     private func advanceSlide() {
-        // Start transition 0.5 seconds before actually changing the image
-        // This gives time for preloaded images to be ready
-        if remainingTime <= 0.5 && sharedState.isImageLoaded {
-            // Advance to next slide or loop back to beginning
-            if sharedState.currentIndex < imageCount - 1 {
-                sharedState.currentIndex += 1
-            } else {
-                // Loop back to the beginning
-                sharedState.currentIndex = 0
-            }
-            
-            // Reset the countdown state (will be restarted when new image loads)
-            stopCountdown()
+        if !sharedState.isImageLoaded || remainingTime > 0 {
+            return // Don't advance if image is still loading or time remaining
         }
+        
+        // Stop the current countdown
+        stopCountdown()
+        
+        // Advance to next slide or loop back to beginning
+        if sharedState.currentIndex < imageCount - 1 {
+            sharedState.currentIndex += 1
+        } else {
+            // Loop back to the beginning
+            sharedState.currentIndex = 0
+        }
+        
+        // Note: We don't restart the countdown here because the onChange handler
+        // for currentIndex will handle that based on whether the image is loaded
     }
     
     private func increaseInterval() {

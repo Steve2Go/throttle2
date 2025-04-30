@@ -291,6 +291,7 @@ struct AddTorrentView: View {
                 }
                 presenting.activeSheet = nil
                 isLoading = false
+                ToastManager.shared.show(message: "Download Added", icon: "icloud.and.arrow.down", color: Color.green)
             }
             
         } catch {
