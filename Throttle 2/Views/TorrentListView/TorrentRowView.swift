@@ -19,6 +19,7 @@ struct TorrentRowView: View {
     let onMove: () -> Void
     let onRename: () -> Void
     @State var showDetailsSheet = false
+    @State var isStarred = false
     @AppStorage("showThumbs") var showThumbs: Bool = false
     var selecting: Bool
     @Binding var selected: [Int]
@@ -167,14 +168,21 @@ struct TorrentRowView: View {
                     }
                     Button {
                         Task {
+                            isStarred.toggle()
                             try? await manager.toggleStar(for: torrent)
                             ToastManager.shared.show(message: manager.isStarred(torrent) ? "Removing Star" : "Starring", icon: manager.isStarred(torrent) ? "star.slash.fill" : "star.fill", color: Color.yellow)
                         }
                     } label: {
-                        Image(systemName: manager.isStarred(torrent) ? "star.fill" : "star")
-                            .foregroundStyle(manager.isStarred(torrent) ? .yellow : .gray)
+                        Image(systemName: isStarred ? "star.fill" : "star")
+                            .foregroundStyle(isStarred ? .yellow : .gray)
                     }
                     .buttonStyle(.plain)
+                    .onAppear{
+                        isStarred = manager.isStarred(torrent)
+                    }
+                    .onChange(of: manager.isStarred(torrent) ){
+                        isStarred = manager.isStarred(torrent)
+                    }
                 }
                 
                 if let downloaded = torrent.downloadedEver,

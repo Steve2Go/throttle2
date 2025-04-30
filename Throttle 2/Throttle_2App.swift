@@ -116,12 +116,16 @@ struct Throttle_2App: App {
                     #if os(iOS)
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                         if scenePhase == .background {
+                            
                             isBackground = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { _ in
                                 DispatchQueue.main.async{
+                                    //
                                     manager.stopPeriodicUpdates()
-                                    TunnelManagerHolder.shared.tearDownAllTunnels()
-                                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
-                                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "sftp")
+                                    //TunnelManagerHolder.shared.tearDownAllTunnels()
+//                                    stopSFTP()
+//                                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                                    //TunnelManagerHolder.shared.removeTunnel(withIdentifier: "sftp")
+                                    
                                     tunnelClosed = true
                                     print("Background - stopping queue")
                                 }
@@ -142,6 +146,7 @@ struct Throttle_2App: App {
                 }
                 .onChange(of: networkMonitor.gateways){
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                        stopSFTP()
                         if networkMonitor.isConnected {
                             Task {
                                 refeshTunnel(store: store, torrentManager: manager)

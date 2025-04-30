@@ -27,6 +27,8 @@ struct AddTorrentView: View {
     @AppStorage("deleteOnSuccess") var deleteOnSuccess: Bool = true
     @AppStorage("trigger") var trigger = true
     
+    @AppStorage("downloadDir") var defaultDownloadDir: String = ""
+    
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 15) {
@@ -73,11 +75,11 @@ struct AddTorrentView: View {
                         TextField("Save to", text: $downloadDir)
                             .textFieldStyle(.roundedBorder)
                             .onAppear {
-                                if downloadDir.isEmpty {
-                                    Task {
-                                        try? await Task.sleep(nanoseconds: 1_000_000_000)
-                                        await updateDownloadDirectory()
-                                    }
+                                if !store.addPath.isEmpty {
+                                    downloadDir = store.addPath
+                                }
+                                else if downloadDir.isEmpty {
+                                    downloadDir = defaultDownloadDir
                                 }
                             }
                             
@@ -139,9 +141,9 @@ struct AddTorrentView: View {
                             Text(server.name ?? "Unknown").tag(server as ServerEntity?)
                         }
                     }
-                    .onChange(of: manager.sessionId) {
-                        Task {
-                            await updateDownloadDirectory()
+                    .onChange(of: defaultDownloadDir) {
+                        if store.addPath.isEmpty {
+                            downloadDir = defaultDownloadDir
                         }
                     }
                     
@@ -190,13 +192,6 @@ struct AddTorrentView: View {
             }
             .padding()
             .frame(minWidth: 400, maxWidth: 600, minHeight: 300)
-        }.onAppear {
-            if downloadDir.isEmpty {
-                Task {
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    await updateDownloadDirectory()
-                }
-            }
         }
         
         .sheet(isPresented: $fileBrowser) {
@@ -240,20 +235,6 @@ struct AddTorrentView: View {
         }
     }
     
-    // MARK: - File Picker
-//    
-//    func openFilePicker() {
-//        #if os()
-//        let openPanel = NSOpenPanel()
-//        openPanel.directoryURL = URL(string: "files://" + serverPath_to_local(downloadDir))
-//        openPanel.allowsMultipleSelection = false
-//        openPanel.canChooseDirectories = true
-//        openPanel.canChooseFiles = false
-//        
-//        if openPanel.runModal() == .OK, let selectedURL = openPanel.url {
-//            downloadDir = local_to_serverPath(selectedURL.absoluteString.removingPercentEncoding ?? "")
-//        }
-//    }
     
     // MARK: - Helper Functions
     

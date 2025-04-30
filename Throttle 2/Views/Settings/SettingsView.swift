@@ -126,7 +126,7 @@ struct SettingsView: View {
                     installerView.toggle()
                 }
                 #else
-                Text("FFMpeg is used for superior server - side thumbnail generation. Click below for Installation").font(.caption)
+                Text("FFMpeg is used for server - side thumbnail generation. Click below for Installation").font(.caption)
                 Button("Install Dependencies") {
                     installerView.toggle()
                 }
@@ -134,6 +134,7 @@ struct SettingsView: View {
                 
                 Text("In app icons via SF Icons and https://icons8.com.").font(.caption)
                 Text("App icon based on icon from https://www.iconarchive.com/").font(.caption)
+                Text("Uses open source libraries FFMpeg, VLCKit, Simpletoast and Citadel and fuse-t with sshfs").font(.caption)
             }header: {
                 Text("About")
             }

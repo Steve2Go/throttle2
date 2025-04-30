@@ -451,9 +451,9 @@ class SSHConnection {
         return components
     }
     
-    /// Download a file from the remote server using dd if available, falling back to SFTP
+    /// Download a file from the remote server using SFTP
     func downloadFile(remotePath: String, localURL: URL, progress: @escaping (Double) -> Void = { _ in }) async throws {
-        print("Starting download for \(remotePath)")
+        print("Starting SFTP download for \(remotePath)")
         
         // Make sure the directory exists before attempting any download
         let directory = localURL.deletingLastPathComponent()
@@ -464,93 +464,6 @@ class SSHConnection {
             FileManager.default.createFile(atPath: localURL.path, contents: nil)
         }
         
-        // First check if dd is available on the remote server
-        do {
-            let (status, output) = try await executeCommand("which dd")
-            print("dd check: status=\(status), output=\(output)")
-            
-            if status == 0 && !output.isEmpty {
-                print("dd is available, trying to use it for download")
-                do {
-                    try await downloadUsingDD(remotePath: remotePath, localURL: localURL, progress: progress)
-                    print("dd download successful for \(remotePath)")
-                    return
-                } catch {
-                    print("dd download failed with error: \(error.localizedDescription), falling back to SFTP")
-                }
-            } else {
-                print("dd not available or check command returned empty result, status: \(status)")
-            }
-        } catch {
-            print("Error checking for dd: \(error.localizedDescription)")
-        }
-        
-        // Fall back to SFTP if dd didn't work or isn't available
-        print("Using SFTP fallback for \(remotePath)")
-        try await downloadUsingSFTP(remotePath: remotePath, localURL: localURL, progress: progress)
-    }
-
-    /// Download a file using dd for potentially better performance
-    private func downloadUsingDD(remotePath: String, localURL: URL, progress: @escaping (Double) -> Void) async throws {
-        print("Starting dd download for \(remotePath)")
-        
-        // First, get the file size to track progress
-        let sizeCmd = "stat -c %s \"\(remotePath)\" 2>/dev/null || stat -f %z \"\(remotePath)\" 2>/dev/null || echo 0"
-        let (_, sizeOutput) = try await executeCommand(sizeCmd)
-        let sizeStr = sizeOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-        print("Size command output: '\(sizeStr)'")
-        
-        let fileSize = UInt64(sizeStr) ?? 0
-        if fileSize == 0 {
-            print("Warning: Could not determine file size, progress reporting will be unavailable")
-        }
-        
-        // Set up command to read the file
-        let ddCmd = "dd if=\"\(remotePath)\" bs=32768 status=none"
-        print("DD command: \(ddCmd)")
-        
-        // Get a command stream that we can read from
-        let commandStream = try await executeCommandWithStreams(ddCmd)
-        
-        // Open file for writing
-        let fileHandle = try FileHandle(forWritingTo: localURL)
-        defer {
-            try? fileHandle.close()
-        }
-        
-        var bytesTransferred: UInt64 = 0
-        
-        // Read from the stream and write to file
-        for try await chunk in commandStream.stdout {
-            if Task.isCancelled {
-                throw CancellationError()
-            }
-            
-            if chunk.readableBytes > 0 {
-                // Write chunk to local file
-                let data = Data(buffer: chunk)
-                try fileHandle.write(contentsOf: data)
-                
-                // Update progress
-                bytesTransferred += UInt64(chunk.readableBytes)
-                if fileSize > 0 {
-                    progress(Double(bytesTransferred) / Double(fileSize))
-                }
-            }
-        }
-        
-        // Verify the file was transferred successfully
-        if bytesTransferred == 0 {
-            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -5,
-                userInfo: [NSLocalizedDescriptionKey: "No data transferred with dd"]))
-        }
-        
-        print("dd download completed: \(bytesTransferred) bytes")
-    }
-
-    /// Download a file using the original SFTP method as fallback
-    private func downloadUsingSFTP(remotePath: String, localURL: URL, progress: @escaping (Double) -> Void) async throws {
-        print("Starting SFTP download for \(remotePath)")
         let sftp = try await connectSFTP()
         
         // Open the file for reading on the server

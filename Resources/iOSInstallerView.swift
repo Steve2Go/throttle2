@@ -6,16 +6,31 @@ import SimpleToast
 
 struct DependencyInstallerView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var installationOutput: String = ""
-    @State private var isInstalling: Bool = false
-    @State private var installationComplete: Bool = false
+    // Use @StateObject instead of @State for the SSH connection to ensure it persists
+    @StateObject private var installationState = InstallationState()
     @State var showToast = false
+    @State private var sudoPassword: String = ""
+    @State private var showSudoField: Bool = false
     let server: ServerEntity
-
     
     private let toastOptions = SimpleToastOptions(
-            hideAfter: 5
-        )
+        hideAfter: 5
+    )
+    
+    // Create a class to hold the installation state
+    class InstallationState: ObservableObject {
+        @Published var installationOutput: String = ""
+        @Published var isInstalling: Bool = false
+        @Published var installationComplete: Bool = false
+        @Published var client: SSHClient?
+        @Published var sudoPassword: String = ""
+        
+        func appendOutput(_ text: String) {
+            DispatchQueue.main.async {
+                self.installationOutput += text + "\n"
+            }
+        }
+    }
     
     var body: some View {
         NavigationView {
@@ -24,28 +39,47 @@ struct DependencyInstallerView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         // Status indicator
                         HStack {
-                            if isInstalling {
+                            if installationState.isInstalling {
                                 ProgressView()
                                     .controlSize(.small)
-                                Text(installationComplete ? "Complete!" : "Installing...")
-                                    .foregroundColor(installationComplete ? .green : .primary)
+                                Text(installationState.installationComplete ? "Complete!" : "Installing...")
+                                    .foregroundColor(installationState.installationComplete ? .green : .primary)
                             } else {
-                                Text("Ready to install dependencies")
+                                Text("Ready to install FFmpeg")
                                     .foregroundColor(.secondary)
+                                Text("This script will look for FFMpeg on your server, and if not found, attempt to install it for you.").font(.caption)
                             }
                             Spacer()
                         }
                         
+                        // Sudo password field (only shown for key-based authentication)
+                        if server.sftpUsesKey && !installationState.isInstalling {
+                            VStack(alignment: .leading) {
+                                Text("Sudo Password")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                SecureField("Enter sudo password (if required)", text: $sudoPassword)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .autocapitalization(.none)
+                                    .disableAutocorrection(true)
+                                
+                                Text("This password will be used for sudo operations")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
                         // Log output
-                        if !installationOutput.isEmpty {
+                        if !installationState.installationOutput.isEmpty {
                             VStack(alignment: .leading) {
                                 Text("Installation Log")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                 
-                                if installationOutput.contains("[Copy Windows Install Command]") {
+                                if installationState.installationOutput.contains("[Copy Windows Install Command]") {
                                     VStack(alignment: .leading, spacing: 8) {
-                                        Text(installationOutput.replacingOccurrences(of: "[Copy Windows Install Command]", with: ""))
+                                        Text(installationState.installationOutput.replacingOccurrences(of: "[Copy Windows Install Command]", with: ""))
                                             .font(.system(.caption, design: .monospaced))
                                         
                                         Button(action: {
@@ -67,7 +101,7 @@ struct DependencyInstallerView: View {
                                     .background(Color.secondary.opacity(0.1))
                                     .cornerRadius(8)
                                 } else {
-                                    Text(installationOutput)
+                                    Text(installationState.installationOutput)
                                         .font(.system(.caption, design: .monospaced))
                                         .padding(8)
                                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -89,7 +123,7 @@ struct DependencyInstallerView: View {
                 }
                 
                 // Action buttons
-                if installationComplete {
+                if installationState.installationComplete {
                     Button("Close") {
                         dismiss()
                     }
@@ -100,20 +134,29 @@ struct DependencyInstallerView: View {
                             await performInstallation()
                         }
                     }) {
-                        Text(isInstalling ? "Installing..." : "Install Dependencies")
+                        Text(installationState.isInstalling ? "Installing..." : "Install Dependencies")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(isInstalling)
+                    .disabled(installationState.isInstalling)
                 }
             }
             .navigationTitle("Install Dependencies")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    if !isInstalling {
+                    if !installationState.isInstalling {
                         Button("Cancel") {
                             dismiss()
                         }
+                    }
+                }
+            }
+            // Clean up SSH connection when view disappears
+            .onDisappear {
+                Task {
+                    if let client = installationState.client {
+                        try? await client.close()
+                        installationState.client = nil
                     }
                 }
             }
@@ -156,35 +199,54 @@ struct DependencyInstallerView: View {
     }
     
     private func outputContains(_ text: String) -> Bool {
-        return installationOutput.contains(text)
+        return installationState.installationOutput.contains(text)
     }
     
     private func appendOutput(_ text: String) {
         DispatchQueue.main.async {
-            self.installationOutput += text + "\n"
+            self.installationState.installationOutput += text + "\n"
         }
     }
     
     private func performInstallation() async {
-        isInstalling = true
+        // Set isInstalling to true immediately to prevent double-clicks
+        await MainActor.run {
+            installationState.isInstalling = true
+            // Store sudo password in state if using key authentication
+            if server.sftpUsesKey {
+                installationState.sudoPassword = sudoPassword
+            }
+        }
         
         do {
             let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true)
    
-            guard let password = keychain["sftpPassword" + (server.name ?? "")] else {
-                appendOutput("Error: Missing server Password")
-                return
+            // Get SSH password if not using key authentication
+            let password: String
+            if server.sftpUsesKey {
+                // Using key authentication, use provided sudo password
+                password = sudoPassword
+            } else {
+                // Using password authentication, get password from keychain
+                guard let storedPassword = keychain["sftpPassword" + (server.name ?? "")] else {
+                    installationState.appendOutput("Error: Missing server Password")
+                    return
+                }
+                password = storedPassword
             }
             
             // Connect to server
-            appendOutput("Connecting to server \(server.sftpHost!)...")
+            installationState.appendOutput("Connecting to server \(server.sftpHost!)...")
             let client = try await ServerManager.shared.connectSSH(server)
-            // TODO: Move to sshcntection
+            // Store client in state to properly clean up later
+            await MainActor.run {
+                installationState.client = client
+            }
             
-            appendOutput("Connected successfully!")
+            installationState.appendOutput("Connected successfully!")
             
             // Create the installation script on the remote server
-            appendOutput("Preparing installation script...")
+            installationState.appendOutput("Preparing installation script...")
             
             // First, check if it's Linux/Unix by trying uname (should work on all Unix-like systems)
             let unameCmd = "uname -s 2>/dev/null || echo \"Unknown\""
@@ -193,7 +255,7 @@ struct DependencyInstallerView: View {
             
             // If uname works, we're on a Unix-like system (Linux, macOS, FreeBSD, etc.)
             if osType != "Unknown" && !osType.isEmpty && !osType.contains("not found") {
-                appendOutput("Detected Unix-like Operating System: \(osType)")
+                installationState.appendOutput("Detected Unix-like Operating System: \(osType)")
                 
                 // This is the content of our FFmpeg installer script for non-Windows systems
                 let scriptContent = """
@@ -246,7 +308,7 @@ struct DependencyInstallerView: View {
                     echo "sudo is available. Will use it for system-wide installation."
                     SUDO="sudo"
                     
-                    # Test if sudo requires password
+                    # Check if sudo requires password
                     if ! sudo -n true 2>/dev/null; then
                         echo "Sudo requires password. Will use sudo -S for piping password."
                         USE_SUDO_S=1
@@ -467,7 +529,7 @@ struct DependencyInstallerView: View {
                 """
                 
                 // Write the installation script to a temporary file on the remote server
-                appendOutput("Uploading installation script...")
+                installationState.appendOutput("Uploading installation script...")
                 
                 // Write script to a temporary file on the remote server using command with heredoc
                 // Make sure there are no spaces in the path
@@ -479,115 +541,131 @@ struct DependencyInstallerView: View {
                 """
                 
                 let writeOutput = try await client.executeCommand(writeCmd)
-                appendOutput("Script uploaded successfully.")
+                installationState.appendOutput("Script uploaded successfully.")
                 
-                // Run the installation script with password piped to it
-                appendOutput("Running installation script...")
+                // Run the installation script with password piping
+                installationState.appendOutput("Running installation script...")
                 
                 // Use a more secure execution method with password piping
                 let installCmd = "echo '\(password)' | ~/install_ffmpeg.sh"
                 
+                installationState.appendOutput("Using \(server.sftpUsesKey ? "provided sudo password" : "SSH password") for installation...")
+                
                 // Get real-time output by using executeCommandPair with streams
                 let execStream = try await client.executeCommandPair(installCmd)
                 
-                // Process stdout
+                // Process stdout with a single Task to avoid race conditions
                 Task {
                     do {
                         var stdoutBuffer = ""
-                        
-                        // Process stdout as a stream
-                        for try await data in execStream.stdout {
-                            let chunk = String(buffer: data)
-                            stdoutBuffer += chunk
-                            
-                            // Process line by line if we have complete lines
-                            let lines = stdoutBuffer.components(separatedBy: "\n")
-                            
-                            // Process all complete lines
-                            if lines.count > 1 {
-                                for i in 0..<lines.count-1 {
-                                    let line = lines[i]
-                                    appendOutput(line)
-                                    
-                                    // Check for completion markers
-                                    if line.contains("FFmpeg installation complete") ||
-                                       line.contains("Successfully installed FFmpeg") {
-                                        installationComplete = true
-                                        server.ffThumb = true
-                                    }
-                                }
-                                
-                                // Keep any partial line for next iteration
-                                stdoutBuffer = lines.last ?? ""
-                            }
-                        }
-                        
-                        // Process any remaining content
-                        if !stdoutBuffer.isEmpty {
-                            appendOutput(stdoutBuffer)
-                        }
-                        
-                    } catch {
-                        appendOutput("Error reading from stdout: \(error.localizedDescription)")
-                    }
-                }
-                
-                // Process stderr
-                Task {
-                    do {
                         var stderrBuffer = ""
                         
-                        // Process stderr as a stream
-                        for try await data in execStream.stderr {
-                            let chunk = String(buffer: data)
-                            stderrBuffer += chunk
-                            
-                            // Process line by line
-                            let lines = stderrBuffer.components(separatedBy: "\n")
-                            
-                            // Process all complete lines
-                            if lines.count > 1 {
-                                for i in 0..<lines.count-1 {
-                                    let line = lines[i]
-                                    if !line.isEmpty {
-                                        appendOutput("ERROR: \(line)")
+                        // Create a task group to handle both streams concurrently
+                        try await withThrowingTaskGroup(of: Void.self) { group in
+                            // Process stdout
+                            group.addTask {
+                                for try await data in execStream.stdout {
+                                    let chunk = String(buffer: data)
+                                    
+                                    await MainActor.run {
+                                        stdoutBuffer += chunk
+                                        
+                                        // Process line by line if we have complete lines
+                                        let lines = stdoutBuffer.components(separatedBy: "\n")
+                                        
+                                        // Process all complete lines
+                                        if lines.count > 1 {
+                                            for i in 0..<lines.count-1 {
+                                                let line = lines[i]
+                                                installationState.appendOutput(line)
+                                                
+                                                // Check for completion markers
+                                                if line.contains("FFmpeg installation complete") ||
+                                                   line.contains("Successfully installed FFmpeg") {
+                                                    installationState.installationComplete = true
+                                                    server.ffThumb = true
+                                                }
+                                            }
+                                            
+                                            // Keep any partial line for next iteration
+                                            stdoutBuffer = lines.last ?? ""
+                                        }
                                     }
                                 }
                                 
-                                // Keep any partial line for next iteration
-                                stderrBuffer = lines.last ?? ""
+                                // Process any remaining content
+                                if !stdoutBuffer.isEmpty {
+                                    await MainActor.run {
+                                        installationState.appendOutput(stdoutBuffer)
+                                    }
+                                }
+                            }
+                            
+                            // Process stderr
+                            group.addTask {
+                                for try await data in execStream.stderr {
+                                    let chunk = String(buffer: data)
+                                    
+                                    await MainActor.run {
+                                        stderrBuffer += chunk
+                                        
+                                        // Process line by line
+                                        let lines = stderrBuffer.components(separatedBy: "\n")
+                                        
+                                        // Process all complete lines
+                                        if lines.count > 1 {
+                                            for i in 0..<lines.count-1 {
+                                                let line = lines[i]
+                                                if !line.isEmpty {
+                                                    installationState.appendOutput("ERROR: \(line)")
+                                                }
+                                            }
+                                            
+                                            // Keep any partial line for next iteration
+                                            stderrBuffer = lines.last ?? ""
+                                        }
+                                    }
+                                }
+                                
+                                // Process any remaining content
+                                if !stderrBuffer.isEmpty && !stderrBuffer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    await MainActor.run {
+                                        installationState.appendOutput("ERROR: \(stderrBuffer)")
+                                    }
+                                }
+                            }
+                            
+                            // Wait for both stream processing tasks to complete
+                            try await group.waitForAll()
+                        }
+                        
+                        // Wait for the command to complete
+                        installationState.appendOutput("Waiting for installation to complete...")
+                        
+                        // Clean up the temporary script after execution completes
+                        let cleanupCmd = "rm -f ~/install_ffmpeg.sh"
+                        let _ = try await client.executeCommand(cleanupCmd)
+                        installationState.appendOutput("Cleaned up temporary files")
+                        
+                        // Final verification if needed
+                        if !installationState.installationComplete {
+                            let verifyResult = try await client.executeCommand("which ffmpeg ffprobe || echo 'Not found'")
+                            let verifyOutput = String(buffer: verifyResult).trimmingCharacters(in: .whitespacesAndNewlines)
+                            
+                            if !verifyOutput.contains("Not found") {
+                                installationState.appendOutput("\nVerification successful - FFmpeg and FFprobe are installed!")
+                                
+                                await MainActor.run {
+                                    server.ffThumb = true
+                                    installationState.installationComplete = true
+                                }
+                            } else {
+                                installationState.appendOutput("\nWarning: Verification failed. FFmpeg and/or FFprobe may not be in the PATH.")
                             }
                         }
                         
-                        // Process any remaining content
-                        if !stderrBuffer.isEmpty && !stderrBuffer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            appendOutput("ERROR: \(stderrBuffer)")
-                        }
-                        
                     } catch {
-                        appendOutput("Error reading from stderr: \(error.localizedDescription)")
-                    }
-                }
-                
-                // Wait for the command to complete
-                appendOutput("Waiting for installation to complete...")
-                
-                // Clean up the temporary script after execution completes
-                let cleanupCmd = "rm -f ~/install_ffmpeg.sh"
-                let _ = try await client.executeCommand(cleanupCmd)
-                appendOutput("Cleaned up temporary files")
-                
-                // Final verification if needed
-                if !installationComplete {
-                    let verifyResult = try await client.executeCommand("which ffmpeg ffprobe || echo 'Not found'")
-                    let verifyOutput = String(buffer: verifyResult).trimmingCharacters(in: .whitespacesAndNewlines)
-                    
-                    if !verifyOutput.contains("Not found") {
-                        appendOutput("\nVerification successful - FFmpeg and FFprobe are installed!")
-                        server.ffThumb = true
-                        installationComplete = true
-                    } else {
-                        appendOutput("\nWarning: Verification failed. FFmpeg and/or FFprobe may not be in the PATH.")
+                        installationState.appendOutput("Error processing command output: \(error.localizedDescription)")
                     }
                 }
                 
@@ -598,12 +676,12 @@ struct DependencyInstallerView: View {
                 let osInfo = String(buffer: osInfoResult).trimmingCharacters(in: .whitespacesAndNewlines)
                 
                 if osInfo.contains("Windows") {
-                    appendOutput("Detected Windows Operating System")
+                    installationState.appendOutput("Detected Windows Operating System")
                     // Windows-specific installation
                     await performWindowsInstallation(client: client, password: password)
                 } else {
-                    appendOutput("Unable to definitively determine OS type. Defaulting to Linux-like system.")
-                    appendOutput("Will attempt generic Unix installation...")
+                    installationState.appendOutput("Unable to definitively determine OS type. Defaulting to Linux-like system.")
+                    installationState.appendOutput("Will attempt generic Unix installation...")
                     
                     // Add generic Unix installation code here if needed
                     // This would be similar to the Linux installation path above
@@ -611,27 +689,30 @@ struct DependencyInstallerView: View {
             }
             
         } catch {
-            appendOutput("\nInstallation error: \(error)")
+            installationState.appendOutput("\nInstallation error: \(error)")
+            
+            // Make sure to set isInstalling to false on error
+            await MainActor.run {
+                installationState.isInstalling = false
+            }
         }
-        
-        isInstalling = false
     }
     
     private func performWindowsInstallation(client: SSHClient, password: String) async {
-        appendOutput("Detected Windows system. Using Windows-specific FFmpeg installation...")
-        
         do {
+            installationState.appendOutput("Detected Windows system. Using Windows-specific FFmpeg installation...")
+            
             // Check if PowerShell is available
             let powershellCmd = "powershell -Command \"Write-Output 'PowerShell is available'\""
             let psResult = try await client.executeCommand(powershellCmd)
             let psOutput = String(buffer: psResult).trimmingCharacters(in: .whitespacesAndNewlines)
             
             if !psOutput.contains("PowerShell is available") {
-                appendOutput("Error: PowerShell is not available on this Windows system. It's required for FFmpeg installation.")
+                installationState.appendOutput("Error: PowerShell is not available on this Windows system. It's required for FFmpeg installation.")
                 return
             }
             
-            appendOutput("PowerShell is available. Proceeding with installation...")
+            installationState.appendOutput("PowerShell is available. Proceeding with installation...")
             
             // Check if FFmpeg is already installed
             let checkFFmpegCmd = "powershell -Command \"try { Get-Command ffmpeg -ErrorAction Stop; Write-Output 'FFmpeg is already installed'; } catch { Write-Output 'FFmpeg is not installed'; }\""
@@ -639,42 +720,45 @@ struct DependencyInstallerView: View {
             let checkOutput = String(buffer: checkResult).trimmingCharacters(in: .whitespacesAndNewlines)
             
             if checkOutput.contains("FFmpeg is already installed") {
-                appendOutput("FFmpeg is already installed on this system.")
+                installationState.appendOutput("FFmpeg is already installed on this system.")
                 
                 // Get the installed version
                 let versionCmd = "powershell -Command \"try { (ffmpeg -version)[0]; } catch { Write-Output 'Unable to get version'; }\""
                 let versionResult = try await client.executeCommand(versionCmd)
                 let versionOutput = String(buffer: versionResult).trimmingCharacters(in: .whitespacesAndNewlines)
                 
-                appendOutput("Current FFmpeg version: \(versionOutput)")
-                appendOutput("Installation skipped as FFmpeg is already installed.")
-                server.ffThumb = true
-                installationComplete = true
+                installationState.appendOutput("Current FFmpeg version: \(versionOutput)")
+                installationState.appendOutput("Installation skipped as FFmpeg is already installed.")
+                
+                await MainActor.run {
+                    server.ffThumb = true
+                    installationState.installationComplete = true
+                }
                 return
             }
             
-            appendOutput("FFmpeg is not installed. Preparing to install...")
+            installationState.appendOutput("FFmpeg is not installed. Preparing to install...")
             
             // Inform user that we need to provide manual installation instructions
-            appendOutput("\n---------------------------------------------------")
-            appendOutput("WINDOWS INSTALLATION INSTRUCTIONS")
-            appendOutput("---------------------------------------------------")
-            appendOutput("For Windows systems, administrator privileges are required.")
-            appendOutput("Please run the following command in PowerShell with admin privileges:")
-            appendOutput("[Copy Windows Install Command]")
-            appendOutput("\nThis command will:")
-            appendOutput("1. Download the latest FFmpeg build")
-            appendOutput("2. Extract it to C:\\FFmpeg\\bin")
-            appendOutput("3. Add FFmpeg to your system PATH")
-            appendOutput("\nAfter running the command, restart your terminal and run 'ffmpeg -version' to verify the installation.")
-            appendOutput("---------------------------------------------------")
+            installationState.appendOutput("\n---------------------------------------------------")
+            installationState.appendOutput("WINDOWS INSTALLATION INSTRUCTIONS")
+            installationState.appendOutput("---------------------------------------------------")
+            installationState.appendOutput("For Windows systems, administrator privileges are required.")
+            installationState.appendOutput("Please run the following command in PowerShell with admin privileges:")
+            installationState.appendOutput("[Copy Windows Install Command]")
+            installationState.appendOutput("\nThis command will:")
+            installationState.appendOutput("1. Download the latest FFmpeg build")
+            installationState.appendOutput("2. Extract it to C:\\FFmpeg\\bin")
+            installationState.appendOutput("3. Add FFmpeg to your system PATH")
+            installationState.appendOutput("\nAfter running the command, restart your terminal and run 'ffmpeg -version' to verify the installation.")
+            installationState.appendOutput("---------------------------------------------------")
             
             // We can't automatically install it, so we'll mark as incomplete
-            appendOutput("\nNOTE: Due to Windows security restrictions, automatic installation cannot be completed.")
-            appendOutput("Please follow the manual instructions above to complete the installation.")
+            installationState.appendOutput("\nNOTE: Due to Windows security restrictions, automatic installation cannot be completed.")
+            installationState.appendOutput("Please follow the manual instructions above to complete the installation.")
             
         } catch {
-            appendOutput("Error during Windows installation preparation: \(error.localizedDescription)")
+            installationState.appendOutput("Error during Windows installation preparation: \(error.localizedDescription)")
         }
     }
 }

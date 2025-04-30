@@ -382,8 +382,6 @@ struct ServerEditView: View {
                         }
                         Toggle("Use SSH Key", isOn: $sftpUsesKey)
 
-                        Toggle("Use SFTP Key", isOn: $sftpUsesKey)
-
                         
                         if sftpUsesKey {
                             HStack {
@@ -402,14 +400,14 @@ struct ServerEditView: View {
                                 SecureField("Key Passphrase", text: $sftpPhrase)
                                     .multilineTextAlignment(.trailing)
                             }
-                            HStack {
-                                Text("Password")
-                                Spacer()
-                                SecureField("User Password (Optional)", text: $sftpPassword)
-                                    .multilineTextAlignment(.trailing)
-                            }
+//                            HStack {
+//                                Text("Password")
+//                                Spacer()
+//                                SecureField("User Password (Optional)", text: $sftpPassword)
+//                                    .multilineTextAlignment(.trailing)
+//                            }
 
-                            Text("Used for video operation. Only used over a tunnel secured by Key Authentication").font(.caption)
+                            //Text("Used for video operation. Only used over a tunnel secured by Key Authentication").font(.caption)
                            //Toggle("Do not connect to SFTP for video streaming using a local password", isOn: $videoDisabled)
                         } else {
                             HStack {
@@ -454,12 +452,7 @@ struct ServerEditView: View {
                                 SecureField("Key Passphrase", text: $sftpPhrase)
                                     .multilineTextAlignment(.trailing)
                             }
-                            HStack {
-                                SecureField("User Password", text: $sftpPassword)
-                                    .multilineTextAlignment(.trailing)
-                            }
-                            Text("Password is used for server side video operation by the iOS version of the app. Only used over a tunnel secured by Key Authentication.")
-                            //Toggle("Do not connect to SFTP for video streaming using a local password on iOS", isOn: $videoDisabled)
+                            
                         } else {
                             SecureField("Password", text: $sftpPassword)
                         }

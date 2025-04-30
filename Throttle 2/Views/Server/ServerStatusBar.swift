@@ -1,10 +1,3 @@
-//
-//  ServerStatusBar.swift
-//  Throttle 2
-//
-//  Created by Stephen Grigg on 20/4/2025.
-//
-
 import SwiftUI
 
 struct ServerStatusBar: View {
@@ -12,6 +5,7 @@ struct ServerStatusBar: View {
     @ObservedObject var store: Store
     @Binding var showServerSettings: Bool
     @AppStorage("filterdCount") var filterdCount: Int = 0
+    @AppStorage("downloadDir") var downloadDir: String = ""
     
     // Stats state
     @State private var downloadSpeed: Int64 = 0
@@ -166,6 +160,13 @@ var isiPad: Bool {
         .onChange(of: manager.refreshRate) { _ in
             startRefreshCycle()
         } .padding(.top, 0)
+            .onChange(of: manager.fetchTimer?.isValid){
+                if manager.fetchTimer?.isValid == true{
+                    startRefreshCycle()
+                }else{
+                    stopRefreshCycle()
+                }
+            }
     }
     
     private func startRefreshCycle() {
@@ -227,10 +228,16 @@ var isiPad: Bool {
                     totalTorrents = sessionStats.torrentCount
                 }
                 
+                // Get session information to retrieve download directory
+                let sessionInfo = try await manager.getSessionInfo()
+                await MainActor.run {
+                    downloadDir = sessionInfo
+                }
+                
                 // Get free space for download directory
-                let downloadDir = try await manager.getDownloadDirectory() ?? ""
-                if !downloadDir.isEmpty {
-                    let spaceInfo = try await manager.getFreeSpace(path: downloadDir)
+                let downloadDirForFreeSpace = try await manager.getDownloadDirectory() ?? ""
+                if !downloadDirForFreeSpace.isEmpty {
+                    let spaceInfo = try await manager.getFreeSpace(path: downloadDirForFreeSpace)
                     await MainActor.run {
                         freeSpace = spaceInfo.freeSpace
                     }
@@ -300,6 +307,44 @@ extension TorrentManager {
         return responseObject.arguments
     }
     
+    func getSessionInfo() async throws -> String {
+        struct SessionInfoResponse: Codable {
+            let arguments: Arguments
+            let result: String
+            
+            struct Arguments: Codable {
+                let downloadDir: String
+                
+                enum CodingKeys: String, CodingKey {
+                    case downloadDir = "download-dir"
+                }
+            }
+        }
+        
+        var urlRequest = URLRequest(url: baseURL!)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let sessionId = sessionId {
+            urlRequest.setValue(sessionId, forHTTPHeaderField: "X-Transmission-Session-Id")
+        }
+        
+        let requestDict: [String: Any] = ["method": "session-get"]
+        let requestData = try JSONSerialization.data(withJSONObject: requestDict)
+        urlRequest.httpBody = requestData
+        
+        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        
+        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 409,
+           let newSessionId = httpResponse.allHeaderFields["X-Transmission-Session-Id"] as? String {
+            sessionId = newSessionId
+            return try await getSessionInfo()
+        }
+        
+        let decoder = JSONDecoder()
+        let responseObject = try decoder.decode(SessionInfoResponse.self, from: data)
+        return responseObject.arguments.downloadDir
+    }
+    
     func getFreeSpace(path: String) async throws -> FreeSpaceInfo {
         struct FreeSpaceRequest: Codable {
             let method = "free-space"
@@ -340,13 +385,3 @@ extension TorrentManager {
         return responseObject.arguments
     }
 }
-
-//#if DEBUG
-//struct ServerStatusBar_Previews: PreviewProvider {
-//    static var previews: some View {
-//        ServerStatusBar(manager: TorrentManager(), store: Store(), filterdCount: 5)
-//            .frame(height: 40)
-//            .previewLayout(.sizeThatFits)
-//    }
-//}
-//#endif

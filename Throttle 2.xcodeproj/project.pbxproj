@@ -11,9 +11,6 @@
 		E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = E70D0AD42D9E84DD00C9CB48 /* Citadel */; };
 		E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = E7150E522D631F8B009C4217 /* KeychainAccess */; };
 		E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */ = {isa = PBXBuildFile; productRef = E76AA8B52D8423E00009CA6F /* SimpleToast */; };
-		E7993B212DBF43620048CD6A /* CocoaAsyncSocket in Frameworks */ = {isa = PBXBuildFile; productRef = E7993B202DBF43620048CD6A /* CocoaAsyncSocket */; };
-		E7993B242DBF43990048CD6A /* HTTPParserC in Frameworks */ = {isa = PBXBuildFile; productRef = E7993B232DBF43990048CD6A /* HTTPParserC */; };
-		E7993B4B2DBF47810048CD6A /* Telegraph in Frameworks */ = {isa = PBXBuildFile; productRef = E7993B4A2DBF47810048CD6A /* Telegraph */; };
 		E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */ = {isa = PBXBuildFile; productRef = E7F5F3EF2D718B2700079054 /* FilePicker */; };
 		E7F968E82D89307700A19857 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = E7F968E72D89307700A19857 /* README.md */; };
 /* End PBXBuildFile section */
@@ -175,11 +172,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */,
-				E7993B242DBF43990048CD6A /* HTTPParserC in Frameworks */,
-				E7993B212DBF43620048CD6A /* CocoaAsyncSocket in Frameworks */,
 				E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */,
 				E70D09CA2D9CC9DD00C9CB48 /* MobileVLCKit.xcframework in Frameworks */,
-				E7993B4B2DBF47810048CD6A /* Telegraph in Frameworks */,
 				E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */,
 				E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */,
 			);
@@ -275,9 +269,6 @@
 				E7F5F3EF2D718B2700079054 /* FilePicker */,
 				E76AA8B52D8423E00009CA6F /* SimpleToast */,
 				E70D0AD42D9E84DD00C9CB48 /* Citadel */,
-				E7993B202DBF43620048CD6A /* CocoaAsyncSocket */,
-				E7993B232DBF43990048CD6A /* HTTPParserC */,
-				E7993B4A2DBF47810048CD6A /* Telegraph */,
 			);
 			productName = "Throttle 2";
 			productReference = E7150E172D631D08009C4217 /* Throttle 2.app */;
@@ -356,9 +347,6 @@
 				E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */,
 				E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */,
 				E70D0AD32D9E84DD00C9CB48 /* XCRemoteSwiftPackageReference "Citadel" */,
-				E7993B1F2DBF43620048CD6A /* XCRemoteSwiftPackageReference "CocoaAsyncSocket" */,
-				E7993B222DBF43990048CD6A /* XCRemoteSwiftPackageReference "HTTPParserC" */,
-				E7993B492DBF47810048CD6A /* XCRemoteSwiftPackageReference "Telegraph" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E7150E182D631D08009C4217 /* Products */;
@@ -494,7 +482,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "\"Throttle 2/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -628,7 +616,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "\"Throttle 2/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -1023,30 +1011,6 @@
 				minimumVersion = 0.10.1;
 			};
 		};
-		E7993B1F2DBF43620048CD6A /* XCRemoteSwiftPackageReference "CocoaAsyncSocket" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/robbiehanson/CocoaAsyncSocket";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 7.6.5;
-			};
-		};
-		E7993B222DBF43990048CD6A /* XCRemoteSwiftPackageReference "HTTPParserC" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Building42/HTTPParserC.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 9.2.0;
-			};
-		};
-		E7993B492DBF47810048CD6A /* XCRemoteSwiftPackageReference "Telegraph" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Building42/Telegraph.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.40.0;
-			};
-		};
 		E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/markrenaud/FilePicker";
@@ -1072,21 +1036,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */;
 			productName = SimpleToast;
-		};
-		E7993B202DBF43620048CD6A /* CocoaAsyncSocket */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7993B1F2DBF43620048CD6A /* XCRemoteSwiftPackageReference "CocoaAsyncSocket" */;
-			productName = CocoaAsyncSocket;
-		};
-		E7993B232DBF43990048CD6A /* HTTPParserC */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7993B222DBF43990048CD6A /* XCRemoteSwiftPackageReference "HTTPParserC" */;
-			productName = HTTPParserC;
-		};
-		E7993B4A2DBF47810048CD6A /* Telegraph */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E7993B492DBF47810048CD6A /* XCRemoteSwiftPackageReference "Telegraph" */;
-			productName = Telegraph;
 		};
 		E7F5F3EF2D718B2700079054 /* FilePicker */ = {
 			isa = XCSwiftPackageProductDependency;

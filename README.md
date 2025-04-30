@@ -45,14 +45,12 @@ https://github.com/Marginal/QLVideo/releases/latest
 ### iOS
 Use your sideloading method of choice - I've found https://sideloadly.io/ to work well.
 
-### There are security implications to using Key Authentication
-Currently if you use key authentication, we create a secure tunnel to play videos as VLCKit doen not support key authentication.
-VLC uses Password Authentication over this tunnel, but only on your servers localhost. If you don't want this, don't leave a password in server settings and video playback will be disabled.
 
 Throttle for iOS needs FFMpeg on the server to generate video thumbnails. 
-
-An installer is included in the iOS app to help you install this. The Mac version does not have this requirement.
+An installer is included in the iOS app to help you install this. The Mac version does not have this requirement as it uses fuse-t.
 You can still use Throttle without ffmpeg, but video thumbnails will be generic play icons.
+
+If you use key authentication, we also create a local proxy to play videos. It creates an FTP server on your iOS device for the video player to connect to, then streams over SSH using key authenication.
 
 *Note for windows users - due to the vast difference between windows and \*nix systems, I've made the assumption that you're using the built in openSSH, but it's largely untested. If anyone wants to help me test this / expand windows supprt, let me know.
 
