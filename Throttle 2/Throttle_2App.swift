@@ -108,47 +108,68 @@ struct Throttle_2App: App {
                 .environment(\.externalDisplayManager, ExternalDisplayManager.shared)
                 //.environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .background(colorScheme == .dark ? Color.black : Color.white)
+            
                 .onAppear {
                     presenting.didStart = true
                     
                 }
-                .onChange(of: scenePhase){
-                    #if os(iOS)
-                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                        if scenePhase == .background {
-                            
-                            isBackground = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { _ in
-                                DispatchQueue.main.async{
-                                    //
-                                    manager.stopPeriodicUpdates()
-                                    //TunnelManagerHolder.shared.tearDownAllTunnels()
-//                                    stopSFTP()
-//                                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
-                                    //TunnelManagerHolder.shared.removeTunnel(withIdentifier: "sftp")
-                                    
-                                    tunnelClosed = true
-                                    print("Background - stopping queue")
-                                }
-                            }
-                        } else if scenePhase == .active {
-                            
-                            if tunnelClosed && networkMonitor.isConnected{
-                                //setupServer(store: store, torrentManager: manager)
-                                refeshTunnel(store: store, torrentManager: manager)
-                            }
-                            isBackground?.invalidate()
-                            tunnelClosed = false
-                            print("Foreground- starting queue")
-                            ExternalDisplayManager.shared.startMonitoring()
-                        }
+                // app backgrounding
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { (_) in
+                    if networkMonitor.isConnected{
+                        manager.isLoading = true
+                        refeshTunnel(store: store, torrentManager: manager)
+                        ExternalDisplayManager.shared.startMonitoring()
+                        print("Foreground- starting queue")
+                        manager.isLoading = false
                     }
-                    #endif
+                    
                 }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { (_) in
+                    manager.stopPeriodicUpdates()
+                    //stopSFTP()
+                    SimpleFTPServerManager.shared.removeAllServers()
+                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                    print("Background - stopping queue")
+                }
+//                .onChange(of: scenePhase){
+//                    #if os(iOS)
+//                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+//                        if scenePhase == .background {
+//                            
+//                            isBackground = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { _ in
+//                                DispatchQueue.main.async{
+//                                    //
+//                                    manager.stopPeriodicUpdates()
+//                                    //TunnelManagerHolder.shared.tearDownAllTunnels()
+////                                    stopSFTP()
+////                                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+//                                    //TunnelManagerHolder.shared.removeTunnel(withIdentifier: "sftp")
+//                                    
+//                                    tunnelClosed = true
+//                                    print("Background - stopping queue")
+//                                }
+//                            }
+//                        } else if scenePhase == .active {
+//                            
+//                            if tunnelClosed && networkMonitor.isConnected{
+//                                //setupServer(store: store, torrentManager: manager)
+//                                refeshTunnel(store: store, torrentManager: manager)
+//                            }
+//                            isBackground?.invalidate()
+//                            tunnelClosed = false
+//                            print("Foreground- starting queue")
+//                            ExternalDisplayManager.shared.startMonitoring()
+//                        }
+//                    }
+                  //  #endif
+     //           }
                 .onChange(of: networkMonitor.gateways){
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                        stopSFTP()
+                        
                         if networkMonitor.isConnected {
                             Task {
+                                stopSFTP()
+                                try? await Task.sleep(nanoseconds: 500_000_000)
                                 refeshTunnel(store: store, torrentManager: manager)
                             }
                         }
@@ -157,9 +178,19 @@ struct Throttle_2App: App {
                 .onChange(of: store.selection) { oldValue, newValue in
                             Task {
                                 if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                                    TunnelManagerHolder.shared.tearDownAllTunnels()
+                                    //if oldValue != nil {
+                                        manager.isLoading = true
+                                        manager.stopPeriodicUpdates()
+                                        //stopSFTP()
+                                        TunnelManagerHolder.shared.tearDownAllTunnels()
+                                        TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                                        SimpleFTPServerManager.shared.removeAllServers()
+                                    
+                                    //}
+                                    setupServer(store: store, torrentManager: manager)
+                                } else {
+                                    setupServer(store: store, torrentManager: manager)
                                 }
-                                setupServer(store: store, torrentManager: manager)
                             }
                 }
         }

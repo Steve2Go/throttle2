@@ -10,6 +10,7 @@ import SwiftUI
 #if os(macOS)
 import AppKit
 #endif
+import Kingfisher
 
 struct TorrentRowView: View {
     @ObservedObject var manager: TorrentManager
@@ -52,46 +53,49 @@ struct TorrentRowView: View {
             if showThumbs && !selecting && torrent.hashString != nil && torrent.progress == 1 {
                 let torrentFiles = manager.getTorrentFiles(forHash: torrent.hashString!)
        
-                   if let mediaFile = findFirstMediaFile(from: torrentFiles) {
+                if let mediaFile = findFirstMediaFile(from: torrentFiles) {
+                    if store.selection != nil {
+                        
 #if os(iOS)
-                    let mediaPath = get_media_path(file: mediaFile, torrent:torrent, server: store.selection!)
-                    
-                    PathThumbnailView(path: mediaPath, server: store.selection!, fromRow: torrent.files.count > 1 ? true : nil)
-#else
-                    if store.selection?.sftpBrowse == true {
                         let mediaPath = get_media_path(file: mediaFile, torrent:torrent, server: store.selection!)
                         
-                        PathThumbnailViewMacOS(path: mediaPath)
-                    } else if store.selection?.fsBrowse == true {
-                        if let downloadDir = torrent.dynamicFields["downloadDir"]?.value as? String,
-                           let serverPath = store.selection?.pathServer,
-                           let filesystemPath = store.selection?.pathFilesystem,
-                           let decodedName = mediaFile.name.removingPercentEncoding {
-                            
-                            let pathSuffix = downloadDir.hasPrefix(serverPath) ?
-                            String(downloadDir.dropFirst(serverPath.count)) :
-                                downloadDir
-                                
-                            let mediaPath = filesystemPath + String(pathSuffix) + "/" + decodedName
+                        PathThumbnailView(path: mediaPath, server: store.selection!, fromRow: torrent.files.count > 1 ? true : nil)
+#else
+                        if store.selection?.sftpBrowse == true {
+                            let mediaPath = get_media_path(file: mediaFile, torrent:torrent, server: store.selection!)
                             
                             PathThumbnailViewMacOS(path: mediaPath)
-                        } else {
-                            // Provide a fallback view for when any of the optionals are nil
-                            Text("Unable to display thumbnail")
+                        } else if store.selection?.fsBrowse == true {
+                            if let downloadDir = torrent.dynamicFields["downloadDir"]?.value as? String,
+                               let serverPath = store.selection?.pathServer,
+                               let filesystemPath = store.selection?.pathFilesystem,
+                               let decodedName = mediaFile.name.removingPercentEncoding {
+                                
+                                let pathSuffix = downloadDir.hasPrefix(serverPath) ?
+                                String(downloadDir.dropFirst(serverPath.count)) :
+                                downloadDir
+                                
+                                let mediaPath = filesystemPath + String(pathSuffix) + "/" + decodedName
+                                
+                                PathThumbnailViewMacOS(path: mediaPath)
+                            } else {
+                                // Provide a fallback view for when any of the optionals are nil
+                                Text("Unable to display thumbnail")
+                            }
                         }
-                    }
-                    
-                    
+                        
+                        
 #endif
-                } else {
-                    Image( "folder")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 60, height: 60)
-                        .padding(.trailing, 0)
-                        .foregroundColor(.secondary)
-      
-                }
+                    }
+                    } else {
+                        Image( "folder")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 60, height: 60)
+                            .padding(.trailing, 0)
+                            .foregroundColor(.secondary)
+                        
+                    }
                 
 
             } else if showThumbs && !selecting {

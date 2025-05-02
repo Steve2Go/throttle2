@@ -11,7 +11,7 @@ enum DataConnectionMode {
 class SimpleFTPServerManager {
     static let shared = SimpleFTPServerManager()
     
-    private var activeServers: [String: SimpleFTPServer] = [:]
+    var activeServers: [String: SimpleFTPServer] = [:]
     private let serverLock = NSLock()
     
     private init() {}
@@ -27,6 +27,8 @@ class SimpleFTPServerManager {
         defer { serverLock.unlock() }
         return activeServers[identifier]
     }
+    
+    
     
     func removeServer(withIdentifier identifier: String) {
         serverLock.lock()

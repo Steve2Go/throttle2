@@ -13,29 +13,16 @@ extension Throttle_2App {
     
     func refeshTunnel(store: Store, torrentManager: TorrentManager){
         Task{
-            //@AppStorage("trigger") var trigger = true
-            stopSFTP()
-            TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
-            //TunnelManagerHolder.shared.removeTunnel(withIdentifier: "sftp")
-            Task{
-                await SSHConnectionManager.shared.resetAllConnections()
-            }
+
+            //Task{
+               // await SSHConnectionManager.shared.resetAllConnections()
+            //}
             guard let server = store.selection else {return}
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
             
             let isTunnel = server.sftpRpc
 #if os(iOS)
             if server.sftpUsesKey == true {
                 setupSFTPIfNeeded(store: store)
-                //
-                //            Task{
-                //                //sftp tunnel
-                //                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                //                let sftp = try SSHTunnelManager(server: server, localPort: 2222, remoteHost: "127.0.0.1", remotePort: Int(server.sftpPort))
-                //                try await sftp.start()
-                //                TunnelManagerHolder.shared.storeTunnel(sftp, withIdentifier: "sftp")
-                //            }
-                
             }
 #endif
             
@@ -49,39 +36,32 @@ extension Throttle_2App {
                     let tmanager = try SSHTunnelManager(server: server, localPort: localport, remoteHost: "127.0.0.1", remotePort: Int(port))
                     try await tmanager.start()
                     TunnelManagerHolder.shared.storeTunnel(tmanager, withIdentifier: "transmission-rpc")
+                    try await torrentManager.fetchUpdates(fullFetch: true)
                     torrentManager.startPeriodicUpdates()
-                    
-                    
-                    
+                    try? await Task.sleep(nanoseconds: 500_000_000)
                     if !store.magnetLink.isEmpty || store.selectedFile != nil {
-                        
                         presenting.activeSheet = "adding"
-                        try? await Task.sleep(nanoseconds: 1_000_000_000)
-                        //trigger.toggle()
                     }
-                //s}
             } else{
-                if !store.magnetLink.isEmpty || store.selectedFile != nil {
-                    Task{
-                        
-                        presenting.activeSheet = "adding"
-                        try? await Task.sleep(nanoseconds: 1_000_000_000)
-                        // trigger.toggle()
-                    }
-                }
+                try await torrentManager.fetchUpdates(fullFetch: true)
                 torrentManager.startPeriodicUpdates()
+                if !store.magnetLink.isEmpty || store.selectedFile != nil {
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        presenting.activeSheet = "adding"
+                        
+                }
             }
         }
     }
     
-    func setupServer (store: Store, torrentManager: TorrentManager) {
+    func setupServer (store: Store, torrentManager: TorrentManager, tries: Int = 0) {
         
         @AppStorage("trigger") var trigger = true
     
         // Reset all SSH connections
-        Task{
-            await SSHConnectionManager.shared.resetAllConnections()
-        }
+//        Task{
+//            await SSHConnectionManager.shared.resetAllConnections()
+//        }
             store.selectedTorrentId = nil
             
             if store.selection != nil {
@@ -149,6 +129,22 @@ extension Throttle_2App {
                                 torrentManager.isLoading = true
                                 
                                 torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
+                                //torrentManager.reset()
+                                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                                
+                            } catch let error as SSHTunnelError {
+                                if tries < 3 {
+                                    await SSHConnectionManager.shared.resetAllConnections()
+                                    TunnelManagerHolder.shared.tearDownAllTunnels()
+                                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                                    setupServer(store: store, torrentManager: torrentManager, tries: tries + 1)
+                                } else{
+                                    print("An unexpected error occurred in tunnel: \(error)")
+                                    ToastManager.shared.show(message: "Tunnel Error: \(error)", icon: "exclamationmark.triangle", color: Color.red)
+                                }
+                                
+                            }
+                            if TunnelManagerHolder.shared.activeTunnels.count > 0 {
                                 try await torrentManager.fetchUpdates(fullFetch: true)
                                 torrentManager.startPeriodicUpdates()
                                 try await Task.sleep(for: .milliseconds(500))
@@ -157,9 +153,6 @@ extension Throttle_2App {
                                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                                     trigger.toggle()
                                 }
-                            } catch let error as SSHTunnelError {
-                                
-                                print("An unexpected error occurred: \(error)")
                             }
                         }
                     }
@@ -205,7 +198,7 @@ extension Throttle_2App {
     #endif
     
     
-    func setupSimpleFTPServer(store: Store) {
+    func setupSimpleFTPServer(store: Store,tries: Int = 0) {
         guard let server = store.selection, server.sftpUsesKey == true else { return }
         
         #if os(iOS)
@@ -224,13 +217,19 @@ extension Throttle_2App {
                 print("Simple FTP Server started on localhost:2121")
             } catch {
                 print("Failed to start FTP server: \(error)")
-                
-                // Show error toast
-                ToastManager.shared.show(
-                    message: "Failed to start FTP server: \(error.localizedDescription)",
-                    icon: "exclamationmark.triangle",
-                    color: Color.red
-                )
+                if tries < 3 {
+                    //stopSFTP()
+                    SimpleFTPServerManager.shared.removeAllServers()
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    setupSimpleFTPServer(store: store, tries: tries + 1)
+                }else{
+                    // Show error toast
+                    ToastManager.shared.show(
+                        message: "Failed to start FTP server: \(error.localizedDescription)",
+                        icon: "exclamationmark.triangle",
+                        color: Color.red
+                    )
+                }
             }
         }
         #endif
@@ -277,5 +276,3 @@ class NetworkMonitor: ObservableObject {
         networkMonitor.start(queue: workerQueue)
     }
 }
-
-

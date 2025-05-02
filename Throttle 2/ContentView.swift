@@ -43,15 +43,15 @@ struct ContentView: View {
     var body: some View {
         let activeSheetBinding = createActiveSheetBinding(presenting)
         ZStack{
-            #if os(macOS)
+#if os(macOS)
             MacOSContentView( presenting: presenting,
                               manager: manager,
                               filter: filter,
                               store: store,
                               isMounted: isMounted
-                              )
+            )
             
-            #else
+#else
             if servers.count > 1 {
                 iOSContentView( presenting: presenting,
                                 manager: manager,
@@ -73,7 +73,7 @@ struct ContentView: View {
                     //Text("Add")
                 } //.buttonStyle(.borderless)
             }
-           // }
+            // }
 #if os(iOS)
             if ((store.selection?.sftpBrowse) != nil){
                 ToolbarItem(placement: .topBarTrailing) {
@@ -94,12 +94,12 @@ struct ContentView: View {
 #if os(macOS)
             
             ToolbarItem (placement: .automatic) {
-                    Button {
-                        presenting.isCreating = true
-                    } label: {
-                        Image(systemName: "document.badge.plus")
-                    }
+                Button {
+                    presenting.isCreating = true
+                } label: {
+                    Image(systemName: "document.badge.plus")
                 }
+            }
             
             if ((store.selection?.sftpBrowse) == true){
                 ToolbarItem (placement: .automatic) {
@@ -170,9 +170,9 @@ struct ContentView: View {
         
         .onAppear {
             let serverArray = Array(servers)
-            #if os(macOS)
+#if os(macOS)
             mountManager.mountAllServers(serverArray)
-            #endif
+#endif
             
             if presenting.didStart {
                 if UserDefaults.standard.bool(forKey: "openDefaultServer") != false || UserDefaults.standard.object(forKey: "selectedServer") == nil {
@@ -185,42 +185,42 @@ struct ContentView: View {
             }
             
             // Set appropriate visibility only for iPad - preserves state on macOS
-            #if os(iOS)
+#if os(iOS)
             if UIDevice.current.userInterfaceIdiom == .pad {
                 // Initialize iPad layout based on current orientation
                 setIpadSplitViewVisibility()
             }
-            #endif
+#endif
         }
-        #if os(iOS)
+#if os(iOS)
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
             // Only respond to iPad orientation changes
             if UIDevice.current.userInterfaceIdiom == .pad {
                 setIpadSplitViewVisibility()
             }
         }
-        #endif
-        #if os(macOS)
+#endif
+#if os(macOS)
         .sheet( isPresented: $presenting.isCreating) {
             CreateTorrent(store: store, presenting: presenting)
                 .frame(width: 400, height: 500)
                 .padding(20)
         }
-        #endif
+#endif
         .sheet(item: activeSheetBinding) { sheetType in
             switch sheetType {
             case .settings:
                 SettingsView(presenting: presenting, manager: manager)
             case .servers:
                 ServersListView(presenting: presenting, store: store)
-                    #if targetEnvironment(macCatalyst) || os(macOS)
+#if targetEnvironment(macCatalyst) || os(macOS)
                     .frame(width: 600, height: 600)
-                    #endif
+#endif
             case .adding:
                 AddTorrentView(store: store, manager: manager, presenting: presenting)
-                    #if os(iOS)
+#if os(iOS)
                     .presentationDetents([.medium])
-                    #endif
+#endif
             }
         }
         
@@ -228,20 +228,20 @@ struct ContentView: View {
             if url.isFileURL {
                 store.selectedFile = url
                 store.selectedFile!.startAccessingSecurityScopedResource()
-                #if os(iOS)
+//#if os(iOS)
                 if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true  {
                     Task{
-                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        try? await Task.sleep(nanoseconds: 500_000_000)
                         presenting.activeSheet = "adding"
                     }
                 }
-                #else
-                presenting.activeSheet = "adding"
-                #endif
-//                Task {
-//                    try await Task.sleep(for: .milliseconds(500))
-//                    presenting.activeSheet = "adding"
-//                }
+//#else
+//                presenting.activeSheet = "adding"
+//#endif
+                //                Task {
+                //                    try await Task.sleep(for: .milliseconds(500))
+                //                    presenting.activeSheet = "adding"
+                //                }
             }
             else if url.absoluteString.lowercased().hasPrefix("magnet:") {
                 store.magnetLink = url.absoluteString
@@ -253,30 +253,6 @@ struct ContentView: View {
                 print("URL ignored: Not a file or magnet link")
             }
         }
-
-//        .onOpenURL { url in
-//            // Check if it's a file URL
-//            if url.isFileURL {
-//                store.selectedFile = url
-//                store.selectedFile!.startAccessingSecurityScopedResource()
-//                Task {
-//                    try await Task.sleep(for: .milliseconds(500))
-//                    presenting.activeSheet = "adding"
-//                }
-//            }
-//            // Check if it's a magnet link
-//            else if url.absoluteString.lowercased().hasPrefix("magnet:") {
-//                store.magnetLink = url.absoluteString
-//                Task {
-//                    try await Task.sleep(for: .milliseconds(500))
-//                    presenting.activeSheet = "adding"
-//                }
-//            }
-//            // Ignore all other URL types
-//            else {
-//                print("URL ignored: Not a file or magnet link")
-//            }
-//        }
     }
     
     private func createActiveSheetBinding(_ presenting: Presenting) -> Binding<SheetType?> {

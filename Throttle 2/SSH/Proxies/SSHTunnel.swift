@@ -4,22 +4,10 @@ import NIO
 import NIOSSH
 import SwiftUI
 
-//enum SSHTunnelError: Error {
-//    case missingCredentials
-//    case connectionFailed(Error)
-//    case tunnelEstablishmentFailed(Error)
-//    case portForwardingFailed(Error)
-//    case localProxyFailed(Error)
-//    case reconnectFailed(Error)
-//    case invalidServerConfiguration
-//    case tunnelAlreadyConnected
-//    case tunnelNotConnected
-//}
-
 /// Manages SSH tunnels for port forwarding
 class TunnelManagerHolder {
     static let shared = TunnelManagerHolder()
-    private var activeTunnels: [String: SSHTunnelManager] = [:]
+    var activeTunnels: [String: SSHTunnelManager] = [:]
     private let tunnelLock = NSLock()
     @AppStorage("trigger") var trigger = true
 
@@ -39,6 +27,7 @@ class TunnelManagerHolder {
         defer { tunnelLock.unlock() }
         return activeTunnels[identifier]
     }
+   
     
     /// Remove a tunnel by its identifier
     func removeTunnel(withIdentifier identifier: String) {

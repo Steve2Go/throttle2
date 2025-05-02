@@ -134,8 +134,13 @@ struct TorrentListView: View {
         }
         .refreshable {
             Task {
-                manager.reset()
+                // do a full reset on refresh
                 manager.isLoading.toggle()
+                let saveserver = store.selection
+                store.selection = nil
+                try? await Task.sleep(nanoseconds: 1_00_000_000)
+                store.selection = saveserver
+                manager.reset()
             }
         }
         .searchable(text: $searchQuery, prompt: "Search")

@@ -24,9 +24,16 @@ struct AnyViewModifier: ViewModifier {
 // String extension for UI truncation
 extension String {
     func truncatedMiddle() -> String {
+        
+        #if os(iOS)
+        guard self.count > 35 else { return self }
+        let prefix = String(self.prefix(15))
+        let suffix = String(self.suffix(10))
+        #else
         guard self.count > 45 else { return self }
         let prefix = String(self.prefix(25))
         let suffix = String(self.suffix(10))
+                            #endif
         return "\(prefix)...\(suffix)"
     }
 }

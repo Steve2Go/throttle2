@@ -66,22 +66,60 @@ var isiPad: Bool {
                 Spacer()
                 // speed
                 HStack(spacing: innerSpacing) {
-                    Image(systemName: "arrow.up.arrow.down")
-                        .scaleEffect(x: -1, y: 1)
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.green,.blue)
-                        .foregroundColor(.green)
-                    Text("\(downloadSpeedFormatted)/\(uploadSpeedFormatted)")
-                        .font(.caption)
+//                    Image(systemName: "arrow.up.arrow.down")
+//                        .scaleEffect(x: -1, y: 1)
+//                        .symbolRenderingMode(.palette)
+//                        .foregroundStyle(.green,.blue)
+//                        .foregroundColor(.green)
+//                    VStack{
+//                        Text("↓\(uploadSpeedFormatted)").font(.caption)
+//                        Text("↑\(uploadSpeedFormatted)").font(.caption)
+//                    }
                 }
-            
+                VStack {
+                    if TunnelManagerHolder.shared.activeTunnels.count > 0 {
+                        HStack(spacing: innerSpacing) {
+                            Image(systemName: "lock.fill")
+                                .resizable()
+                                .foregroundColor(.green)
+                                .frame(width: 12, height: 12)
+                        }
+                        
+                    }
+                    if SimpleFTPServerManager.shared.activeServers.count > 0 {
+                        HStack(spacing: innerSpacing) {
+                            Image(systemName: "externaldrive.fill")
+                                .resizable()
+                                .foregroundColor(.green)
+                                .frame(width: 12, height: 10)
+                        }
+                        
+                    }
+                }
+                if TunnelManagerHolder.shared.activeTunnels.count > 0 || SimpleFTPServerManager.shared.activeServers.count > 0 {
+                    Divider()
+                        .frame(height: dividerHeight)
+                }
+                
+                VStack{
+                    HStack{
+                        Text("↓").font(.caption).foregroundColor(.blue)
+                        Text("\(downloadSpeedFormatted)").font(.caption)
+                    }
+                    HStack {
+                        HStack{
+                            Text("↑").font(.caption).foregroundColor(.green)
+                            Text("\(uploadSpeedFormatted)").font(.caption)
+                        }
+                    }
+                }
                 Divider()
                     .frame(height: dividerHeight)
                 
                 // Active torrents
                 HStack(spacing: innerSpacing) {
                     Image(systemName: "checkmark.circle")
-                        .foregroundColor(.orange)
+                        .foregroundColor(.gray)
                     Text("\(activeTorrents)/\(totalTorrents)")
                         .font(.caption)
                 }
@@ -145,13 +183,13 @@ var isiPad: Bool {
         .onDisappear {
             stopRefreshCycle()
         }
-        .onChange(of: store.selection) { _ in
+        .onChange(of: manager.sessionId) { _ in
             resetStats()
             
             // Only try to update stats if we have a selected server
             if store.selection != nil {
                 // Give the manager time to update its baseURL
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                     updateStats()
                 }
             }
