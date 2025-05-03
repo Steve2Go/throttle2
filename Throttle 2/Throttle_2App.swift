@@ -115,9 +115,12 @@ struct Throttle_2App: App {
                 }
                 // app backgrounding
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { (_) in
-                    if networkMonitor.isConnected{
+                    
+                    if networkMonitor.isConnected && !manager.isLoading {
                         manager.isLoading = true
-                        refeshTunnel(store: store, torrentManager: manager)
+                        if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                            refeshTunnel(store: store, torrentManager: manager)
+                        }
                         ExternalDisplayManager.shared.startMonitoring()
                         print("Foreground- starting queue")
                         manager.isLoading = false
@@ -127,51 +130,23 @@ struct Throttle_2App: App {
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { (_) in
                     manager.stopPeriodicUpdates()
                     //stopSFTP()
-                    SimpleFTPServerManager.shared.removeAllServers()
-                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                        SimpleFTPServerManager.shared.removeAllServers()
+                        TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                    }
                     print("Background - stopping queue")
                 }
-//                .onChange(of: scenePhase){
-//                    #if os(iOS)
-//                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-//                        if scenePhase == .background {
-//                            
-//                            isBackground = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { _ in
-//                                DispatchQueue.main.async{
-//                                    //
-//                                    manager.stopPeriodicUpdates()
-//                                    //TunnelManagerHolder.shared.tearDownAllTunnels()
-////                                    stopSFTP()
-////                                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
-//                                    //TunnelManagerHolder.shared.removeTunnel(withIdentifier: "sftp")
-//                                    
-//                                    tunnelClosed = true
-//                                    print("Background - stopping queue")
-//                                }
-//                            }
-//                        } else if scenePhase == .active {
-//                            
-//                            if tunnelClosed && networkMonitor.isConnected{
-//                                //setupServer(store: store, torrentManager: manager)
-//                                refeshTunnel(store: store, torrentManager: manager)
-//                            }
-//                            isBackground?.invalidate()
-//                            tunnelClosed = false
-//                            print("Foreground- starting queue")
-//                            ExternalDisplayManager.shared.startMonitoring()
-//                        }
-//                    }
-                  //  #endif
-     //           }
                 .onChange(of: networkMonitor.gateways){
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                         
-                        if networkMonitor.isConnected {
-                            Task {
-                                stopSFTP()
-                                try? await Task.sleep(nanoseconds: 500_000_000)
+                        if networkMonitor.isConnected && !manager.isLoading {
+                            manager.isLoading = true
+                            if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                                 refeshTunnel(store: store, torrentManager: manager)
                             }
+                            ExternalDisplayManager.shared.startMonitoring()
+                            print("Foreground- starting queue")
+                            manager.isLoading = false
                         }
                     }
                 }

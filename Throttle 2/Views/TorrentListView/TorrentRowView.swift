@@ -10,7 +10,6 @@ import SwiftUI
 #if os(macOS)
 import AppKit
 #endif
-import Kingfisher
 
 struct TorrentRowView: View {
     @ObservedObject var manager: TorrentManager

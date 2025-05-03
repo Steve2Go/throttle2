@@ -49,7 +49,7 @@ var isiPad: Bool {
         
         #if os(iOS)
         if !isiPad {
-            scale = 0.7
+            scale = 0.75
         }
         horizontalPadding = -60.0
         verticalPadding = 0
@@ -65,7 +65,7 @@ var isiPad: Bool {
             } else {
                 Spacer()
                 // speed
-                HStack(spacing: innerSpacing) {
+               
 //                    Image(systemName: "arrow.up.arrow.down")
 //                        .scaleEffect(x: -1, y: 1)
 //                        .symbolRenderingMode(.palette)
@@ -75,33 +75,10 @@ var isiPad: Bool {
 //                        Text("↓\(uploadSpeedFormatted)").font(.caption)
 //                        Text("↑\(uploadSpeedFormatted)").font(.caption)
 //                    }
-                }
-                VStack {
-                    if TunnelManagerHolder.shared.activeTunnels.count > 0 {
-                        HStack(spacing: innerSpacing) {
-                            Image(systemName: "lock.fill")
-                                .resizable()
-                                .foregroundColor(.green)
-                                .frame(width: 12, height: 12)
-                        }
-                        
-                    }
-                    if SimpleFTPServerManager.shared.activeServers.count > 0 {
-                        HStack(spacing: innerSpacing) {
-                            Image(systemName: "externaldrive.fill")
-                                .resizable()
-                                .foregroundColor(.green)
-                                .frame(width: 12, height: 10)
-                        }
-                        
-                    }
-                }
-                if TunnelManagerHolder.shared.activeTunnels.count > 0 || SimpleFTPServerManager.shared.activeServers.count > 0 {
-                    Divider()
-                        .frame(height: dividerHeight)
-                }
+//                }
                 
-                VStack{
+                
+                VStack(alignment:.leading) {
                     HStack{
                         Text("↓").font(.caption).foregroundColor(.blue)
                         Text("\(downloadSpeedFormatted)").font(.caption)
@@ -113,29 +90,75 @@ var isiPad: Bool {
                         }
                     }
                 }
-                Divider()
-                    .frame(height: dividerHeight)
-                
-                // Active torrents
+                Spacer()
+//                Divider()
+//                    .frame(height: dividerHeight)
+                //tunnels
                 HStack(spacing: innerSpacing) {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundColor(.gray)
+                    #if os(iOS)
+                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                        if TunnelManagerHolder.shared.activeTunnels.count > 0  && SimpleFTPServerManager.shared.activeServers.count > 0 {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                        } else if TunnelManagerHolder.shared.activeTunnels.count > 0 ||  SimpleFTPServerManager.shared.activeServers.count > 0 {
+                            Image(systemName: "checkmark.circle")
+                                .foregroundColor(.green)
+                        } else {
+                            Image(systemName: "circle.dotted.circle")
+                                .foregroundColor(.green)
+                                .symbolEffect(.pulse.byLayer, options: .repeat(.continuous))
+                        }
+                    }
+                    else {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .scaleEffect(x: -1, y: 1)
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.green,.blue)
+                            .foregroundColor(.green)
+                    }
+                    #else
+                    if store.selection?.sftpRpc == true {
+                        if TunnelManagerHolder.shared.activeTunnels.count > 0 {
+                            Image(systemName: "checkmark.circle")
+                                .foregroundColor(.green)
+                        } else{
+                            Image(systemName: "circle.dotted.circle")
+                                .foregroundColor(.green)
+                                .symbolEffect(.pulse.byLayer, options: .repeat(.continuous))
+                        }
+                    } else{
+                        Image(systemName: "arrow.up.arrow.down")
+                            .scaleEffect(x: -1, y: 1)
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.green,.blue)
+                            .foregroundColor(.green)
+                    }
+                    #endif
+                    // activity
                     Text("\(activeTorrents)/\(totalTorrents)")
                         .font(.caption)
                 }
                 
+                // Active torrents
+                
+//                HStack(spacing: innerSpacing) {
+//                    Image(systemName: "checkmark.circle")
+//                        .foregroundColor(.gray)
+//                    
+//                }
+                
                 // Visible torrents
                 HStack(spacing: innerSpacing) {
                     Image(systemName: "eye")
-                        .foregroundColor(.gray)
+                        .foregroundColor(filterdCount == totalTorrents  ? .green : .orange)
                     Text("\(filterdCount)/\(totalTorrents)")
                         .font(.caption)
                 }
                 
                 // Free space
                 HStack(spacing: innerSpacing) {
-                    Image(systemName: "externaldrive")
-                        .foregroundColor(.gray)
+                    Image(systemName: "server.rack")
+                        .foregroundColor(.blue)
                     Text(freeSpaceFormatted)
                         .font(.caption)
                 }
