@@ -213,7 +213,6 @@ extension Throttle_2App {
                 
                 // Store the server
                 SimpleFTPServerManager.shared.storeServer(ftpServer, withIdentifier: "sftp-ftp")
-                
                 print("Simple FTP Server started on localhost:2121")
             } catch {
                 print("Failed to start FTP server: \(error)")
@@ -239,17 +238,17 @@ extension Throttle_2App {
     func setupSFTPIfNeeded(store: Store) {
         guard let server = store.selection, server.sftpUsesKey == true else { return }
         
-        #if os(iOS)
+        //#if os(iOS)
         setupSimpleFTPServer(store: store)
-        #endif
+        //#endif
     }
     
     func stopSFTP() {
         //guard let server = store.selection, server.sftpUsesKey == true else { return }
         
-        #if os(iOS)
+        //#if os(iOS)
         SimpleFTPServerManager.shared.removeAllServers()
-        #endif
+        //#endif
     }
   
 }
@@ -276,3 +275,22 @@ class NetworkMonitor: ObservableObject {
         networkMonitor.start(queue: workerQueue)
     }
 }
+
+
+
+// Escape single quotes and special characters in paths
+func escapePath(_ path: String) -> String {
+        // Escape backslashes and double quotes
+        let escaped = path
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "$", with: "\\$")
+            .replacingOccurrences(of: "`", with: "\\`")
+        return "\"\(escaped)\""
+    }
+func urlEncodePath(_ path: String) -> String {
+        guard let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            return path // fallback to original if encoding fails
+        }
+        return "'\(encodedPath)'"
+    }

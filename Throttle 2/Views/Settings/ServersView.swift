@@ -435,6 +435,7 @@ struct ServerEditView: View {
                         
                         
                         #else
+                        
                         TextField("SFTP Host", text: $sftpHost)
                         TextField("SFTP Port", text: $sftpPort)
                         TextField("Server Path", text: $pathServer)

@@ -86,28 +86,13 @@
 			);
 			platformFiltersByRelativePath = {
 				SSH/Mounting/MountManager.swift = (macos, );
-				ffmpeg/iOS/ffmpegkit.framework = (ios, );
-				ffmpeg/iOS/libavcodec.framework = (ios, );
-				ffmpeg/iOS/libavdevice.framework = (ios, );
-				ffmpeg/iOS/libavfilter.framework = (ios, );
-				ffmpeg/iOS/libavformat.framework = (ios, );
-				ffmpeg/iOS/libavutil.framework = (ios, );
-				ffmpeg/iOS/libswresample.framework = (ios, );
-				ffmpeg/iOS/libswscale.framework = (ios, );
-				ffmpeg/macOS/ffmpegkit.xcframework = (macos, );
-				ffmpeg/macOS/libavcodec.xcframework = (macos, );
-				ffmpeg/macOS/libavdevice.xcframework = (macos, );
-				ffmpeg/macOS/libavfilter.xcframework = (macos, );
-				ffmpeg/macOS/libavformat.xcframework = (macos, );
-				ffmpeg/macOS/libavutil.xcframework = (macos, );
-				ffmpeg/macOS/libswresample.xcframework = (macos, );
-				ffmpeg/macOS/libswscale.xcframework = (macos, );
 			};
 			target = E7150E162D631D08009C4217 /* Throttle 2 */;
 		};
 		E7F96B862D8BF87300A19857 /* Exceptions for "Resources" folder in "Throttle 2" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			platformFiltersByRelativePath = {
+				QuickLookVideo.app = (macos, );
 				controlCentre.shortcut = (ios, );
 				"fuse-t-macos-installer-1.0.44.pkg" = (macos, );
 				"install-ffmpeg-static.sh" = (ios, );
@@ -117,73 +102,11 @@
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		E771E1D92D90B9CA002F803B /* Exceptions for "Throttle 2" folder in "Embed Foundation Extensions" phase from "Throttle 2" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			attributesByRelativePath = {
-				ffmpeg/iOS/ffmpegkit.framework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/iOS/libavcodec.framework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/iOS/libavdevice.framework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/iOS/libavfilter.framework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/iOS/libavformat.framework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/iOS/libavutil.framework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/iOS/libswresample.framework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/iOS/libswscale.framework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/macOS/ffmpegkit.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/macOS/libavcodec.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/macOS/libavdevice.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/macOS/libavfilter.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/macOS/libavformat.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/macOS/libavutil.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/macOS/libswresample.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				ffmpeg/macOS/libswscale.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-			};
-			buildPhase = E7BEDF6F2D6EF03300E72E6F /* Embed Foundation Extensions */;
-			membershipExceptions = (
-				ffmpeg/iOS/ffmpegkit.framework,
-				ffmpeg/iOS/libavcodec.framework,
-				ffmpeg/iOS/libavdevice.framework,
-				ffmpeg/iOS/libavfilter.framework,
-				ffmpeg/iOS/libavformat.framework,
-				ffmpeg/iOS/libavutil.framework,
-				ffmpeg/iOS/libswresample.framework,
-				ffmpeg/iOS/libswscale.framework,
-				ffmpeg/macOS/ffmpegkit.xcframework,
-				ffmpeg/macOS/libavcodec.xcframework,
-				ffmpeg/macOS/libavdevice.xcframework,
-				ffmpeg/macOS/libavfilter.xcframework,
-				ffmpeg/macOS/libavformat.xcframework,
-				ffmpeg/macOS/libavutil.xcframework,
-				ffmpeg/macOS/libswresample.xcframework,
-				ffmpeg/macOS/libswscale.xcframework,
-			);
-			platformFiltersByRelativePath = {
-				ffmpeg/iOS/ffmpegkit.framework = (ios, );
-				ffmpeg/iOS/libavcodec.framework = (ios, );
-				ffmpeg/iOS/libavdevice.framework = (ios, );
-				ffmpeg/iOS/libavfilter.framework = (ios, );
-				ffmpeg/iOS/libavformat.framework = (ios, );
-				ffmpeg/iOS/libavutil.framework = (ios, );
-				ffmpeg/iOS/libswresample.framework = (ios, );
-				ffmpeg/iOS/libswscale.framework = (ios, );
-				ffmpeg/macOS/ffmpegkit.xcframework = (macos, );
-				ffmpeg/macOS/libavcodec.xcframework = (macos, );
-				ffmpeg/macOS/libavdevice.xcframework = (macos, );
-				ffmpeg/macOS/libavfilter.xcframework = (macos, );
-				ffmpeg/macOS/libavformat.xcframework = (macos, );
-				ffmpeg/macOS/libavutil.xcframework = (macos, );
-				ffmpeg/macOS/libswresample.xcframework = (macos, );
-				ffmpeg/macOS/libswscale.xcframework = (macos, );
-			};
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E77CF62C2D704F40002705A5 /* Throttle 2 */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				E77CF6482D704F40002705A5 /* Exceptions for "Throttle 2" folder in "Throttle 2" target */,
-				E771E1D92D90B9CA002F803B /* Exceptions for "Throttle 2" folder in "Embed Foundation Extensions" phase from "Throttle 2" target */,
 			);
 			path = "Throttle 2";
 			sourceTree = "<group>";
@@ -519,40 +442,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-				);
+				FRAMEWORK_SEARCH_PATHS = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "";
 				INFOPLIST_FILE = "Throttle 2/Info.plist";
@@ -669,40 +559,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-					"$(PROJECT_DIR)/Throttle\\ 2/ffmpeg/iOS",
-				);
+				FRAMEWORK_SEARCH_PATHS = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "";
 				INFOPLIST_FILE = "Throttle 2/Info.plist";

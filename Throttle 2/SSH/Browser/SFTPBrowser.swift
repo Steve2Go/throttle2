@@ -651,4 +651,12 @@ struct VideoPlayerContainerView: UIViewControllerRepresentable {
         // No updates needed
     }
 }
+
+extension FileItem {
+    var safeFileName: String {
+        // Return the name directly from the file item, not from the URL
+        return self.name
+    }
+    
+}
 #endif

@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage("primaryFile") var primaryFiles: Bool = false
     @AppStorage("deleteOnSuccess") var deleteOnSuccess: Bool = true
     @AppStorage("qlVideo") var qlVideo: Bool = false
+    @AppStorage("isAbout") var isAbout = false
     @ObservedObject var presenting: Presenting
     @State var installerView = false
     @ObservedObject var manager: TorrentManager
@@ -103,13 +104,13 @@ struct SettingsView: View {
                     }
                 )
 
-                
+                #if os(iOS)
                     Button("Clear Cache"){
                         ThumbnailManager.shared.clearCache()
                         manager.reset()
                         manager.isLoading.toggle()
                     }
-                   
+                #endif
               
                 
                 
@@ -120,29 +121,48 @@ struct SettingsView: View {
             //Spacer()
             Section {
                 #if os(macOS)
-                
-                Text("Fuse-t and sshfs are bundled for SFTP. Click below for Installation").font(.caption)
-                Button("Install Dependencies") {
+                Text("QLVideo is used for thumbnails not normally supported on Mac.").font(.caption)
+                Button("Thumbnail Settings"){
+                    
+                    
+                    let appURL = Bundle.main.url(forResource: "QuickLookVideo", withExtension: "app")
+                    // Open the app using NSWorkspace
+                    NSWorkspace.shared.open(appURL!)
+                }
+                Text("Fuse-t and sshfs are bundled for SFTP.").font(.caption)
+                Button("Install Fuse File System") {
                     installerView.toggle()
                 }
+                Text("About").font(.headline)
+                Text("Mac version installs fuse-t with sshfs").font(.caption)
+                Text("Mac bundle includes bundled QLVideo in it's entirety https://github.com/Marginal/QLVideo").font(.caption)
                 #else
                 Text("FFMpeg is used for server - side thumbnail generation. Click below for Installation").font(.caption)
                 Button("Install Dependencies") {
                     installerView.toggle()
                 }
+                Text("About").font(.headline)
+                Text("iOS version installs ffmpeg on the server. https://ffmpeg.org").font(.caption)
                 #endif
                 
                 Text("In app icons via SF Icons and https://icons8.com.").font(.caption)
                 Text("App icon based on icon from https://www.iconarchive.com/").font(.caption)
-                Text("Uses open source libraries FFMpeg, VLCKit, Simpletoast and Citadel and fuse-t with sshfs").font(.caption)
+                Text("Uses open source libraries VLCKit, Simpletoast and Citadel.").font(.caption)
+               
+                
+                Text("Licenced under the GPL v2 or later").font(.caption)
             }header: {
-                Text("About")
+                Text("Tools & About")
             }
             
         }
        
         .formStyle(.grouped)
         .padding(.top, 0)
+        .defaultScrollAnchor(isAbout ? .bottom : .top)
+        .onDisappear{
+            isAbout = false
+        }
         .sheet(isPresented: $installerView){
 #if os(macOS)
             InstallerView()

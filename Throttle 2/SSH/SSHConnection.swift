@@ -289,7 +289,8 @@ class SSHConnection {
                 let fullPath = path + (path.hasSuffix("/") ? "" : "/") + name
                 
                 // Create a URL from the path
-                let url = URL(string: "file://" + fullPath) ?? URL(fileURLWithPath: fullPath)
+               // let url = URL(fileURLWithPath: "file://" + fullPath) ?? URL(fileURLWithPath: fullPath)
+                let url =  URL(fileURLWithPath: fullPath)
                 
                 // Create a date formatter to parse the date
                 let dateFormatter = DateFormatter()

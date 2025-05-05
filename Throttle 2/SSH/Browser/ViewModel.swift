@@ -517,10 +517,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
             print("Found Video \(path)")
             var videoUrl: URL!
             //videoUrl = URL(string: "http://127.0.0.1:9090\(path)")!
-            
+            let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(.init(charactersIn: "#"))) ?? path
             if server.sftpUsesKey == true {
                 //videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@localhost:2222\(path)")!
-                videoUrl = URL(string: "ftp://localhost:2121\(path)")!
+                videoUrl = URL(string: "ftp://localhost:2121\(encodedPath)")!
             } else {
                 videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
             }
@@ -533,9 +533,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
             for item in videoItems {
                 let path = item.url.path
                 print("Found Video \(path)")
+                let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(.init(charactersIn: "#"))) ?? path
                 //playlist.append(URL(string: "http://127.0.0.1:9090\(path)")!)
                 if server.sftpUsesKey == true {
-                    playlist.append(URL(string: "ftp://localhost:2121\(path)")!)
+                    playlist.append(URL(string: "ftp://localhost:2121\(encodedPath)")!)
                     //playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@localhost:2222\(path)")!)
                 } else {
                     playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!)

@@ -18,7 +18,8 @@ public class ThumbnailManager: NSObject {
     private let visiblePathsLock = NSLock()
     
     // Memory cache to complement file cache
-    private let memoryCache = NSCache<NSString, UIImage>()
+    //private let memoryCache = NSCache<NSString, UIImage>()
+    //private let memoryCache = NSCache<NSString, UIImage>()
     
     // Cache of SSH connections by server identifier
     private var connections = [String: SSHConnection]()
@@ -37,7 +38,7 @@ public class ThumbnailManager: NSObject {
     override init() {
         super.init()
         createCacheDirectoryIfNeeded()
-        memoryCache.countLimit = 150 // Increased memory cache size
+        //memoryCache.countLimit = 150 // Increased memory cache size
     }
     
     private func createCacheDirectoryIfNeeded() {
@@ -106,10 +107,10 @@ public class ThumbnailManager: NSObject {
             return defaultThumbnail(for: path)
         }
         
-        // Check memory cache first (fastest)
-        if let cachedImage = memoryCache.object(forKey: path as NSString) {
-            return Image(uiImage: cachedImage)
-        }
+//        // Check memory cache first (fastest)
+//        if let cachedImage = memoryCache.object(forKey: path as NSString) {
+//            return Image(uiImage: cachedImage)
+//        }
         
         // Check disk cache next
         if let cached = try? await loadFromCache(for: path) {
@@ -156,10 +157,11 @@ public class ThumbnailManager: NSObject {
                     let fileType = FileType.determine(from: URL(fileURLWithPath: path))
                     
                     let thumbnail: Image
-                    if fileType == .image {
-                        // Use dd command over SSH for image thumbnails
-                        thumbnail = try await generateImageThumbnailViaDd(for: path, server: server)
-                    } else if fileType == .video {
+//                    if fileType == .image {
+//                        // Use dd command over SSH for image thumbnails
+//                        thumbnail = try await generateImageThumbnailViaDd(for: path, server: server)
+//                    } else
+                    if fileType == .video || fileType == .image {
                         if server.ffThumb {
                             // Use server-side FFmpeg thumbnailing if enabled
                             do {
@@ -204,53 +206,7 @@ public class ThumbnailManager: NSObject {
         inProgressPaths.remove(path)
     }
     
-    // MARK: - Image Thumbnail Generation
-
-    // Download image thumbnails using the improved downloadFile method with connection reuse
-    private func generateImageThumbnailViaDd(for path: String, server: ServerEntity) async throws -> Image {
-        // Create a temporary file for storing the image data
-        let tempDir = FileManager.default.temporaryDirectory
-        let tempURL = tempDir.appendingPathComponent(UUID().uuidString + ".img")
-        
-        // Create the directory if needed
-        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
-        
-        // Create an empty file to ensure it exists
-        FileManager.default.createFile(atPath: tempURL.path, contents: nil)
-        
-        // Clean up temp file when done
-        defer {
-            try? FileManager.default.removeItem(at: tempURL)
-        }
-        
-        // Get reusable SSH connection for this server
-        let connection = getConnection(for: server)
-        
-        // Use our improved downloadFile method to get the image
-        var downloadProgress: Double = 0
-        try await connection.downloadFile(remotePath: path, localURL: tempURL) { progress in
-            downloadProgress = progress
-        }
-        
-        // Load the image from the downloaded file
-        guard let imageData = try? Data(contentsOf: tempURL),
-              let uiImage = UIImage(data: imageData) else {
-            throw NSError(domain: "ThumbnailManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to load image data"])
-        }
-        
-        // Check if the image is valid (not empty)
-        if isEmptyImage(uiImage) {
-            throw NSError(domain: "ThumbnailManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "Empty or invalid image"])
-        }
-        
-        // Cache the image for future use
-        memoryCache.setObject(uiImage, forKey: path as NSString)
-        
-        let thumb = processThumbnail(uiImage: uiImage, isVideo: false)
-        try? saveToCache(image: uiImage, for: path)
-        return thumb
-    }
-
+   
     // MARK: - Video thumbs via FFmpeg (server-side) with connection reuse
     private func generateFFmpegThumbnail(for path: String, server: ServerEntity) async throws -> Image {
         // Get reusable SSH connection for this server
@@ -275,15 +231,31 @@ public class ThumbnailManager: NSObject {
         }
         
         // Escape single quotes in paths
-        let escapedPath = "'\(path.replacingOccurrences(of: "'", with: "'\\''"))'"
-        let escapedThumbPath = "'\(remoteTempThumbPath.replacingOccurrences(of: "'", with: "'\\''"))'"
+        let escapedPath = escapePath(path)
+        let escapedThumbPath = escapePath(remoteTempThumbPath)
         
-        let timestamps = ["00:00:06.000","00:00:02.000", "00:00:00.000"]
+        let fileType = FileType.determine(from: URL(fileURLWithPath: path))
+        
+        let timestamps = ["00:01:00.000","00:00:10.000", "00:00:00.000", "00:00:00.000"]
+        var attempts = 0
         
         for timestamp in timestamps {
             // Execute ffmpeg command with current timestamp
-            let ffmpegCmd = "ffmpeg -y -i \(escapedPath) -ss \(timestamp) -vframes 1 \(escapedThumbPath) 2>/dev/null || echo $?"
-            _ = try await connection.executeCommand(ffmpegCmd)
+            attempts = attempts + 1
+            if fileType == .video {
+                if attempts < 4 {
+                    let ffmpegCmd = "ffmpeg -ss \(timestamp) -i \(escapedPath) -vframes 1 \(escapedThumbPath) 2>/dev/null || echo $?"
+                    _ = try await connection.executeCommand(ffmpegCmd)
+                }
+                else{
+                    let ffmpegCmd = "ffmpeg -ss \(timestamp) -i \(escapedPath) -vframes 1 -vsync vfr \(escapedThumbPath) 2>/dev/null || echo $?"
+                    _ = try await connection.executeCommand(ffmpegCmd)
+                }
+            }
+            else {
+                let ffmpegCmd = "ffmpeg -i \(escapedPath) -vf scale=150:-1 \(escapedThumbPath) 2>/dev/null || echo $?"
+                _ = try await connection.executeCommand(ffmpegCmd)
+            }
             
             // Check if the file was created
             let testCmd = "[ -f \(escapedThumbPath) ] && echo 'success' || echo 'failed'"
@@ -311,9 +283,9 @@ public class ThumbnailManager: NSObject {
                     }
                     
                     // Cache the image
-                    memoryCache.setObject(uiImage, forKey: path as NSString)
+                   // memoryCache.setObject(uiImage, forKey: path as NSString)
                     
-                    let thumb = processThumbnail(uiImage: uiImage, isVideo: true)
+                    let thumb = processThumbnail(uiImage: uiImage, isVideo: fileType == .video ? true : false)
                     try? saveToCache(image: uiImage, for: path)
                     return thumb
                 } catch {
@@ -461,7 +433,7 @@ public class ThumbnailManager: NSObject {
               let uiImage = UIImage(data: data) else { return nil }
         
         // Store in memory cache too
-        memoryCache.setObject(uiImage, forKey: path as NSString)
+        //memoryCache.setObject(uiImage, forKey: path as NSString)
         
         // Determine if it's a video for proper badge display
         let fileType = FileType.determine(from: URL(fileURLWithPath: path))
@@ -472,7 +444,7 @@ public class ThumbnailManager: NSObject {
     
     public func clearCache() {
         // Clear memory cache
-        memoryCache.removeAllObjects()
+       // memoryCache.removeAllObjects()
         
         if let cacheURL = cacheDirectory {
             do {

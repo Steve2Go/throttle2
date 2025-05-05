@@ -95,7 +95,13 @@ struct Throttle_2App: App {
                     manager.isLoading.toggle()
                 }.keyboardShortcut("r", modifiers: [.command])
             }
-           
+            CommandGroup(replacing: .appInfo) {
+                Button("About Throttle"){
+                    presenting.activeSheet = "settings"
+                    @AppStorage("isAbout") var isAbout = true
+                }
+                
+            }
             
             
         }

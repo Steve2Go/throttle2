@@ -67,14 +67,19 @@ struct InstallerView: View {
                     )
                     
                     installationItem(
+                        title: "QuickLookVideo",
+                        description: "Initialise Video thumbnails",
+                        status: outputContains("Successfully initialised QuickLookVideo") ? .complete :
+                                outputContains("Initiliising QuickLookVideo") ? .inProgress : .pending
+                    )
+                    
+                    installationItem(
                         title: "Hosts Configuration",
                         description: "Add 127.0.0.1 Throttle entry",
-                        status: outputContains("Successfully updated hosts") || 
+                        status: outputContains("Successfully updated hosts") ||
                                outputContains("already exists in hosts") ? .complete :
                                outputContains("Checking hosts") ? .inProgress : .pending
                     )
-                    Text("Reccomended for thumbnails on more video types (Not installed automatically):")
-                    Text("https://github.com/Marginal/QLVideo/releases/latest")
                     
                     // Log output
                     if !installationOutput.isEmpty {
@@ -172,7 +177,10 @@ struct InstallerView: View {
             // Step 2: Install SSHFS package
             installPackage(named: "sshfs-macos-installer-1.0.2.pkg")
             
-            // Step 3: Check and update hosts file
+            // Step 3: Install QuickLookVideo
+            installQuickLookVideo()
+            
+            // Step 4: Check and update hosts file
             checkAndUpdateHostsFile()
             
             // Complete the installation
@@ -215,6 +223,25 @@ struct InstallerView: View {
             }
         } catch {
             appendOutput("Error launching installer: \(error.localizedDescription)")
+        }
+    }
+    
+    func installQuickLookVideo() {
+        appendOutput("\nInstalling QuickLookVideo...")
+        
+        guard let appURL = Bundle.main.url(forResource: "QuickLookVideo", withExtension: "app") else {
+            appendOutput("Error: QuickLookVideo.app not found in app bundle.")
+            return
+        }
+        
+        // Open the app using NSWorkspace
+        DispatchQueue.main.async {
+            do {
+                try NSWorkspace.shared.open(appURL)
+                self.appendOutput("Successfully launched QuickLookVideo.")
+            } catch {
+                self.appendOutput("Error launching QuickLookVideo: \(error.localizedDescription)")
+            }
         }
     }
     
