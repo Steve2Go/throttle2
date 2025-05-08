@@ -91,11 +91,12 @@
 		};
 		E7F96B862D8BF87300A19857 /* Exceptions for "Resources" folder in "Throttle 2" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"install-ffmpeg-static.sh",
+			);
 			platformFiltersByRelativePath = {
 				QuickLookVideo.app = (macos, );
-				controlCentre.shortcut = (ios, );
 				"fuse-t-macos-installer-1.0.44.pkg" = (macos, );
-				"install-ffmpeg-static.sh" = (ios, );
 				"sshfs-macos-installer-1.0.2.pkg" = (macos, );
 			};
 			target = E7150E162D631D08009C4217 /* Throttle 2 */;

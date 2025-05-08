@@ -102,6 +102,7 @@ public class ThumbnailManager: NSObject {
     
     /// Main entry point – returns a SwiftUI Image thumbnail for a given path.
     public func getThumbnail(for path: String, server: ServerEntity) async throws -> Image {
+        print("[ThumbnailManager] getThumbnail called for path: \(path), server: \(server.name ?? server.sftpHost ?? "default")")
         // If not visible, return default immediately
         if !isVisible(path) {
             return defaultThumbnail(for: path)
@@ -209,98 +210,92 @@ public class ThumbnailManager: NSObject {
    
     // MARK: - Video thumbs via FFmpeg (server-side) with connection reuse
     private func generateFFmpegThumbnail(for path: String, server: ServerEntity) async throws -> Image {
-        // Get reusable SSH connection for this server
+        print("[ThumbnailManager] generateFFmpegThumbnail called for path: \(path), server: \(server.name ?? server.sftpHost ?? "default")")
+        // Ensure the thumbs directory exists before any ffmpeg command
         let connection = getConnection(for: server)
+        let remoteThumbsDir = "$HOME/thumbs"
+        let createThumbsDirCmd = "mkdir -p $HOME/thumbs"
+        let (mkdirStatus, mkdirOutput) = try await connection.executeCommand(createThumbsDirCmd)
+        print("[ThumbnailManager] mkdir status: \(mkdirStatus), output: \(mkdirOutput)")
         
-        // Generate a unique temp filename on the remote server
+        guard var ffmpegPath = await ensureFFmpegAvailable(for: server) else {
+            print("[ThumbnailManager] FFmpeg not available on server, using default thumbnail.")
+            throw NSError(domain: "ThumbnailManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "FFmpeg not available on server"])
+        }
+        // Use /tmp for remote thumbnails as in the original working version
         let remoteTempThumbPath = "/tmp/thumb_\(UUID().uuidString).jpg"
-        
-        // Create a temporary file locally for the downloaded thumbnail
+        print("[ThumbnailManager] Remote temp thumb path: \(remoteTempThumbPath)")
         let tempDir = FileManager.default.temporaryDirectory
         let localTempURL = tempDir.appendingPathComponent(UUID().uuidString + ".jpg")
-        
-        // Create the directory if needed
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
-        
-        // Create an empty file to ensure it exists
         FileManager.default.createFile(atPath: localTempURL.path, contents: nil)
-        
-        // Clean up local temp file when done
-        defer {
-            try? FileManager.default.removeItem(at: localTempURL)
-        }
-        
-        // Escape single quotes in paths
+        defer { try? FileManager.default.removeItem(at: localTempURL) }
         let escapedPath = escapePath(path)
         let escapedThumbPath = escapePath(remoteTempThumbPath)
-        
         let fileType = FileType.determine(from: URL(fileURLWithPath: path))
-        
         let timestamps = ["00:01:00.000","00:00:10.000", "00:00:00.000", "00:00:00.000"]
         var attempts = 0
-        
         for timestamp in timestamps {
-            // Execute ffmpeg command with current timestamp
-            attempts = attempts + 1
+            attempts += 1
+            let ffmpegCmd: String
             if fileType == .video {
                 if attempts < 4 {
-                    let ffmpegCmd = "ffmpeg -ss \(timestamp) -i \(escapedPath) -vframes 1 \(escapedThumbPath) 2>/dev/null || echo $?"
-                    _ = try await connection.executeCommand(ffmpegCmd)
+                    ffmpegCmd = "\(ffmpegPath) -ss \(timestamp) -i \(escapedPath) -vframes 1 \(escapedThumbPath) 2>/dev/null || echo $?"
+                } else {
+                    ffmpegCmd = "\(ffmpegPath) -ss \(timestamp) -i \(escapedPath) -vframes 1 -vsync vfr \(escapedThumbPath) 2>/dev/null || echo $?"
                 }
-                else{
-                    let ffmpegCmd = "ffmpeg -ss \(timestamp) -i \(escapedPath) -vframes 1 -vsync vfr \(escapedThumbPath) 2>/dev/null || echo $?"
-                    _ = try await connection.executeCommand(ffmpegCmd)
+            } else {
+                ffmpegCmd = "\(ffmpegPath) -i \(escapedPath) -vf scale=150:-1 \(escapedThumbPath) 2>/dev/null || echo $?"
+            }
+            print("[ThumbnailManager] About to run ffmpeg command for path: \(path)")
+            do {
+                print("[ThumbnailManager] Running ffmpeg command: \(ffmpegCmd)")
+                let (status, ffmpegOutput) = try await connection.executeCommand(ffmpegCmd)
+                print("[ThumbnailManager] ffmpeg output: \(ffmpegOutput)")
+                print("[ThumbnailManager] ffmpeg status: \(status)")
+                // If ffmpeg is missing or not executable, clear the stored path and save context
+                if ffmpegOutput.contains("not found") || ffmpegOutput.contains("No such file or directory") || status == 127 {
+                    print("[ThumbnailManager] ffmpeg binary missing or not executable, clearing server.ffmpegPath and will reinstall on next request.")
+                    server.ffmpegPath = nil
+                    try? server.managedObjectContext?.save()
+                    continue
                 }
-            }
-            else {
-                let ffmpegCmd = "ffmpeg -i \(escapedPath) -vf scale=150:-1 \(escapedThumbPath) 2>/dev/null || echo $?"
-                _ = try await connection.executeCommand(ffmpegCmd)
-            }
-            
-            // Check if the file was created
-            let testCmd = "[ -f \(escapedThumbPath) ] && echo 'success' || echo 'failed'"
-            let (_, testOutput) = try await connection.executeCommand(testCmd)
-            let testResult = testOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            if testResult == "success" {
-                do {
-                    // Use our improved downloadFile method to get the thumbnail
-                    try await connection.downloadFile(remotePath: remoteTempThumbPath, localURL: localTempURL) { _ in }
-                    
-                    // Clean up remote temp file
-                    let cleanupCmd = "rm -f \(escapedThumbPath)"
-                    try? await connection.executeCommand(cleanupCmd)
-                    
-                    // Load the image from the downloaded file
-                    guard let imageData = try? Data(contentsOf: localTempURL),
-                          let uiImage = UIImage(data: imageData) else {
-                        continue // Try next timestamp if this one failed
+                let testCmd = "[ -f \(escapedThumbPath) ] && echo 'success' || echo 'failed'"
+                let (_, testOutput) = try await connection.executeCommand(testCmd)
+                let testResult = testOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+                if testResult == "success" {
+                    do {
+                        try await connection.downloadFile(remotePath: remoteTempThumbPath, localURL: localTempURL) { _ in }
+                        let cleanupCmd = "rm -f \(escapedThumbPath)"
+                        try? await connection.executeCommand(cleanupCmd)
+                        guard let imageData = try? Data(contentsOf: localTempURL), let uiImage = UIImage(data: imageData) else {
+                            print("[ThumbnailManager] Failed to load image data from localTempURL: \(localTempURL)")
+                            continue
+                        }
+                        if isEmptyImage(uiImage) {
+                            print("[ThumbnailManager] Generated image is empty for path: \(path)")
+                            continue
+                        }
+                        let thumb = processThumbnail(uiImage: uiImage, isVideo: fileType == .video ? true : false)
+                        try? saveToCache(image: uiImage, for: path)
+                        print("[ThumbnailManager] Successfully generated and cached thumbnail for path: \(path)")
+                        return thumb
+                    } catch {
+                        print("[ThumbnailManager] Error downloading or processing FFmpeg thumbnail for path: \(path): \(error)")
+                        continue
                     }
-                    
-                    // Check if the image is valid (not empty/black)
-                    if isEmptyImage(uiImage) {
-                        continue // Try next timestamp if this one is empty
-                    }
-                    
-                    // Cache the image
-                   // memoryCache.setObject(uiImage, forKey: path as NSString)
-                    
-                    let thumb = processThumbnail(uiImage: uiImage, isVideo: fileType == .video ? true : false)
-                    try? saveToCache(image: uiImage, for: path)
-                    return thumb
-                } catch {
-                    print("Error downloading FFmpeg thumbnail: \(error)")
-                    // Continue to next timestamp if download failed
+                } else {
+                    print("[ThumbnailManager] ffmpeg did not create a thumbnail for path: \(path), testResult: \(testResult)")
                 }
+                let cleanupCmd = "rm -f \(escapedThumbPath)"
+                try? await connection.executeCommand(cleanupCmd)
+            } catch {
+                print("[ThumbnailManager] Error running ffmpeg command for path: \(path): \(error)")
+                continue
             }
-            
-            // Clean up if this attempt failed
-            let cleanupCmd = "rm -f \(escapedThumbPath)"
-            try? await connection.executeCommand(cleanupCmd)
         }
-        
-        throw NSError(domain: "ThumbnailManager", code: -3,
-            userInfo: [NSLocalizedDescriptionKey: "Failed to generate thumbnail with FFmpeg"])
+        print("[ThumbnailManager] All attempts failed to generate thumbnail for path: \(path)")
+        throw NSError(domain: "ThumbnailManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "Failed to generate thumbnail with FFmpeg"])
     }
     
     // Helper function to check if image is empty (solid color)
@@ -518,6 +513,53 @@ public class ThumbnailManager: NSObject {
                 await connection.disconnect()
             }
         }
+    }
+    
+    // Helper to get or install ffmpeg for a server, pausing all requests until done
+    private func ensureFFmpegAvailable(for server: ServerEntity) async -> String? {
+        // Use the persistent ffmpegPath if available
+        if let path = server.ffmpegPath, !path.isEmpty {
+            print("[ThumbnailManager] Using persisted ffmpegPath for server: \(server.name ?? server.sftpHost ?? "default"): \(path)")
+            return path
+        }
+        // Otherwise, detect or install ffmpeg
+        let connection = getConnection(for: server)
+        let knownInstallPaths = [
+            "ffmpeg",
+            "$HOME/bin/ffmpeg",
+            "$HOME/bin/ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe"
+        ]
+        var foundPath: String? = nil
+        for path in knownInstallPaths {
+            print("[ThumbnailManager] Checking ffmpeg at: \(path) for server: \(server.name ?? server.sftpHost ?? "default")")
+            if let (_, testOutput) = try? await connection.executeCommand("\(path) -version || echo 'notfound'") {
+                print("[ThumbnailManager] Output for \(path): \(testOutput)")
+                if !testOutput.contains("notfound") && !testOutput.contains("not found") {
+                    foundPath = path
+                    break
+                }
+            }
+        }
+        if foundPath == nil {
+            print("[ThumbnailManager] ffmpeg not found, attempting install for server: \(server.name ?? server.sftpHost ?? "default")...")
+            do {
+                foundPath = try await RemoteFFmpegInstaller.ensureFFmpegAvailable(connection: connection)
+                print("[ThumbnailManager] ffmpeg installed at: \(String(describing: foundPath)) for server: \(server.name ?? server.sftpHost ?? "default")")
+                if let path = foundPath, path.hasPrefix("~") {
+                    foundPath = path.replacingOccurrences(of: "~", with: "$HOME")
+                }
+            } catch {
+                print("[ThumbnailManager] ffmpeg install failed for server: \(server.name ?? server.sftpHost ?? "default"): \(error)")
+                return nil
+            }
+        }
+        if let foundPath = foundPath {
+            server.ffmpegPath = foundPath
+            try? server.managedObjectContext?.save()
+            print("[ThumbnailManager] Persisted ffmpegPath for server: \(server.name ?? server.sftpHost ?? "default"): \(foundPath)")
+            return foundPath
+        }
+        return nil
     }
 }
 

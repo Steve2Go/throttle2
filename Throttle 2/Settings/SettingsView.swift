@@ -167,12 +167,7 @@ struct SettingsView: View {
 #if os(macOS)
             InstallerView()
                 .frame(width: 500, height: 500)
-            #else
-            if ServerManager.shared.selectedServer != nil {
-                DependencyInstallerView(server: ServerManager.shared.selectedServer!)
-            } else {
-                Text("Please select a server first.")
-            }
+            
 #endif
         }
        

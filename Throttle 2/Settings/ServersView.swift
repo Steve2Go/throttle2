@@ -179,7 +179,7 @@ struct ServerEditView: View {
     @State private var protHttps: Bool
     @State private var fsPath: String = ""
     @State private var fsThumb: Bool
-    @State private var ffThumb: Bool
+    @State private var ffThumb: Bool = true
     @State private var thumbMax: String = "4"
     @State private var hasPython: Bool
     @State private var videoDisabled : Bool
@@ -425,13 +425,13 @@ struct ServerEditView: View {
                                 .multilineTextAlignment(.trailing)
                                 .keyboardType(.numberPad)
                         }
-                        if !ffThumb {
-                            //Text("Installing FFMpeg is required for video thumbnails on iOS").font(.caption)
-                            Button("Install FFMpeg") {
-                                installerView.toggle()
-                            }
-                        }
-                        Toggle(ffThumb ? "Server Side FFmpeg is installed" : "Installing FFMpeg is required for video thumbnails on iOS. You can Install FFMpeg above then toggle this option on", isOn: $ffThumb)
+//                        if !ffThumb {
+//                            //Text("Installing FFMpeg is required for video thumbnails on iOS").font(.caption)
+//                            Button("Install FFMpeg") {
+//                                installerView.toggle()
+//                            }
+//                        }
+                        //Toggle(ffThumb ? "Server Side FFmpeg is installed" : "Installing FFMpeg is required for video thumbnails on iOS. You can Install FFMpeg above then toggle this option on", isOn: $ffThumb)
                         
                         
                         #else
@@ -517,15 +517,6 @@ struct ServerEditView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(keyErrorMessage)
-        }
-        .sheet(isPresented: $installerView) {
-            #if os(iOS)
-            if server != nil {
-                DependencyInstallerView(server: server!)
-            } else {
-                Text("Please Save this server first.")
-            }
-            #endif
         }
     }
     
