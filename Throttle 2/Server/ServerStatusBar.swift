@@ -95,17 +95,17 @@ var isiPad: Bool {
 //                    .frame(height: dividerHeight)
                 //tunnels
                 HStack(spacing: innerSpacing) {
-                    #if os(iOS)
+                  //  #if os(iOS)
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                         if TunnelManagerHolder.shared.activeTunnels.count > 0  && SimpleFTPServerManager.shared.activeServers.count > 0 {
-                            Image(systemName: "checkmark.circle.fill")
+                            Image(systemName: "arrow.up.arrow.down.circle.fill")
                                 .foregroundColor(.green)
                         } else if TunnelManagerHolder.shared.activeTunnels.count > 0 ||  SimpleFTPServerManager.shared.activeServers.count > 0 {
-                            Image(systemName: "checkmark.circle")
+                            Image(systemName: "arrow.up.arrow.down.circle")
                                 .foregroundColor(.green)
                         } else {
-                            Image(systemName: "circle.dotted.circle")
-                                .foregroundColor(.green)
+                            Image(systemName: "arrow.up.arrow.down.circle")
+                                .foregroundColor(.orange)
                                 .symbolEffect(.pulse.byLayer, options: .repeat(.continuous))
                         }
                     }
@@ -116,27 +116,35 @@ var isiPad: Bool {
                             .foregroundStyle(.green,.blue)
                             .foregroundColor(.green)
                     }
-                    #else
-                    if store.selection?.sftpRpc == true {
-                        if TunnelManagerHolder.shared.activeTunnels.count > 0 {
-                            Image(systemName: "checkmark.circle")
-                                .foregroundColor(.green)
-                        } else{
-                            Image(systemName: "circle.dotted.circle")
-                                .foregroundColor(.green)
-                                .symbolEffect(.pulse.byLayer, options: .repeat(.continuous))
-                        }
-                    } else{
-                        Image(systemName: "arrow.up.arrow.down")
-                            .scaleEffect(x: -1, y: 1)
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.green,.blue)
-                            .foregroundColor(.green)
-                    }
-                    #endif
+//                    #else
+//                    if store.selection?.sftpRpc == true {
+//                        if TunnelManagerHolder.shared.activeTunnels.count > 0 {
+//                            Image(systemName: "checkmark.circle")
+//                                .foregroundColor(.green)
+//                        } else{
+//                            Image(systemName: "circle.dotted.circle")
+//                                .foregroundColor(.green)
+//                                .symbolEffect(.pulse.byLayer, options: .repeat(.continuous))
+//                        }
+//                    } else{
+//                        Image(systemName: "arrow.up.arrow.down")
+//                            .scaleEffect(x: -1, y: 1)
+//                            .symbolRenderingMode(.palette)
+//                            .foregroundStyle(.green,.blue)
+//                            .foregroundColor(.green)
+//                    }
+//                    #endif
                     // activity
                     Text("\(activeTorrents)/\(totalTorrents)")
                         .font(.caption)
+                }.onTapGesture {
+                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                        #if os(macOS)
+                        ToastManager.shared.show(message: "HTTP Tunnel Activity Status:\n\nOrange - Connecting\nGreen - Tunnel Active\n\nActive Torrents/All Torrents", icon: "arrow.up.arrow.down", color: Color.green)
+                        #else
+                        ToastManager.shared.show(message: "HTTP / FTP Tunnel Activity Status:\n\nOrange - Connecting\nGreen - 1 Tunnel Active\nGreen Solid - 2 Tunnels Tunnels Active\n\nActive Torrents/All Torrents", icon: "arrow.up.arrow.down", color: Color.green)
+                        #endif
+                    }
                 }
                 
                 // Active torrents
@@ -153,6 +161,10 @@ var isiPad: Bool {
                         .foregroundColor(filterdCount == totalTorrents  ? .green : .orange)
                     Text("\(filterdCount)/\(totalTorrents)")
                         .font(.caption)
+                }.onTapGesture {
+                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                        ToastManager.shared.show(message: "Visible Torrents/All Torrents", icon: "eye", color: Color.green)
+                    }
                 }
                 
                 // Free space

@@ -31,167 +31,180 @@ struct AddTorrentView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 15) {
-                Text("Add a Download")
-                    .font(.title2)
-                    .padding(.bottom, 10)
-                
-                // Torrent input section
-                HStack {
-                    Text("Torrent")
-                    
-                    if store.selectedFile == nil {
-                        TextField("Magnet Link or File", text: $store.magnetLink)
-                            .textFieldStyle(.roundedBorder)
-                    } else {
-                        Button {
-                            store.selectedFile = nil
-                        } label: {
-                            HStack {
-                                Text(store.selectedFile!.lastPathComponent)
-                                Image(systemName: "xmark.circle.fill")
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    
-                    FilePicker(types: [.item], allowMultiple: false) { urls in
-                                    print("selected \(urls.count) files")
-                        if urls.count > 0{
-                            store.selectedFile = urls.first
-                        }
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "folder")
-                                    }
-                                }
-                }
-                
-                // Download directory section
-                if let pathServer = store.selection?.pathServer {
-                    HStack {
-                        Text("Save to:")
-                        
-                        TextField("Save to", text: $downloadDir)
-                            .textFieldStyle(.roundedBorder)
-                            .onAppear {
-                                if !store.addPath.isEmpty {
-                                    downloadDir = store.addPath
-                                }
-                                else if downloadDir.isEmpty {
-                                    downloadDir = defaultDownloadDir
-                                }
-                            }
-                            
-                        // Directory Browse Button (SFTP or local filesystem)
-                        if store.selection?.sftpBrowse == true {
-                            Button {
-                                fileBrowser = true
-                            } label: {
-                                Image(systemName: "folder")
-                            }.buttonStyle(.plain)
-                        } else if store.selection?.fsBrowse == true {
-                            #if os(macOS)
-                            Button("", systemImage: "folder") {
-                                let panel = NSOpenPanel()
-                                panel.allowsMultipleSelection = false
-                                panel.allowsOtherFileTypes = false
-                                panel.canChooseDirectories = true
-                                
-                                // Set the initial directory to the current downloadDir
-                                // Since downloadDir is not an optional (it's a String), we don't need if let here
-                                if let serverPath = ServerManager.shared.selectedServer?.pathServer,
-                                   let filesystemPath = ServerManager.shared.selectedServer?.pathFilesystem {
-                                    
-                                    // No need for optional binding with downloadDir if it's already a String
-                                    let localPath = downloadDir.replacingOccurrences(of: serverPath, with: filesystemPath)
-                                    
-                                    // Create URL with file:// prefix if needed
-                                    let directoryURLString = localPath.hasPrefix("file://") ?
-                                        localPath :
-                                        "file://" + localPath
-                                        
-                                    if let directoryURL = URL(string: directoryURLString) {
-                                        panel.directoryURL = directoryURL
-                                    }
-                                }
-                                
-                                if panel.runModal() == .OK,
-                                   let fpath = panel.url,
-                                   let serverPath = ServerManager.shared.selectedServer?.pathServer,
-                                   let filesystemPath = ServerManager.shared.selectedServer?.pathFilesystem {
-                                    
-                                    // Convert from filesystem path back to server path
-                                    let movepath = fpath.absoluteString.replacingOccurrences(of: "file://" + filesystemPath, with: serverPath)
-                                    downloadDir = movepath
-                                }
-                            }.labelsHidden()
-                            #endif
-                        }
-                    }
-                }
-                
-                // Server selection
-                HStack {
-                    #if os(iOS)
-                    Text("Server: ")
-#endif
-                    Picker("Server", selection: $store.selection) {
-                        ForEach(servers) { server in
-                            Text(server.name ?? "Unknown").tag(server as ServerEntity?)
-                        }
-                    }
+            if manager.isLoading {
+                ProgressView()
                     .onChange(of: defaultDownloadDir) {
                         if store.addPath.isEmpty {
                             downloadDir = defaultDownloadDir
                         }
                     }
+            }else{
+                VStack(alignment: .leading, spacing: 15) {
+                    Text("Add a Download")
+                        .font(.title2)
+                        .padding(.bottom, 10)
                     
-//                    .onChange(of: trigger) {
-//                        Task {
-//                            await updateDownloadDirectory()
-//                        }
-//                    }
-                    .pickerStyle(MenuPickerStyle())
-                }
-                if store.selectedFile != nil {
-                    Toggle("Delete Torrent File", isOn: $deleteOnSuccess)
-                    #if os(iOS)
-                        .toggleStyle(CheckboxToggleStyle())
-#endif
-                }
-                // Action buttons
-                HStack {
-                    
-                    Spacer()
-                    Button("Cancel") {
-                        presenting.activeSheet = nil
-                    }
-                    #if os(iOS)
-                    Spacer()
-#endif
-                    Button("Add") {
-                        Task { @MainActor in
-                            await addTorrent()
+                    // Torrent input section
+                    HStack {
+                        Text("Torrent")
+                        
+                        if store.selectedFile == nil {
+                            TextField("Magnet Link or File", text: $store.magnetLink)
+                                .textFieldStyle(.roundedBorder)
+                        } else {
+                            Button {
+                                store.selectedFile = nil
+                            } label: {
+                                HStack {
+                                    Text(store.selectedFile!.lastPathComponent)
+                                    Image(systemName: "xmark.circle.fill")
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        
+                        FilePicker(types: [.item], allowMultiple: false) { urls in
+                            print("selected \(urls.count) files")
+                            if urls.count > 0{
+                                store.selectedFile = urls.first
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "folder")
+                            }
                         }
                     }
-                    .disabled((store.magnetLink.isEmpty && store.selectedFile == nil) || isLoading)
+                    
+                    // Download directory section
+                    if let pathServer = store.selection?.pathServer {
+                        HStack {
+                            Text("Save to:")
+                            
+                            TextField("Save to", text: $downloadDir)
+                                .textFieldStyle(.roundedBorder)
+                                .onAppear {
+                                    if !store.addPath.isEmpty {
+                                        downloadDir = store.addPath
+                                    }
+                                    else if downloadDir.isEmpty {
+                                        downloadDir = defaultDownloadDir
+                                    }
+                                }
+                            
+                            // Directory Browse Button (SFTP or local filesystem)
+                            if store.selection?.sftpBrowse == true {
+                                Button {
+                                    fileBrowser = true
+                                } label: {
+                                    Image(systemName: "folder")
+                                }.buttonStyle(.plain)
+                            } else if store.selection?.fsBrowse == true {
+#if os(macOS)
+                                Button("", systemImage: "folder") {
+                                    let panel = NSOpenPanel()
+                                    panel.allowsMultipleSelection = false
+                                    panel.allowsOtherFileTypes = false
+                                    panel.canChooseDirectories = true
+                                    
+                                    // Set the initial directory to the current downloadDir
+                                    // Since downloadDir is not an optional (it's a String), we don't need if let here
+                                    if let serverPath = ServerManager.shared.selectedServer?.pathServer,
+                                       let filesystemPath = ServerManager.shared.selectedServer?.pathFilesystem {
+                                        
+                                        // No need for optional binding with downloadDir if it's already a String
+                                        let localPath = downloadDir.replacingOccurrences(of: serverPath, with: filesystemPath)
+                                        
+                                        // Create URL with file:// prefix if needed
+                                        let directoryURLString = localPath.hasPrefix("file://") ?
+                                        localPath :
+                                        "file://" + localPath
+                                        
+                                        if let directoryURL = URL(string: directoryURLString) {
+                                            panel.directoryURL = directoryURL
+                                        }
+                                    }
+                                    
+                                    if panel.runModal() == .OK,
+                                       let fpath = panel.url,
+                                       let serverPath = ServerManager.shared.selectedServer?.pathServer,
+                                       let filesystemPath = ServerManager.shared.selectedServer?.pathFilesystem {
+                                        
+                                        // Convert from filesystem path back to server path
+                                        let movepath = fpath.absoluteString.replacingOccurrences(of: "file://" + filesystemPath, with: serverPath)
+                                        downloadDir = movepath
+                                    }
+                                }.labelsHidden()
+#endif
+                            }
+                        }
+                    }
+                    
+                    // Server selection
+                    HStack {
+#if os(iOS)
+                        Text("Server: ")
+#endif
+                        Picker("Server", selection: $store.selection) {
+                            ForEach(servers) { server in
+                                HStack{
+                                    Text(server.name ?? "Unknown")
+                                    Image(systemName: "externaldrive.badge.wifi")
+                                }.tag(server as ServerEntity?)
+                            }
+                        }
+                        .onChange(of: defaultDownloadDir) {
+                            if store.addPath.isEmpty {
+                                downloadDir = defaultDownloadDir
+                            }
+                        }
+                        
+                        //                    .onChange(of: trigger) {
+                        //                        Task {
+                        //                            await updateDownloadDirectory()
+                        //                        }
+                        //                    }
+                        .pickerStyle(MenuPickerStyle())
+                    }
+                    if store.selectedFile != nil {
+                        Toggle("Delete Torrent File", isOn: $deleteOnSuccess)
+#if os(iOS)
+                            .toggleStyle(CheckboxToggleStyle())
+#endif
+                    }
+                    // Action buttons
+                    HStack {
+                        
+                        Spacer()
+                        Button("Cancel") {
+                            presenting.activeSheet = nil
+                        }
+#if os(iOS)
+                        Spacer()
+#endif
+                        Button("Add") {
+                            Task { @MainActor in
+                                await addTorrent()
+                            }
+                        }
+                        .disabled((store.magnetLink.isEmpty && store.selectedFile == nil) || isLoading)
+                    }
+                    
+                    .padding(.top, 10)
+                    .onDisappear{
+                        store.selectedFile = nil
+                        store.magnetLink = ""
+                        store.addPath = ""
+                    }
+                    
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                            .padding(.top, 5)
+                    }
                 }
-                .padding(.top, 10)
-                .onDisappear{
-                    store.selectedFile = nil
-                    store.magnetLink = ""
-                    store.addPath = ""
-                }
-                
-                if isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
-                        .padding(.top, 5)
-                }
+                .padding()
+                .frame(minWidth: 400, maxWidth: 600, minHeight: 300)
             }
-            .padding()
-            .frame(minWidth: 400, maxWidth: 600, minHeight: 300)
         }
         
         .sheet(isPresented: $fileBrowser) {

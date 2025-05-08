@@ -130,7 +130,7 @@ extension Throttle_2App {
                                 
                                 torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
                                 //torrentManager.reset()
-                                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                               // try? await Task.sleep(nanoseconds: 1_000_000_000)
                                 
                             } catch let error as SSHTunnelError {
                                 if tries < 3 {
@@ -145,13 +145,14 @@ extension Throttle_2App {
                                 
                             }
                             if TunnelManagerHolder.shared.activeTunnels.count > 0 {
+                                try? await Task.sleep(nanoseconds: 2_000_000_000)
                                 try await torrentManager.fetchUpdates(fullFetch: true)
                                 torrentManager.startPeriodicUpdates()
                                 try await Task.sleep(for: .milliseconds(500))
                                 if !store.magnetLink.isEmpty || store.selectedFile != nil {
                                     presenting.activeSheet = "adding"
-                                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                                    trigger.toggle()
+                                    
+
                                 }
                             }
                         }

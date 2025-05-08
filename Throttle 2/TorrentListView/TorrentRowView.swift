@@ -228,7 +228,7 @@ struct TorrentRowView: View {
                 }
             } label: {
                 Text("Announce")
-                Image(systemName: "externaldrive.badge.questionmark")
+                Image(systemName: "megaphone")
             }
             if torrent.status == 0 {
                 Button {
@@ -262,18 +262,9 @@ struct TorrentRowView: View {
             Button {
                 onRename()
             } label: {
-                Text("rename")
+                Text("Rename")
                 Image(systemName: "dots.and.line.vertical.and.cursorarrow.rectangle")
             }
-            
-//            if torrent.progress < 1.0 {
-//                Divider()
-//                Button {
-//                    // Priority actions - to be implemented
-//                } label: {
-//                    Label("Set Priority", systemImage: "arrow.up.arrow.down")
-//                }
-//            }
         }.onTapGesture {
             
             store.selectedTorrentId = torrent.id

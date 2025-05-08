@@ -70,9 +70,9 @@ struct Throttle_2App: App {
                     }
                 }
                 .onChange(of: store.selection) {
-                    Task {
+                    //Task {
                         setupServer(store: store, torrentManager: manager)
-                    }
+                   // }
                     }
                    
                // }
@@ -157,7 +157,7 @@ struct Throttle_2App: App {
                     }
                 }
                 .onChange(of: store.selection) { oldValue, newValue in
-                            Task {
+                           // Task {
                                 if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                                     //if oldValue != nil {
                                         manager.isLoading = true
@@ -173,7 +173,7 @@ struct Throttle_2App: App {
                                     setupServer(store: store, torrentManager: manager)
                                 }
                             }
-                }
+               // }
         }
       
         #endif

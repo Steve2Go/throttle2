@@ -23,7 +23,7 @@ struct ContentView: View {
     @ObservedObject var filter: TorrentFilters
     @ObservedObject var store: Store
     @State private var splitViewVisibility = NavigationSplitViewVisibility.automatic
-//    @AppStorage("sideBar") var sideBar = false
+    //    @AppStorage("sideBar") var sideBar = false
     @AppStorage("detailView") private var detailView = false
     @AppStorage("firstRun") private var firstRun = true
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = true
@@ -31,8 +31,8 @@ struct ContentView: View {
     @State var isCreating = false
 #if os(iOS)
     @State var currentSFTPViewModel: SFTPFileBrowserViewModel?
-    #endif
-    #if os(macOS)
+#endif
+#if os(macOS)
     var mountManager = ServerMountManager()
 #endif
     
@@ -93,86 +93,21 @@ struct ContentView: View {
 #endif
 #if os(macOS)
             
-            ToolbarItem (placement: .automatic) {
-                Button {
-                    presenting.isCreating = true
-                } label: {
-                    Image(systemName: "document.badge.plus")
-                }
-            }
             
-            if ((store.selection?.sftpBrowse) == true){
-                ToolbarItem (placement: .automatic) {
-                    Button {
-                        
-                        let path = mountManager.getMountPath(for: store.selection!)
-                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path.absoluteString.replacingOccurrences(of: "file://", with: ""))
-                        //NSWorkspace.shared.activateFileViewerSelecting([path])
-                        
-                    } label:{
-                        
-                        Image(systemName: "folder")
-                    }
-                }
-            }
+            
+            
 #endif
-            if !isSidebarVisible {
-#if os(iOS)
-                if servers.count > 1 {
-                    ToolbarItem(placement: .topBarTrailing){
-                        Menu {
-                            ForEach(servers) { server in
-                                Button(action: {
-                                    store.selection = server
-                                }, label: {
-                                    if store.selection == server {
-                                        Image(systemName: "checkmark.circle").padding(.leading, 6)
-                                    } else {
-                                        Image(systemName: "circle")
-                                    }
-                                    Text(server.isDefault ? (server.name ?? "") + " (Default)" : (server.name ?? ""))
-                                })
-                                .buttonStyle(.plain)
-                            }
-                        } label: {
-                            Image(systemName: "externaldrive.badge.wifi")
-                        }.disabled(manager.isLoading)
-                    }
-                }
-#else
-                if servers.count > 1 {
-                    ToolbarItem {
-                        Menu {
-                            ForEach(servers) { server in
-                                Button(action: {
-                                    store.selection = server
-                                }, label: {
-                                    if store.selection == server {
-                                        Image(systemName: "checkmark.circle").padding(.leading, 6)
-                                    } else {
-                                        Image(systemName: "circle")
-                                    }
-                                    Text(server.isDefault ? (server.name ?? "") + " (Default)" : (server.name ?? ""))
-                                })
-                                .buttonStyle(.plain)
-                            }
-                        } label: {
-                            Image(systemName: "externaldrive.badge.wifi")
-                        }.disabled(manager.isLoading)
-                    }
-                }
-#endif
-#if os(iOS)
-                
-#endif
-            }
+            
         }
         
         .onAppear {
+            
+            #if os(macOS)
+            print("Mounting")
             let serverArray = Array(servers)
-#if os(macOS)
+           // print (serverArray)
             mountManager.mountAllServers(serverArray)
-#endif
+            #endif
             
             if presenting.didStart {
                 if UserDefaults.standard.bool(forKey: "openDefaultServer") != false || UserDefaults.standard.object(forKey: "selectedServer") == nil {
@@ -185,28 +120,8 @@ struct ContentView: View {
             }
             
             // Set appropriate visibility only for iPad - preserves state on macOS
-#if os(iOS)
-            if UIDevice.current.userInterfaceIdiom == .pad {
-                // Initialize iPad layout based on current orientation
-                setIpadSplitViewVisibility()
-            }
-#endif
         }
-#if os(iOS)
-        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
-            // Only respond to iPad orientation changes
-            if UIDevice.current.userInterfaceIdiom == .pad {
-                setIpadSplitViewVisibility()
-            }
-        }
-#endif
-#if os(macOS)
-        .sheet( isPresented: $presenting.isCreating) {
-            CreateTorrent(store: store, presenting: presenting)
-                .frame(width: 400, height: 500)
-                .padding(20)
-        }
-#endif
+    
         .sheet(item: activeSheetBinding) { sheetType in
             switch sheetType {
             case .settings:
@@ -228,20 +143,12 @@ struct ContentView: View {
             if url.isFileURL {
                 store.selectedFile = url
                 store.selectedFile!.startAccessingSecurityScopedResource()
-//#if os(iOS)
                 if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true  {
                     Task{
                         try? await Task.sleep(nanoseconds: 500_000_000)
                         presenting.activeSheet = "adding"
                     }
                 }
-//#else
-//                presenting.activeSheet = "adding"
-//#endif
-                //                Task {
-                //                    try await Task.sleep(for: .milliseconds(500))
-                //                    presenting.activeSheet = "adding"
-                //                }
             }
             else if url.absoluteString.lowercased().hasPrefix("magnet:") {
                 store.magnetLink = url.absoluteString
@@ -266,21 +173,7 @@ struct ContentView: View {
             set: { presenting.activeSheet = $0?.rawValue }
         )
     }
-#if os(iOS)
-// Helper function to set iPad-specific split view visibility
-func setIpadSplitViewVisibility() {
-    // Only apply to iPad
-    if UIDevice.current.userInterfaceIdiom == .pad {
-        // In portrait: show content view (torrent list)
-        if UIDevice.current.orientation.isPortrait || UIDevice.current.orientation.isFlat {
-            splitViewVisibility = .doubleColumn
-        } else {
-            // In landscape: show all columns
-            splitViewVisibility = .all
-        }
-    }
-}
-#endif
+
 }
 
     func isRemoteMounted(byName remoteName: String) -> Bool {
