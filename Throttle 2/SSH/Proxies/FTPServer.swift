@@ -129,7 +129,7 @@ class SimpleFTPServer: ObservableObject {
             print("New FTP connection from \(clientDescription)")
             
             // Close all existing connections before accepting the new one
-            self.closeAllExistingConnections()
+            // self.closeAllExistingConnections()
 
             let clientHandler = FTPSimpleHandler(
                 connection: connection,
@@ -353,6 +353,9 @@ class FTPSimpleHandler {
     // Task tracking for better cleanup
     private var activeTask: Task<Void, Never>?
     
+    // State for rename
+    private var renameFromPath: String? = nil
+    
     // Initializer
     init(connection: NWConnection, id: UUID, server: ServerEntity,
          onDisconnect: @escaping (UUID) -> Void) {
@@ -466,9 +469,21 @@ class FTPSimpleHandler {
     // Create a new SSH connection
     private func createSSHConnection() async throws -> SSHConnection {
         print("Creating new SSH connection for FTP handler \(id)")
-        let connection = SSHConnection(server: server)
-        try await connection.connect()
-        return connection
+        do {
+            let connection = SSHConnection(server: server)
+            try await connection.connect()
+            return connection
+        } catch {
+            // Check for max connections error (customize this check as needed)
+            if let err = error as? NSError, err.localizedDescription.contains("max connections") || err.localizedDescription.contains("too many") {
+                // Send FTP 421 response and cleanup
+                sendResponse(421, "Max connections reached, try again later")
+                cleanup()
+                throw error
+            } else {
+                throw error
+            }
+        }
     }
     
     // Get or create an SSH connection for a command
@@ -649,6 +664,13 @@ class FTPSimpleHandler {
                 // Release SSH connection after command completes
                 self.releaseSSHConnection()
             }
+        case "DELE":
+            // Create a new task for this command
+            activeTask = Task {
+                await handleDelete(argument)
+                // Release SSH connection after command completes
+                self.releaseSSHConnection()
+            }
             
         // Data connection commands
         case "PASV":
@@ -720,6 +742,43 @@ class FTPSimpleHandler {
             sendResponse(200, "Command OK")
             
         // For anything else
+        case "RMD":
+            // Create a new task for this command
+            activeTask = Task {
+                await handleRemoveDirectory(argument)
+                // Release SSH connection after command completes
+                self.releaseSSHConnection()
+            }
+            
+        case "MKD":
+            // Create a new task for this command
+            activeTask = Task {
+                await handleMakeDirectory(argument)
+                self.releaseSSHConnection()
+            }
+        case "RNFR":
+            // Store the rename-from path for the next RNTO
+            renameFromPath = argument
+            sendResponse(350, "File or directory exists, ready for destination name")
+        case "RNTO":
+            // Create a new task for this command
+            activeTask = Task {
+                await handleRenameTo(argument)
+                self.releaseSSHConnection()
+            }
+            
+        case "ABOR":
+            // Abort the current transfer if any
+            if let task = activeTask {
+                task.cancel()
+                activeTask = nil
+                dataConnection?.cancel()
+                dataConnection = nil
+                sendResponse(226, "Transfer aborted")
+            } else {
+                sendResponse(226, "No transfer to abort")
+            }
+            
         default:
             sendResponse(502, "Command not implemented")
         }
@@ -1081,37 +1140,54 @@ class FTPSimpleHandler {
         } else {
             targetPath = currentDirectory + (currentDirectory.hasSuffix("/") ? "" : "/") + path
         }
-        
+
         // Send status
         sendResponse(150, "Opening data connection for directory listing")
-        
+
         // Set up data connection
         await setupDataConnection { [weak self] connection in
             guard let self = self else { return }
-            
+
             Task {
                 do {
                     // Get a fresh SSH connection
                     let sshConnection = try await self.getSSHConnection()
-                    
-                    // Get a directory listing using ls -la
-                    let command = "ls -la \"\(targetPath)\" 2>/dev/null || echo 'No such directory'"
-                    let (_, output) = try await sshConnection.executeCommand(command)
-                    
-                    // Send the listing
-                    let data = Data((output + "\r\n").utf8)
-                    
+
+                    // Use SFTP to get directory contents as [FileItem]
+                    let items: [FileItem] = try await sshConnection.listDirectory(path: targetPath)
+
+                    // Format as Unix-style LIST output
+                    let formatter = DateFormatter()
+                    formatter.locale = Locale(identifier: "en_US_POSIX")
+                    formatter.dateFormat = "MMM dd HH:mm"
+
+                    let lines = items.map { item -> String in
+                        // Permissions string (just fake typical values for now)
+                        let perms = item.isDirectory ? "drwxr-xr-x" : "-rw-r--r--"
+                        // Hard link count (fake as 1)
+                        let nlink = "1"
+                        // Owner/group (fake as user group)
+                        let owner = "user"
+                        let group = "group"
+                        // Size
+                        let size = String(item.size ?? 0)
+                        // Date
+                        let dateStr = formatter.string(from: item.modificationDate)
+                        // Name
+                        let name = item.name
+                        return "\(perms) \(nlink) \(owner) \(group) \(size) \(dateStr) \(name)"
+                    }
+                    let output = lines.joined(separator: "\r\n") + "\r\n"
+                    let data = Data(output.utf8)
+
                     connection.send(content: data, completion: .contentProcessed { error in
                         if let error = error {
                             print("Error sending directory listing: \(error)")
                         }
-                        
                         // Close the data connection
                         connection.cancel()
-                        
                         // Send completion status
                         self.sendResponse(226, "Directory send OK")
-                        
                         // Release SSH connection
                         self.releaseSSHConnection()
                     })
@@ -1119,7 +1195,6 @@ class FTPSimpleHandler {
                     print("Error listing directory: \(error)")
                     connection.cancel()
                     self.sendResponse(550, "Failed to list directory")
-                    
                     // Release SSH connection
                     self.releaseSSHConnection()
                 }
@@ -1127,7 +1202,7 @@ class FTPSimpleHandler {
         }
     }
     
-    // Handle RETR command with direct streaming using cat or dd command
+    // Handle RETR command with direct streaming using SFTP
     private func handleRetrieve(_ path: String) async {
         // Determine the full path
         let fullPath: String
@@ -1160,97 +1235,67 @@ class FTPSimpleHandler {
                 do {
                     // Get a fresh SSH connection
                     let sshConnection = try await self.getSSHConnection()
+                    let sftp = try await sshConnection.connectSFTP()
+                    let file = try await sftp.openFile(filePath: normalizedPath, flags: .read)
+                    defer { Task { try? await file.close() } }
                     
-                    // Try to get file size first
-                    let sizeCommand = "stat -c %s '\(normalizedPath)' 2>/dev/null || stat -f %z '\(normalizedPath)' 2>/dev/null || echo 'unknown'"
-                    let (_, sizeOutput) = try await sshConnection.executeCommand(sizeCommand)
-                    let sizeStr = sizeOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let totalSize = Int(sizeStr) != nil ? Int(sizeStr)! : -1
+                    // Get file size for progress reporting
+                    let attributes = try await file.readAttributes()
+                    let totalSize = attributes.size ?? 0
                     
-                    // Build command based on whether we need to start at a specific position
-                    var command: String
-                    if hasRestPosition && startPosition > 0 {
-                        // Use dd with skip to start at the specified position
-                        let blockSize = 512
-                        let skipBlocks = startPosition / UInt64(blockSize)
-                        let skipBytes = startPosition % UInt64(blockSize)
-                        
-                        if skipBytes == 0 {
-                            // Simple case - we can start exactly at a block boundary
-                            command = "dd if='\(normalizedPath)' bs=\(blockSize) skip=\(skipBlocks) 2>/dev/null"
-                        } else {
-                            // More complex case - we need to skip partial blocks
-                            // Use dd to skip blocks and then tail to skip remaining bytes
-                            command = "dd if='\(normalizedPath)' bs=\(blockSize) skip=\(skipBlocks) 2>/dev/null | tail -c +\(skipBytes+1)"
-                        }
-                    } else {
-                        // Just use cat for the whole file
-                        command = "cat '\(normalizedPath)'"
-                    }
-                    
-                    // Execute the streaming command
-                    let cmdStream = try await sshConnection.executeCommandWithStreams(command)
-                    
-                    // Setup reading and sending
+                    // Start reading from the correct offset
+                    var offset: UInt64 = hasRestPosition ? startPosition : 0
+                    let chunkSize: UInt32 = 32768 // 32 KB
                     var totalSent = 0
-                    let actualStartPosition = hasRestPosition ? Int(startPosition) : 0
                     
-                    // Read from the command output stream
-                    for try await chunk in cmdStream.stdout {
-                        if chunk.readableBytes > 0 {
-                            // Convert ByteBuffer to Data
-                            let dataToSend = Data(buffer: chunk)
-                            
-                            // Send this chunk with synchronization
-                            let sendSemaphore = DispatchSemaphore(value: 0)
-                            var sendError: Error? = nil
-                            
-                            connection.send(content: dataToSend, completion: .contentProcessed { error in
-                                sendError = error
-                                sendSemaphore.signal()
-                            })
-                            
-                            // Wait for send completion
-                            _ = sendSemaphore.wait(timeout: .now() + 10.0)
-                            
-                            if let error = sendError {
-                                print("Error sending data: \(error)")
-                                break
+                    while true {
+                        if Task.isCancelled {
+                            throw CancellationError()
+                        }
+                        let data = try await file.read(from: offset, length: chunkSize)
+                        if data.readableBytes == 0 {
+                            break // End of file
+                        }
+                        let dataToSend = Data(buffer: data)
+                        let sendSemaphore = DispatchSemaphore(value: 0)
+                        var sendError: Error? = nil
+                        connection.send(content: dataToSend, completion: .contentProcessed { error in
+                            sendError = error
+                            sendSemaphore.signal()
+                        })
+                        _ = sendSemaphore.wait(timeout: .now() + 10.0)
+                        if let error = sendError {
+                            print("Error sending data: \(error)")
+                            break
+                        }
+                        totalSent += dataToSend.count
+                        offset += UInt64(dataToSend.count)
+                        // Optionally log progress
+                        if totalSize > 0 {
+                            let progress = Double(totalSent + (hasRestPosition ? Int(startPosition) : 0)) / Double(totalSize) * 100
+                            if Int(progress) % 5 == 0 {
+                                print("Transfer progress: \(Int(progress))% (\(totalSent + (hasRestPosition ? Int(startPosition) : 0))/\(totalSize))")
                             }
-                            
-                            // Update total sent and log progress
-                            totalSent += dataToSend.count
-                            
-                            if totalSize > 0 {
-                                let progress = Double(totalSent + actualStartPosition) / Double(totalSize) * 100
-                                if Int(progress) % 5 == 0 { // Log every 5%
-                                    print("Transfer progress: \(Int(progress))% (\(totalSent + actualStartPosition)/\(totalSize))")
-                                }
-                            } else if totalSent % (5 * 1024 * 1024) < dataToSend.count { // Log every 5MB
-                                print("Transferred \(totalSent) bytes (starting at position \(actualStartPosition))")
-                            }
+                        } else if totalSent % (5 * 1024 * 1024) < dataToSend.count {
+                            print("Transferred \(totalSent) bytes (starting at position \(hasRestPosition ? Int(startPosition) : 0))")
                         }
                     }
-                    
                     // Close the data connection when done
                     connection.cancel()
-                    
                     // Send completion status
                     if totalSent > 0 {
                         self.sendResponse(226, "Transfer complete")
-                        print("RETR completed successfully: \(totalSent) bytes transferred (starting at \(actualStartPosition))")
+                        print("RETR completed successfully: \(totalSent) bytes transferred (starting at \(hasRestPosition ? Int(startPosition) : 0))")
                     } else {
                         self.sendResponse(550, "Failed to transfer file")
                         print("RETR failed: No data transferred")
                     }
-                    
                     // Release SSH connection after transfer completes
                     self.releaseSSHConnection()
                 } catch {
                     print("Error retrieving file: \(error)")
                     self.sendResponse(550, "Error retrieving file: \(error.localizedDescription)")
                     connection.cancel()
-                    
                     // Release SSH connection on error
                     self.releaseSSHConnection()
                 }
@@ -1258,7 +1303,7 @@ class FTPSimpleHandler {
         }
     }
     
-    // Handle STOR command using simple file upload approach
+    // Handle STOR command using SFTP file upload
     private func handleStore(_ path: String) async {
         // Determine the full path
         let fullPath: String
@@ -1293,50 +1338,72 @@ class FTPSimpleHandler {
                     if let data = data, !data.isEmpty, let fileHandle = fileHandle {
                         // Write data to the temp file
                         try? fileHandle.write(contentsOf: data)
-                        
                         // Continue receiving
                         receiveAndWrite()
                     } else if isComplete || error != nil {
                         // Close the file handle
                         try? fileHandle?.close()
-                        
-                        // Upload the file to server using scp or other method
+                        // Upload the file to server using SFTP
                         Task {
                             do {
                                 // Get a fresh SSH connection
                                 let sshConnection = try await self.getSSHConnection()
-                                
-                                // Use the uploadFile method from SSHConnection which now works with local URL
+                                // Use the uploadFile method from SSHConnection which works with local URL
                                 try await sshConnection.uploadFile(localURL: tempFileURL, remotePath: normalizedPath)
-                                
                                 // Clean up temp file
                                 try? FileManager.default.removeItem(at: tempFileURL)
-                                
                                 // Send completion status
                                 self.sendResponse(226, "Transfer complete")
-                                
                                 // Release SSH connection after transfer completes
                                 self.releaseSSHConnection()
                             } catch {
                                 print("Error uploading file: \(error)")
                                 self.sendResponse(550, "Error uploading file: \(error.localizedDescription)")
-                                
                                 // Clean up temp file
                                 try? FileManager.default.removeItem(at: tempFileURL)
-                                
                                 // Release SSH connection on error
                                 self.releaseSSHConnection()
                             }
                         }
-                        
                         // Close the connection
                         connection.cancel()
                     }
                 }
             }
-            
             // Start receiving data
             receiveAndWrite()
+        }
+    }
+    
+    // Handle DELE command using SFTP
+    private func handleDelete(_ path: String) async {
+        // Combine current directory with path if not absolute
+        let fullPath = path.hasPrefix("/") ? path : "\(currentDirectory)/\(path)"
+        let normalizedPath = normalizePath(fullPath)
+        do {
+            let sshConnection = try await getSSHConnection()
+            let sftp = try await sshConnection.connectSFTP()
+            try await sftp.remove(at: normalizedPath)
+            sendResponse(250, "File deleted")
+        } catch {
+            print("Error deleting file: \(error)")
+            sendResponse(550, "Error deleting file: \(error.localizedDescription)")
+        }
+    }
+    
+    // Handle RMD command using SFTP
+    private func handleRemoveDirectory(_ path: String) async {
+        // Combine current directory with path if not absolute
+        let fullPath = path.hasPrefix("/") ? path : "\(currentDirectory)/\(path)"
+        let normalizedPath = normalizePath(fullPath)
+        do {
+            let sshConnection = try await getSSHConnection()
+            let sftp = try await sshConnection.connectSFTP()
+            try await sftp.rmdir(at: normalizedPath)
+            sendResponse(250, "Directory removed")
+        } catch {
+            print("Error removing directory: \(error)")
+            sendResponse(550, "Error removing directory: \(error.localizedDescription)")
         }
     }
     
@@ -1400,5 +1467,42 @@ class FTPSimpleHandler {
                 releaseSSHConnection()
             }
         }
+    }
+    
+    // Handle MKD command using SFTP
+    private func handleMakeDirectory(_ path: String) async {
+        let fullPath = path.hasPrefix("/") ? path : "\(currentDirectory)/\(path)"
+        let normalizedPath = normalizePath(fullPath)
+        do {
+            let sshConnection = try await getSSHConnection()
+            let sftp = try await sshConnection.connectSFTP()
+            try await sftp.createDirectory(atPath: normalizedPath)
+            sendResponse(257, "\"\(normalizedPath)\" directory created")
+        } catch {
+            print("Error creating directory: \(error)")
+            sendResponse(550, "Error creating directory: \(error.localizedDescription)")
+        }
+    }
+    
+    // Handle RNTO command using SFTP
+    private func handleRenameTo(_ path: String) async {
+        guard let from = renameFromPath else {
+            sendResponse(503, "Bad sequence of commands")
+            return
+        }
+        let fromPath = from.hasPrefix("/") ? from : "\(currentDirectory)/\(from)"
+        let toPath = path.hasPrefix("/") ? path : "\(currentDirectory)/\(path)"
+        let normalizedFrom = normalizePath(fromPath)
+        let normalizedTo = normalizePath(toPath)
+        do {
+            let sshConnection = try await getSSHConnection()
+            let sftp = try await sshConnection.connectSFTP()
+            try await sftp.rename(at: normalizedFrom, to: normalizedTo)
+            sendResponse(250, "Rename successful")
+        } catch {
+            print("Error renaming: \(error)")
+            sendResponse(550, "Error renaming: \(error.localizedDescription)")
+        }
+        renameFromPath = nil
     }
 }

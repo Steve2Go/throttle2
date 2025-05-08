@@ -31,6 +31,11 @@ struct RemoteFFmpegInstaller {
             ffmpegURL = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
             installPath = "~/bin/ffmpeg"
             downloadCmd = "mkdir -p ~/bin && cd /tmp && wget -O ffmpeg.tar.xz \"$URL\" && tar -xf ffmpeg.tar.xz && cp ffmpeg-*-static/ffmpeg ~/bin/ && chmod +x ~/bin/ffmpeg"
+        } else if os == "Linux" && (arch == "armv6l" || arch == "armv7l") {
+            // Raspberry Pi armhf support
+            ffmpegURL = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-armhf-static.tar.xz"
+            installPath = "~/bin/ffmpeg"
+            downloadCmd = "mkdir -p ~/bin && cd /tmp && wget -O ffmpeg.tar.xz \"$URL\" && tar -xf ffmpeg.tar.xz && cp ffmpeg-*-static/ffmpeg ~/bin/ && chmod +x ~/bin/ffmpeg"
         } else if os == "Darwin" && arch == "arm64" {
             ffmpegURL = "https://www.osxexperts.net/ffmpeg6arm.zip"
             installPath = "~/bin/ffmpeg"

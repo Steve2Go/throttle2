@@ -158,10 +158,6 @@ public class ThumbnailManager: NSObject {
                     let fileType = FileType.determine(from: URL(fileURLWithPath: path))
                     
                     let thumbnail: Image
-//                    if fileType == .image {
-//                        // Use dd command over SSH for image thumbnails
-//                        thumbnail = try await generateImageThumbnailViaDd(for: path, server: server)
-//                    } else
                     if fileType == .video || fileType == .image {
                         if server.ffThumb {
                             // Use server-side FFmpeg thumbnailing if enabled
