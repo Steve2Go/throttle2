@@ -290,10 +290,10 @@ struct TorrentRowView: View {
         // Common video extensions
         let videoExtensions = ["mp4", "mov", "avi", "wmv", "flv", "mkv", "m4v", "webm"]
         
-        // First try to find an image
+        // First try to find a video
         if let firstImage = files.first(where: { file in
             let ext = file.name.components(separatedBy: ".").last?.lowercased() ?? ""
-            return (imageExtensions.contains(ext) && file.progress == 1)
+            return (videoExtensions.contains(ext) && file.progress == 1)
         }) {
             return firstImage
         }
@@ -301,7 +301,7 @@ struct TorrentRowView: View {
         // If no image found, try to find a video
         return files.first(where: { file in
             let ext = file.name.components(separatedBy: ".").last?.lowercased() ?? ""
-            return (videoExtensions.contains(ext) && file.progress == 1)
+            return (imageExtensions.contains(ext) && file.progress == 1)
         })
     }
     
