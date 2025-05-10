@@ -15,11 +15,14 @@ enum MountError: Error {
 }
 
 class ServerMountManager: ObservableObject {
+    // MARK: - Singleton
+    static let shared = ServerMountManager()
+    
     // MARK: - Properties
     private let dataManager = DataManager.shared
     private var cancellables = Set<AnyCancellable>()
     private let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-    private var mountProcesses: [String: Process] = [:]
+    var mountProcesses: [String: Process] = [:]
     
     // Maps server entity IDs to mount key
     private var serverMountMap: [NSManagedObjectID: String] = [:]
@@ -304,7 +307,7 @@ class ServerMountManager: ObservableObject {
         
         // Try graceful unmount
         let process = Process()
-        process.launchPath = "/usr/bin/umount"
+        process.launchPath = "/sbin/umount"
         process.arguments = [directoryURL.path]
         
         do {
@@ -314,7 +317,7 @@ class ServerMountManager: ObservableObject {
             if process.terminationStatus != 0 {
                 // Try force unmount if needed
                 let forceProcess = Process()
-                forceProcess.launchPath = "/usr/bin/umount"
+                forceProcess.launchPath = "/sbin/umount"
                 forceProcess.arguments = ["-f", directoryURL.path]
                 
                 try forceProcess.run()
@@ -353,7 +356,7 @@ class ServerMountManager: ObservableObject {
             if let mountURL = activeMounts[mountKey] {
                 // Try graceful unmount
                 let process = Process()
-                process.launchPath = "/usr/bin/umount"
+                process.launchPath = "/sbin/umount"
                 process.arguments = [mountURL.path]
                 
                 do {
@@ -363,7 +366,7 @@ class ServerMountManager: ObservableObject {
                     if process.terminationStatus != 0 {
                         // Try force unmount if needed
                         let forceProcess = Process()
-                        forceProcess.launchPath = "/usr/bin/umount"
+                        forceProcess.launchPath = "/sbin/umount"
                         forceProcess.arguments = ["-f", mountURL.path]
                         
                         try forceProcess.run()

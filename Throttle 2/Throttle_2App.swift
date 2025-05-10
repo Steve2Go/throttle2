@@ -60,6 +60,12 @@ struct Throttle_2App: App {
                 .onAppear {
                     presenting.didStart = true
                 }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                                    // This code will be executed just before the app terminates
+                    if UserDefaults.standard.bool(forKey: "unMountOnClose") != false {
+                        ServerMountManager.shared.unmountAllServers()
+                    }
+                                }
                 .onChange(of: networkMonitor.gateways){
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                         if networkMonitor.isConnected {
@@ -78,6 +84,7 @@ struct Throttle_2App: App {
                // }
             
         }
+    
         
         .commands {
             CommandGroup(replacing: .appSettings) {

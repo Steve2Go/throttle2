@@ -97,10 +97,10 @@ var isiPad: Bool {
                 HStack(spacing: innerSpacing) {
                   //  #if os(iOS)
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                        if TunnelManagerHolder.shared.activeTunnels.count > 0  && SimpleFTPServerManager.shared.activeServers.count > 0 {
+                        if TunnelManagerHolder.shared.activeTunnels.count > 0  && SimpleFTPServerManager.shared.activeServers.count > 0  {
                             Image(systemName: "arrow.up.arrow.down.circle.fill")
                                 .foregroundColor(.green)
-                        } else if TunnelManagerHolder.shared.activeTunnels.count > 0 ||  SimpleFTPServerManager.shared.activeServers.count > 0 {
+                        } else if TunnelManagerHolder.shared.activeTunnels.count > 0 ||  SimpleFTPServerManager.shared.activeServers.count > 0  {
                             Image(systemName: "arrow.up.arrow.down.circle")
                                 .foregroundColor(.green)
                         } else {

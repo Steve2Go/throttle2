@@ -76,7 +76,6 @@
 			membershipExceptions = (
 				Info.plist,
 				"Preview Content/Preview Assets.xcassets",
-				SSH/CSSH.swift,
 				"transmission-mac/transmission-cli",
 				"transmission-mac/transmission-create",
 				"transmission-mac/transmission-daemon",
@@ -470,7 +469,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.5;
 				OTHER_LDFLAGS = "";
 				"OTHER_LDFLAGS[sdk=iphone*]" = (
 					"$(inherited)",
@@ -587,7 +586,7 @@
 					"$(PROJECT_DIR)",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.5;
 				OTHER_LDFLAGS = "";
 				"OTHER_LDFLAGS[sdk=iphone*]" = (
 					"$(inherited)",

@@ -31,7 +31,7 @@ struct AddTorrentView: View {
     
     var body: some View {
         NavigationStack {
-            if manager.isLoading {
+            if store.selection?.sftpRpc == true && TunnelManagerHolder.shared.activeTunnels.count < 1  {
                 ProgressView()
                     .onChange(of: defaultDownloadDir) {
                         if store.addPath.isEmpty {
@@ -190,11 +190,7 @@ struct AddTorrentView: View {
                     }
                     
                     .padding(.top, 10)
-                    .onDisappear{
-                        store.selectedFile = nil
-                        store.magnetLink = ""
-                        store.addPath = ""
-                    }
+                    
                     
                     if isLoading {
                         ProgressView()

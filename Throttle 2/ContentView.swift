@@ -133,6 +133,12 @@ struct ContentView: View {
 #endif
             case .adding:
                 AddTorrentView(store: store, manager: manager, presenting: presenting)
+                    .onDisappear{
+                    store.selectedFile = nil
+                    store.magnetLink = ""
+                    store.addPath = ""
+                    
+                }
 #if os(iOS)
                     .presentationDetents([.medium])
 #endif
@@ -143,17 +149,20 @@ struct ContentView: View {
             if url.isFileURL {
                 store.selectedFile = url
                 store.selectedFile!.startAccessingSecurityScopedResource()
-                if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true  {
+                //if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true  {
                     Task{
                         try? await Task.sleep(nanoseconds: 500_000_000)
                         presenting.activeSheet = "adding"
                     }
-                }
+                //}
             }
             else if url.absoluteString.lowercased().hasPrefix("magnet:") {
                 store.magnetLink = url.absoluteString
-                if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true {
+                //if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true {
+                Task{
+                    try? await Task.sleep(nanoseconds: 500_000_000)
                     presenting.activeSheet = "adding"
+                    //}
                 }
             }
             else {

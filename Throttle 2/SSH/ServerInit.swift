@@ -39,17 +39,17 @@ extension Throttle_2App {
                     try await torrentManager.fetchUpdates(fullFetch: true)
                     torrentManager.startPeriodicUpdates()
                     try? await Task.sleep(nanoseconds: 500_000_000)
-                    if !store.magnetLink.isEmpty || store.selectedFile != nil {
-                        presenting.activeSheet = "adding"
-                    }
+//                    if !store.magnetLink.isEmpty || store.selectedFile != nil {
+//                        presenting.activeSheet = "adding"
+//                    }
             } else{
                 try await torrentManager.fetchUpdates(fullFetch: true)
                 torrentManager.startPeriodicUpdates()
-                if !store.magnetLink.isEmpty || store.selectedFile != nil {
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        presenting.activeSheet = "adding"
-                        
-                }
+//                if !store.magnetLink.isEmpty || store.selectedFile != nil {
+//                        try? await Task.sleep(nanoseconds: 500_000_000)
+//                        presenting.activeSheet = "adding"
+//                        
+//                }
             }
         }
     }
@@ -148,12 +148,12 @@ extension Throttle_2App {
                                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                                 try await torrentManager.fetchUpdates(fullFetch: true)
                                 torrentManager.startPeriodicUpdates()
-                                try await Task.sleep(for: .milliseconds(500))
-                                if !store.magnetLink.isEmpty || store.selectedFile != nil {
-                                    presenting.activeSheet = "adding"
-                                    
-
-                                }
+                                //try await Task.sleep(for: .milliseconds(500))
+//                                if !store.magnetLink.isEmpty || store.selectedFile != nil {
+//                                    presenting.activeSheet = "adding"
+//                                    
+//
+//                                }
                             }
                         }
                     }
@@ -180,9 +180,9 @@ extension Throttle_2App {
                         try await torrentManager.fetchUpdates(fullFetch: true)
                         torrentManager.startPeriodicUpdates()
                         try await Task.sleep(for: .milliseconds(500))
-                        if !store.magnetLink.isEmpty || store.selectedFile != nil {
-                            presenting.activeSheet = "adding"
-                        }
+//                        if !store.magnetLink.isEmpty || store.selectedFile != nil {
+//                            presenting.activeSheet = "adding"
+//                        }
                     }
                     
                 }

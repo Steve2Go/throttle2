@@ -22,7 +22,7 @@ struct InstallerView: View {
         VStack(spacing: 16) {
             // Header
             HStack {
-                Text("Install Components")
+                Text("Install Required Components")
                     .font(.headline)
                 Spacer()
                 if !isInstalling {
@@ -34,76 +34,44 @@ struct InstallerView: View {
             }
             .padding([.horizontal, .top])
             
-            // Content
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Status indicator
-                    HStack {
-                        if isInstalling {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text(installationComplete ? "Complete!" : "Installing...")
-                                .foregroundColor(installationComplete ? .green : .primary)
-                        } else {
-                            Text("Ready to install")
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                    }
-                    
-                    // Installation items
-                    installationItem(
-                        title: "FUSE-T",
-                        description: "File system in user space",
-                        status: outputContains("Successfully installed fuse-t") ? .complete :
-                                outputContains("Installing fuse-t") ? .inProgress : .pending
-                    )
-                    
-                    installationItem(
-                        title: "SSHFS",
-                        description: "SSH Filesystem",
-                        status: outputContains("Successfully installed sshfs") ? .complete :
-                                outputContains("Installing sshfs") ? .inProgress : .pending
-                    )
-                    
-                    installationItem(
-                        title: "QuickLookVideo",
-                        description: "Initialise Video thumbnails",
-                        status: outputContains("Successfully initialised QuickLookVideo") ? .complete :
-                                outputContains("Initiliising QuickLookVideo") ? .inProgress : .pending
-                    )
-                    
-                    installationItem(
-                        title: "Hosts Configuration",
-                        description: "Add 127.0.0.1 Throttle entry",
-                        status: outputContains("Successfully updated hosts") ||
-                               outputContains("already exists in hosts") ? .complete :
-                               outputContains("Checking hosts") ? .inProgress : .pending
-                    )
-                    
-                    // Log output
-                    if !installationOutput.isEmpty {
-                        VStack(alignment: .leading) {
-                            Text("Installation Log")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                            
-                            Text(installationOutput)
-                                .font(.system(.caption, design: .monospaced))
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(.secondarySystemFill))
-                                .cornerRadius(4)
-                        }
-                    }
+            // Info message
+            Text("Throttle requires system components to be installed for full functionality. This process may prompt for your password and will install FUSE-T, SSHFS, and configure your system for Finder integration.")
+                .font(.body)
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal)
+            
+            // Status indicator
+            if isInstalling {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(installationComplete ? "Complete!" : "Installing...")
+                        .foregroundColor(installationComplete ? .green : .primary)
                 }
-                .padding()
             }
+            
+            // Log output
+            if !installationOutput.isEmpty {
+                VStack(alignment: .leading) {
+                    Text("Installation Log")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Text(installationOutput)
+                        .font(.system(.caption, design: .monospaced))
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.secondarySystemFill))
+                        .cornerRadius(4)
+                }
+                .padding(.horizontal)
+            }
+            
+            Spacer()
             
             // Action buttons
             HStack {
                 Spacer()
-                
                 if installationComplete {
                     Button("Close") {
                         dismiss()
@@ -125,104 +93,72 @@ struct InstallerView: View {
         .frame(width: maxWidth, height: maxHeight)
     }
     
-    enum InstallStatus {
-        case pending, inProgress, complete
-    }
-    
-    func installationItem(title: String, description: String, status: InstallStatus) -> some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text(title)
-                    .fontWeight(.medium)
-                Text(description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            // Status indicator
-            Group {
-                switch status {
-                case .pending:
-                    Image(systemName: "circle")
-                        .foregroundColor(.secondary)
-                case .inProgress:
-                    ProgressView()
-                        .controlSize(.small)
-                case .complete:
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                }
-            }
-        }
-        .padding(10)
-        .background(Color(.secondarySystemFill).opacity(0.5))
-        .cornerRadius(8)
-    }
-    
-    func outputContains(_ text: String) -> Bool {
-        return installationOutput.contains(text)
-    }
-    
     func performInstallation() {
         isInstalling = true
         installationOutput = "Starting installation process...\n"
-        
-        // Run the installation steps on a background thread
-        DispatchQueue.global(qos: .userInitiated).async {
-            // Step 1: Install FUSE-T package
-            installPackage(named: "fuse-t-macos-installer-1.0.44.pkg")
-            
-            // Step 2: Install SSHFS package
-            installPackage(named: "sshfs-macos-installer-1.0.2.pkg")
-            
-            // Step 3: Install QuickLookVideo
-            installQuickLookVideo()
-            
-            // Step 4: Check and update hosts file
-            checkAndUpdateHostsFile()
-            
-            // Complete the installation
-            DispatchQueue.main.async {
-                installationOutput += "\nInstallation completed!"
-                installationComplete = true
-                isInstalling = false
-            }
-        }
-    }
-    
-    func installPackage(named packageName: String) {
-        appendOutput("Installing \(packageName)...")
-        
-        guard let packageURL = Bundle.main.url(forResource: packageName.replacingOccurrences(of: ".pkg", with: ""), withExtension: "pkg") else {
-            appendOutput("Error: Package \(packageName) not found in app bundle.")
+
+        // 1. Get package paths
+        guard let fuseTPkgURL = Bundle.main.url(forResource: "fuse-t-macos-installer-1.0.44", withExtension: "pkg"),
+              let sshfsPkgURL = Bundle.main.url(forResource: "sshfs-macos-installer-1.0.2", withExtension: "pkg") else {
+            appendOutput("Error: One or more installer packages not found in app bundle.")
+            isInstalling = false
             return
         }
-        
+        let fuseTPkgPath = fuseTPkgURL.path
+        let sshfsPkgPath = sshfsPkgURL.path
+
+        // 2. Generate the shell script
+        let script = """
+        #!/bin/sh
+        echo 'Installing fuse-t...'
+        installer -pkg \"\(fuseTPkgPath)\" -target /
+        echo 'Installing sshfs...'
+        installer -pkg \"\(sshfsPkgPath)\" -target /
+        if ! grep -q "127.0.0.1 Throttle" /etc/hosts; then
+          echo 'Adding Throttle to /etc/hosts...'
+          echo '127.0.0.1 Throttle' >> /etc/hosts
+        else
+          echo 'Throttle already exists in /etc/hosts.'
+        fi
+        """
+        let scriptPath = "/tmp/throttle_install.sh"
+        do {
+            try script.write(toFile: scriptPath, atomically: true, encoding: .utf8)
+            // Make script executable
+            _ = try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptPath)
+        } catch {
+            appendOutput("Error writing install script: \(error.localizedDescription)")
+            isInstalling = false
+            return
+        }
+
+        // 3. Run the script with a single privileged prompt
         let process = Process()
         let pipe = Pipe()
-        
         process.standardOutput = pipe
         process.standardError = pipe
-        
         process.launchPath = "/usr/bin/env"
-        process.arguments = ["osascript", "-e", "do shell script \"installer -pkg '\(packageURL.path)' -target /\" with administrator privileges"]
-        
-        // Capture and display output
+        process.arguments = ["osascript", "-e", "do shell script \"/bin/sh \(scriptPath)\" with administrator privileges"]
+
         captureProcessOutput(process: process, pipe: pipe)
-        
-        do {
-            try process.run()
-            process.waitUntilExit()
-            
-            if process.terminationStatus == 0 {
-                appendOutput("Successfully installed \(packageName).")
-            } else {
-                appendOutput("Failed to install \(packageName) with error code: \(process.terminationStatus)")
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try process.run()
+                process.waitUntilExit()
+                // 4. Launch QuickLookVideo (no sudo needed)
+                installQuickLookVideo()
+                DispatchQueue.main.async {
+                    installationOutput += "\nInstallation completed!"
+                    installationComplete = true
+                    isInstalling = false
+                }
+            } catch {
+                appendOutput("Error running installer: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    isInstalling = false
+                }
             }
-        } catch {
-            appendOutput("Error launching installer: \(error.localizedDescription)")
         }
     }
     
@@ -238,60 +174,10 @@ struct InstallerView: View {
         DispatchQueue.main.async {
             do {
                 try NSWorkspace.shared.open(appURL)
-                self.appendOutput("Successfully launched QuickLookVideo.")
+                self.appendOutput("\nSuccessfully launched QuickLookVideo.")
             } catch {
-                self.appendOutput("Error launching QuickLookVideo: \(error.localizedDescription)")
+                self.appendOutput("\nError launching QuickLookVideo: \(error.localizedDescription)")
             }
-        }
-    }
-    
-    func checkAndUpdateHostsFile() {
-        appendOutput("\nChecking hosts file...")
-        
-        // Step 1: First check if entry already exists
-        let checkProcess = Process()
-        let checkPipe = Pipe()
-        
-        checkProcess.standardOutput = checkPipe
-        checkProcess.standardError = checkPipe
-        
-        checkProcess.launchPath = "/usr/bin/env"
-        checkProcess.arguments = ["grep", "-q", "127.0.0.1 Throttle", "/etc/hosts"]
-        
-        do {
-            try checkProcess.run()
-            checkProcess.waitUntilExit()
-            
-            if checkProcess.terminationStatus == 0 {
-                // Entry exists
-                appendOutput("Entry '127.0.0.1 Throttle' already exists in hosts file.")
-                return
-            }
-            
-            // Entry doesn't exist, add it
-            appendOutput("Adding entry to hosts file...")
-            
-            let updateProcess = Process()
-            let updatePipe = Pipe()
-            
-            updateProcess.standardOutput = updatePipe
-            updateProcess.standardError = updatePipe
-            
-            updateProcess.launchPath = "/usr/bin/env"
-            updateProcess.arguments = ["osascript", "-e", "do shell script \"echo '127.0.0.1 Throttle' >> /etc/hosts\" with administrator privileges"]
-            
-            captureProcessOutput(process: updateProcess, pipe: updatePipe)
-            
-            try updateProcess.run()
-            updateProcess.waitUntilExit()
-            
-            if updateProcess.terminationStatus == 0 {
-                appendOutput("Successfully updated hosts file.")
-            } else {
-                appendOutput("Failed to update hosts file with error code: \(updateProcess.terminationStatus)")
-            }
-        } catch {
-            appendOutput("Error checking/updating hosts file: \(error.localizedDescription)")
         }
     }
     

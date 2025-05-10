@@ -18,6 +18,7 @@ struct SettingsView: View {
     @AppStorage("deleteOnSuccess") var deleteOnSuccess: Bool = true
     @AppStorage("qlVideo") var qlVideo: Bool = false
     @AppStorage("isAbout") var isAbout = false
+    @AppStorage("unMountOnClose") var unMountOnClose = true
     @ObservedObject var presenting: Presenting
     @State var installerView = false
     @ObservedObject var manager: TorrentManager
@@ -129,18 +130,20 @@ struct SettingsView: View {
                     // Open the app using NSWorkspace
                     NSWorkspace.shared.open(appURL!)
                 }
-                Text("Fuse-t and sshfs are bundled for SFTP.").font(.caption)
-                Button("Install Fuse File System") {
-                    installerView.toggle()
-                }
+                Text("Fuse-t and sshfs are bundled to mount your files locally in Finder.").font(.caption)
+//                Button("Install Fuse File System") {
+//                    installerView.toggle()
+//                }
+                settingRow(
+                    title: "Unmount Server Files on close",
+                    description: "Unmount the fuse file system whe the app closes",
+                    control: Toggle("", isOn: $unMountOnClose)
+                )
                 Text("About").font(.headline)
                 Text("Mac version installs fuse-t with sshfs").font(.caption)
                 Text("Mac bundle includes bundled QLVideo in it's entirety https://github.com/Marginal/QLVideo").font(.caption)
                 #else
-                Text("FFMpeg is used for server - side thumbnail generation. Click below for Installation").font(.caption)
-                Button("Install Dependencies") {
-                    installerView.toggle()
-                }
+                
                 Text("About").font(.headline)
                 Text("iOS version installs ffmpeg on the server. https://ffmpeg.org").font(.caption)
                 #endif
@@ -163,13 +166,13 @@ struct SettingsView: View {
         .onDisappear{
             isAbout = false
         }
-        .sheet(isPresented: $installerView){
-#if os(macOS)
-            InstallerView()
-                .frame(width: 500, height: 500)
-            
-#endif
-        }
+//        .sheet(isPresented: $installerView){
+//#if os(macOS)
+//            InstallerView()
+//                .frame(width: 500, height: 500)
+//            
+//#endif
+//        }
        
         
     }
