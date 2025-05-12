@@ -42,7 +42,7 @@ class RemoteImageLoader {
     }
     
     // Use ffmpeg for server-side resizing, fallback to local resize if needed
-    func loadImage(maxSize: CGSize = CGSize(width: 1920, height: 1080), progressHandler: ((Double) -> Void)? = nil) async throws -> Data {
+    func loadImage(maxSize: CGSize = CGSize(width: 1920*1.5, height: 1080*1.5), progressHandler: ((Double) -> Void)? = nil) async throws -> Data {
         downloadTask?.cancel()
         let task = Task<Data, Error> {
             print("Downloading image from: \(url.path)")
