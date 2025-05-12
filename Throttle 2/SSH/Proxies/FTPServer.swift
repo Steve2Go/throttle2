@@ -8,48 +8,39 @@ enum DataConnectionMode {
 }
 
 // Manager for simple FTP servers
-class SimpleFTPServerManager {
+actor SimpleFTPServerManager {
     static let shared = SimpleFTPServerManager()
     
     var activeServers: [String: SimpleFTPServer] = [:]
-    private let serverLock = NSLock()
     
     private init() {}
     
     func storeServer(_ server: SimpleFTPServer, withIdentifier identifier: String) {
-        serverLock.lock()
         activeServers[identifier] = server
-        serverLock.unlock()
     }
     
     func getServer(withIdentifier identifier: String) -> SimpleFTPServer? {
-        serverLock.lock()
-        defer { serverLock.unlock() }
         return activeServers[identifier]
     }
     
-    
-    
-    func removeServer(withIdentifier identifier: String) {
-        serverLock.lock()
+    func removeServer(withIdentifier identifier: String) async {
         let server = activeServers[identifier]
         activeServers.removeValue(forKey: identifier)
-        serverLock.unlock()
-        
         if let server = server {
             server.stop()
         }
     }
     
-    func removeAllServers() {
-        serverLock.lock()
+    func removeAllServers() async {
         let servers = activeServers.values
         activeServers.removeAll()
-        serverLock.unlock()
-        
         for server in servers {
             server.stop()
         }
+    }
+    
+    func activeServersCount() -> Int {
+        activeServers.count
     }
 }
 
@@ -67,12 +58,31 @@ class SimpleFTPServer: ObservableObject {
     @Published var status = "Stopped"
     @Published var connectionCount = 0
     
-    // Active connections
-    private var activeConnections: [UUID: FTPSimpleHandler] = [:]
-    private let connectionLock = NSLock()
+    // Active connections managed by an actor
+    actor Connections {
+        var activeConnections: [UUID: FTPSimpleHandler] = [:]
+        func getAll() -> [FTPSimpleHandler] { Array(activeConnections.values) }
+        func getInactiveIds(timeoutSeconds: Int) -> [UUID] {
+            activeConnections.values.filter { $0.isInactive(timeoutSeconds: timeoutSeconds) }.map { $0.id }
+        }
+        func add(_ handler: FTPSimpleHandler, for id: UUID) {
+            activeConnections[id] = handler
+        }
+        func remove(id: UUID) {
+            activeConnections.removeValue(forKey: id)
+        }
+        func count() -> Int { activeConnections.count }
+        func removeAll() -> [FTPSimpleHandler] {
+            let handlers = Array(activeConnections.values)
+            activeConnections.removeAll()
+            return handlers
+        }
+        func get(id: UUID) -> FTPSimpleHandler? { activeConnections[id] }
+    }
+    private let connections = Connections()
     
     // Timer for closing idle connections
-    private var idleTimer: Timer?
+    private var idleTask: Task<Void, Never>? = nil
     
     init(server: ServerEntity, localPort: Int = 2121) {
         self.server = server
@@ -83,17 +93,14 @@ class SimpleFTPServer: ObservableObject {
         print("SimpleFTPServer deinit called")
         
         // Clean up
-        idleTimer?.invalidate()
-        idleTimer = nil
+        idleTask?.cancel()
+        idleTask = nil
         
         // Only call synchronous cleanup here to avoid retain cycles
         listener?.cancel()
         listener = nil
         
-        // Don't create Task inside deinit
-        // Just release all references
-        activeConnections.removeAll()
-        
+        // Do NOT launch a Task here!
         print("SimpleFTPServer deinit completed")
     }
     
@@ -141,18 +148,15 @@ class SimpleFTPServer: ObservableObject {
             )
             
             // Store the handler
-            self.connectionLock.lock()
-            self.activeConnections[connectionId] = clientHandler
-            let count = self.activeConnections.count
-            self.connectionLock.unlock()
-            
-            // Update connection count
-            Task { @MainActor in
-                self.connectionCount = count
-                self.status = "Active: \(count) connection(s)"
-                
-                // Start idle timer if not running
-                self.startIdleTimer()
+            Task {
+                await self.connections.add(clientHandler, for: connectionId)
+                let count = await self.connections.count()
+                await MainActor.run {
+                    self.connectionCount = count
+                    self.status = "Active: \(count) connection(s)"
+                    // Start idle timer if not running
+                    self.startIdleTimer()
+                }
             }
             
             // Start the handler
@@ -207,40 +211,36 @@ class SimpleFTPServer: ObservableObject {
     // Start idle timer to check for inactive connections
     private func startIdleTimer() {
         // Only start if not already running
-        if idleTimer == nil {
-            idleTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
-                self?.checkForInactiveConnections()
+        if idleTask == nil {
+            idleTask = Task.detached { [weak self] in
+                guard let self = self else { return }
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
+                    await self.checkForInactiveConnectionsAsync()
+                }
             }
         }
     }
     
     // Stop idle timer
     private func stopIdleTimer() {
-        idleTimer?.invalidate()
-        idleTimer = nil
+        idleTask?.cancel()
+        idleTask = nil
     }
     
     // Check for inactive connections and close them
-    private func checkForInactiveConnections() {
-        connectionLock.lock()
-        let connections = activeConnections.values
-        let inactiveIds = connections.filter {
-            $0.isInactive(timeoutSeconds: 300) // 5 minute timeout
-        }.map { $0.id }
-        connectionLock.unlock()
-        
+    @MainActor
+    private func checkForInactiveConnectionsAsync() async {
+        let inactiveIds = await connections.getInactiveIds(timeoutSeconds: 300)
         // Close inactive connections
         for id in inactiveIds {
             print("Closing inactive connection \(id)")
-            connectionLock.lock()
-            if let handler = activeConnections[id] {
+            if let handler = await connections.get(id: id) {
                 handler.stop()
-                activeConnections.removeValue(forKey: id)
+                await connections.remove(id: id)
             }
-            let count = activeConnections.count
-            connectionLock.unlock()
-            
-            Task { @MainActor in
+            let count = await connections.count()
+            await MainActor.run {
                 connectionCount = count
                 status = count > 0 ? "Active: \(count) connection(s)" : "Running on localhost:\(localPort)"
             }
@@ -250,37 +250,26 @@ class SimpleFTPServer: ObservableObject {
     private func closeAllExistingConnections() {
         print("Closing all existing connections for new request")
         
-        // Lock the connections during modification
-        connectionLock.lock()
-        
-        // Force close on all active connections
-        for (_, handler) in activeConnections {
-            // Call our new forceClose method
-            handler.forceCloseForNewRequest()
-        }
-        
-        // At this point, all handlers should have been removed via their onDisconnect callbacks
-        // But let's ensure the dictionary is cleared just in case
-        activeConnections.removeAll()
-        
-        connectionLock.unlock()
-        
-        // Update status
-        Task { @MainActor in
-            self.connectionCount = 0
-            self.status = "Running on localhost:\(localPort) - New connection incoming"
+        Task {
+            let handlers = await connections.removeAll()
+            for handler in handlers {
+                handler.forceCloseForNewRequest()
+            }
+            await MainActor.run {
+                self.connectionCount = 0
+                self.status = "Running on localhost:\(localPort) - New connection incoming"
+            }
         }
     }
     
     private func handleClientDisconnect(id: UUID) {
-        connectionLock.lock()
-        activeConnections.removeValue(forKey: id)
-        let count = activeConnections.count
-        connectionLock.unlock()
-        
-        Task { @MainActor in
-            connectionCount = count
-            status = count > 0 ? "Active: \(count) connection(s)" : "Running on localhost:\(localPort)"
+        Task {
+            await connections.remove(id: id)
+            let count = await connections.count()
+            await MainActor.run {
+                connectionCount = count
+                status = count > 0 ? "Active: \(count) connection(s)" : "Running on localhost:\(localPort)"
+            }
         }
     }
     
@@ -294,22 +283,16 @@ class SimpleFTPServer: ObservableObject {
         listener?.cancel()
         listener = nil
         
-        // Copy active connections to a local array to avoid mutation while iterating
-        connectionLock.lock()
-        let handlers = activeConnections.values
-        activeConnections.removeAll()
-        connectionLock.unlock()
-        
-        // Stop each handler
-        for handler in handlers {
-            handler.stop()
-        }
-        
-        // Update status
-        Task { @MainActor in
-            isRunning = false
-            connectionCount = 0
-            status = "Stopped"
+        Task {
+            let handlers = await connections.removeAll()
+            for handler in handlers {
+                handler.stop()
+            }
+            await MainActor.run {
+                isRunning = false
+                connectionCount = 0
+                status = "Stopped"
+            }
         }
         
         print("FTP server stopped")
@@ -318,7 +301,7 @@ class SimpleFTPServer: ObservableObject {
 
 
 /// Simplified FTP client handler focused on file transfers
-class FTPSimpleHandler {
+class FTPSimpleHandler : @unchecked Sendable {
     // Network
     private let connection: NWConnection
     let id: UUID
@@ -475,7 +458,8 @@ class FTPSimpleHandler {
             return connection
         } catch {
             // Check for max connections error (customize this check as needed)
-            if let err = error as? NSError, err.localizedDescription.contains("max connections") || err.localizedDescription.contains("too many") {
+            let nsError = error as NSError
+            if nsError.localizedDescription.contains("max connections") || nsError.localizedDescription.contains("too many") {
                 // Send FTP 421 response and cleanup
                 sendResponse(421, "Max connections reached, try again later")
                 cleanup()
@@ -580,8 +564,7 @@ class FTPSimpleHandler {
         
         connection.send(content: data, completion: .contentProcessed { [weak self] error in
             if let error = error {
-                // Handle broken pipe errors differently - they happen when client disconnects
-                if let posixError = error as? POSIXError, posixError.code == .EPIPE {
+                if case let .posix(posixErrorCode) = error, posixErrorCode == .EPIPE {
                     print("Client disconnected before response was sent")
                 } else {
                     print("Error sending response: \(error)")
@@ -618,7 +601,7 @@ class FTPSimpleHandler {
         
         connection.send(content: data, completion: .contentProcessed { [weak self] error in
             if let error = error {
-                if let posixError = error as? POSIXError, posixError.code == .EPIPE {
+                if case let .posix(posixErrorCode) = error, posixErrorCode == .EPIPE {
                     print("Client disconnected before multi-line response was sent")
                 } else {
                     print("Error sending multi-line response: \(error)")
@@ -870,7 +853,7 @@ class FTPSimpleHandler {
     
     // Normalize a path
     private func normalizePath(_ path: String) -> String {
-        var components = path.split(separator: "/")
+        let components = path.split(separator: "/")
         var stack: [String] = []
         
         for component in components {
@@ -1230,76 +1213,82 @@ class FTPSimpleHandler {
         // Start data connection
         await setupDataConnection { [weak self] connection in
             guard let self = self else { return }
-            
             Task {
+                await self.transferFileOverConnection(connection: connection, normalizedPath: normalizedPath, hasRestPosition: hasRestPosition, startPosition: startPosition)
+            }
+        }
+    }
+
+    private func transferFileOverConnection(connection: NWConnection, normalizedPath: String, hasRestPosition: Bool, startPosition: UInt64) async {
+        do {
+            // Get a fresh SSH connection
+            let sshConnection = try await self.getSSHConnection()
+            let sftp = try await sshConnection.connectSFTP()
+            let file = try await sftp.openFile(filePath: normalizedPath, flags: .read)
+            defer { Task { try? await file.close() } }
+            
+            // Get file size for progress reporting
+            let attributes = try await file.readAttributes()
+            let totalSize = attributes.size ?? 0
+            
+            // Start reading from the correct offset
+            var offset: UInt64 = hasRestPosition ? startPosition : 0
+            let chunkSize: UInt32 = 32768 // 32 KB
+            var totalSent = 0
+            
+            while true {
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
+                let data = try await file.read(from: offset, length: chunkSize)
+                if data.readableBytes == 0 {
+                    break // End of file
+                }
+                let dataToSend = Data(buffer: data)
                 do {
-                    // Get a fresh SSH connection
-                    let sshConnection = try await self.getSSHConnection()
-                    let sftp = try await sshConnection.connectSFTP()
-                    let file = try await sftp.openFile(filePath: normalizedPath, flags: .read)
-                    defer { Task { try? await file.close() } }
-                    
-                    // Get file size for progress reporting
-                    let attributes = try await file.readAttributes()
-                    let totalSize = attributes.size ?? 0
-                    
-                    // Start reading from the correct offset
-                    var offset: UInt64 = hasRestPosition ? startPosition : 0
-                    let chunkSize: UInt32 = 32768 // 32 KB
-                    var totalSent = 0
-                    
-                    while true {
-                        if Task.isCancelled {
-                            throw CancellationError()
-                        }
-                        let data = try await file.read(from: offset, length: chunkSize)
-                        if data.readableBytes == 0 {
-                            break // End of file
-                        }
-                        let dataToSend = Data(buffer: data)
-                        let sendSemaphore = DispatchSemaphore(value: 0)
-                        var sendError: Error? = nil
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                         connection.send(content: dataToSend, completion: .contentProcessed { error in
-                            sendError = error
-                            sendSemaphore.signal()
-                        })
-                        _ = sendSemaphore.wait(timeout: .now() + 10.0)
-                        if let error = sendError {
-                            print("Error sending data: \(error)")
-                            break
-                        }
-                        totalSent += dataToSend.count
-                        offset += UInt64(dataToSend.count)
-                        // Optionally log progress
-                        if totalSize > 0 {
-                            let progress = Double(totalSent + (hasRestPosition ? Int(startPosition) : 0)) / Double(totalSize) * 100
-                            if Int(progress) % 5 == 0 {
-                                print("Transfer progress: \(Int(progress))% (\(totalSent + (hasRestPosition ? Int(startPosition) : 0))/\(totalSize))")
+                            if let error = error {
+                                continuation.resume(throwing: error)
+                            } else {
+                                continuation.resume()
                             }
-                        } else if totalSent % (5 * 1024 * 1024) < dataToSend.count {
-                            print("Transferred \(totalSent) bytes (starting at position \(hasRestPosition ? Int(startPosition) : 0))")
-                        }
+                        })
                     }
-                    // Close the data connection when done
-                    connection.cancel()
-                    // Send completion status
-                    if totalSent > 0 {
-                        self.sendResponse(226, "Transfer complete")
-                        print("RETR completed successfully: \(totalSent) bytes transferred (starting at \(hasRestPosition ? Int(startPosition) : 0))")
-                    } else {
-                        self.sendResponse(550, "Failed to transfer file")
-                        print("RETR failed: No data transferred")
-                    }
-                    // Release SSH connection after transfer completes
-                    self.releaseSSHConnection()
                 } catch {
-                    print("Error retrieving file: \(error)")
-                    self.sendResponse(550, "Error retrieving file: \(error.localizedDescription)")
-                    connection.cancel()
-                    // Release SSH connection on error
-                    self.releaseSSHConnection()
+                    print("Error sending data: \(error)")
+                    break
+                }
+                totalSent += dataToSend.count
+                offset += UInt64(dataToSend.count)
+                // Optionally log progress
+                if totalSize > 0 {
+                    let progress = Double(totalSent + (hasRestPosition ? Int(startPosition) : 0)) / Double(totalSize) * 100
+                    if Int(progress) % 5 == 0 {
+                        print("Transfer progress: \(Int(progress))% (\(totalSent + (hasRestPosition ? Int(startPosition) : 0))/\(totalSize))")
+                    }
+                } else if totalSent % (5 * 1024 * 1024) < dataToSend.count {
+                    print("Transferred \(totalSent) bytes (starting at position \(hasRestPosition ? Int(startPosition) : 0))")
                 }
             }
+            // Close the data connection when done
+            connection.cancel()
+            // Send completion status
+            if totalSent > 0 {
+                self.sendResponse(226, "Transfer complete")
+                print("RETR completed successfully: \(totalSent) bytes transferred (starting at \(hasRestPosition ? Int(startPosition) : 0))")
+            } else {
+                self.sendResponse(550, "Failed to transfer file")
+                print("RETR failed: No data transferred")
+            }
+            // Release SSH connection after transfer completes
+            self.releaseSSHConnection()
+        } catch {
+            print("Error retrieving file: \(error)")
+            self.sendResponse(550, "Error retrieving file: \(error.localizedDescription)")
+            connection.cancel()
+            // Release SSH connection on error
+            self.releaseSSHConnection()
         }
     }
     

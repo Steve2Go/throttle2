@@ -1,5 +1,8 @@
 import SwiftUI
 import SimpleToast
+#if os(iOS)
+import UIKit
+#endif
 
 struct DetailsView: View {
     @ObservedObject var store: Store
@@ -250,7 +253,7 @@ struct DetailsView: View {
     
     @ViewBuilder
     private var torrentDetails: some View {
-        if let selectedTorrentId = store.selectedTorrentId,
+        if let _ = store.selectedTorrentId,
            let torrent = detailedTorrent {
      
                 
@@ -304,10 +307,13 @@ Spacer()
 #if os(iOS)
                                     let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent((detailedTorrent?.name ?? "torrent") + ".torrent")
                                     try data.write(to: tempURL)
-                                    
                                     let picker = UIDocumentPickerViewController(forExporting: [tempURL])
                                     DispatchQueue.main.async {
-                                        if var topController = UIApplication.shared.windows.first?.rootViewController {
+                                        let keyWindow = UIApplication.shared.connectedScenes
+                                            .compactMap { $0 as? UIWindowScene }
+                                            .flatMap { $0.windows }
+                                            .first { $0.isKeyWindow }
+                                        if var topController = keyWindow?.rootViewController {
                                             while let presented = topController.presentedViewController {
                                                 topController = presented
                                             }
@@ -390,7 +396,7 @@ Spacer()
                 }
                     // Files
                     DetailSection(title: "Files") {
-                        if let selectedTorrentId = store.selectedTorrentId,
+                        if let _ = store.selectedTorrentId,
                            let torrentFiles = detailedTorrent?.files,
                            let fileStats = detailedTorrent?.dynamicFields["fileStats"]?.value as? [[String: Any]] {
                             //DisclosureGroup(isExpanded: $showFiles) {
@@ -487,19 +493,17 @@ Spacer()
                         if let trackerStats = torrent.trackerStats {
                             VStack(alignment: .leading, spacing: 12) {
                                 ForEach(trackerStats.indices, id: \.self) { index in
-                                    if let tracker = trackerStats[index] as? [String: Any],
-                                       let host = tracker["host"] as? String {
+                                    let tracker = trackerStats[index]
+                                    if let host = tracker["host"] as? String {
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(host)
                                                 .font(.subheadline)
-                                            
                                             if let lastAnnounceResult = tracker["lastAnnounceResult"] as? String {
                                                 Text(lastAnnounceResult)
                                                     .font(.caption)
                                                     .foregroundStyle(.secondary)
                                             }
                                         }
-                                        
                                         if index < trackerStats.count - 1 {
                                             Divider()
                                         }

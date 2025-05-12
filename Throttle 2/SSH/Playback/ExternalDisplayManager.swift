@@ -16,82 +16,9 @@ class ExternalDisplayManager: ObservableObject {
     private var externalWindow: UIWindow?
     private var isVideoPlayerActive = false
     
-    // Notification observers
-    private var screenDidConnectObserver: NSObjectProtocol?
-    private var screenDidDisconnectObserver: NSObjectProtocol?
-    
-    private var monitoringTimer: Timer?
-    
     private init() {
-        // Register for screen connection/disconnection notifications
-        screenDidConnectObserver = NotificationCenter.default.addObserver(
-            forName: UIScreen.didConnectNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleExternalDisplayConnection()
-        }
-        
-        screenDidDisconnectObserver = NotificationCenter.default.addObserver(
-            forName: UIScreen.didDisconnectNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleExternalDisplayDisconnection()
-        }
-        
         // Check if an external display is already connected
         configureExternalDisplayIfNeeded()
-    }
-    
-    deinit {
-        // Clean up observers when the manager is deallocated
-        if let observer = screenDidConnectObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        
-        if let observer = screenDidDisconnectObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        
-        // Clean up timer
-        stopMonitoringTimer()
-    }
-    
-    // Public method to start monitoring
-    func startMonitoring() {
-        configureExternalDisplayIfNeeded()
-        
-        // Start a timer to periodically check for external displays
-        startMonitoringTimer()
-    }
-    
-    private func startMonitoringTimer() {
-        // Cancel any existing timer
-        monitoringTimer?.invalidate()
-        
-        // Create a new timer that checks every 1 second
-        monitoringTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.checkForExternalDisplays()
-        }
-    }
-    
-    private func stopMonitoringTimer() {
-        monitoringTimer?.invalidate()
-        monitoringTimer = nil
-    }
-    
-    private func checkForExternalDisplays() {
-        let hasExternalDisplay = UIScreen.screens.count > 1
-        
-        // If we detect a change in external display status, handle it
-        if hasExternalDisplay != isExternalDisplayConnected {
-            if hasExternalDisplay {
-                handleExternalDisplayConnection()
-            } else {
-                handleExternalDisplayDisconnection()
-            }
-        }
     }
     
     // Public method to temporarily suspend the black screen for video player
@@ -108,8 +35,11 @@ class ExternalDisplayManager: ObservableObject {
     
     // Private methods
     private func configureExternalDisplayIfNeeded() {
-        // Look for an external display
-        if let externalScreen = UIScreen.screens.first(where: { $0 != UIScreen.main }) {
+        // Look for an external display using openSessions/scenes
+        if let externalScreen = UIApplication.shared.openSessions
+            .compactMap({ $0.scene as? UIWindowScene })
+            .map({ $0.screen })
+            .first(where: { $0 != UIScreen.main }) {
             createBlackScreenOnExternalDisplay(externalScreen)
             isExternalDisplayConnected = true
         } else {
@@ -118,7 +48,10 @@ class ExternalDisplayManager: ObservableObject {
     }
     
     private func handleExternalDisplayConnection() {
-        if let externalScreen = UIScreen.screens.first(where: { $0 != UIScreen.main }) {
+        if let externalScreen = UIApplication.shared.openSessions
+            .compactMap({ $0.scene as? UIWindowScene })
+            .map({ $0.screen })
+            .first(where: { $0 != UIScreen.main }) {
             createBlackScreenOnExternalDisplay(externalScreen)
             isExternalDisplayConnected = true
         }
@@ -157,7 +90,10 @@ class ExternalDisplayManager: ObservableObject {
     }
     
     private func showBlackScreen() {
-        if let externalScreen = UIScreen.screens.first(where: { $0 != UIScreen.main }) {
+        if let externalScreen = UIApplication.shared.openSessions
+            .compactMap({ $0.scene as? UIWindowScene })
+            .map({ $0.screen })
+            .first(where: { $0 != UIScreen.main }) {
             createBlackScreenOnExternalDisplay(externalScreen)
         }
     }
@@ -169,6 +105,22 @@ class ExternalDisplayManager: ObservableObject {
     private func tearDownExternalWindow() {
         externalWindow?.isHidden = true
         externalWindow = nil
+    }
+    
+    // SwiftUI/iOS 16+ method to update external display status
+    public func updateExternalDisplayStatus() {
+        let hasExternalDisplay = UIApplication.shared.connectedScenes.contains { scene in
+            guard let windowScene = scene as? UIWindowScene else { return false }
+            return windowScene.screen != UIScreen.main
+        }
+        if hasExternalDisplay != isExternalDisplayConnected {
+            isExternalDisplayConnected = hasExternalDisplay
+            if hasExternalDisplay {
+                handleExternalDisplayConnection()
+            } else {
+                handleExternalDisplayDisconnection()
+            }
+        }
     }
 }
 

@@ -23,13 +23,9 @@ struct MacOSContentView: View {
     @AppStorage("detailView") private var detailView = false
     @AppStorage("firstRun") private var firstRun = true
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = true
-    @State var isMounted = false
 
   @State private var isAnimating = false
-    
-    #if os(macOS)
-    var mountManager = ServerMountManager()
-#endif
+
 
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true)
     
@@ -51,6 +47,7 @@ struct MacOSContentView: View {
                         .frame(width: 400, height: 500)
                         .padding(20)
                 }
+            
                 .navigationBarBackButtonHidden(true)
                 .toolbar{
                     ToolbarItem (placement: .automatic) {
@@ -79,7 +76,7 @@ struct MacOSContentView: View {
                         ToolbarItem (placement: .automatic) {
                             Button {
                                 
-                                let path = mountManager.getMountPath(for: store.selection!)
+                                let path = ServerMountManager.shared.getMountPath(for: store.selection!)
                                 NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path.absoluteString.replacingOccurrences(of: "file://", with: ""))
                                 //NSWorkspace.shared.activateFileViewerSelecting([path])
                                 

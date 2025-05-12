@@ -2,6 +2,32 @@
 import SwiftUI
 import WebKit
 import Citadel
+#if os(macOS)
+import AppKit
+#endif
+
+// Helper to resize image data to a target size (macOS/iOS)
+func resizedImageData(_ data: Data, maxSize: CGSize) -> Data? {
+#if os(macOS)
+    guard let image = NSImage(data: data) else { return nil }
+    let aspect = min(maxSize.width / image.size.width, maxSize.height / image.size.height, 1.0)
+    let targetSize = CGSize(width: image.size.width * aspect, height: image.size.height * aspect)
+    let newImage = NSImage(size: targetSize)
+    newImage.lockFocus()
+    image.draw(in: NSRect(origin: .zero, size: targetSize), from: NSRect(origin: .zero, size: image.size), operation: .copy, fraction: 1.0)
+    newImage.unlockFocus()
+    return newImage.tiffRepresentation
+#else
+    guard let image = UIImage(data: data) else { return nil }
+    let aspect = min(maxSize.width / image.size.width, maxSize.height / image.size.height, 1.0)
+    let targetSize = CGSize(width: image.size.width * aspect, height: image.size.height * aspect)
+    UIGraphicsBeginImageContextWithOptions(targetSize, false, 0.0)
+    image.draw(in: CGRect(origin: .zero, size: targetSize))
+    let resized = UIGraphicsGetImageFromCurrentImageContext()
+    UIGraphicsEndImageContext()
+    return resized?.pngData()
+#endif
+}
 
 // MARK: - Shared Image Loading
 // This class handles image loading for both regular and external viewers
@@ -15,55 +41,77 @@ class RemoteImageLoader {
         self.server = server
     }
     
-    func loadImage(progressHandler: ((Double) -> Void)? = nil) async throws -> Data {
-        // Cancel any existing task
+    // Use ffmpeg for server-side resizing, fallback to local resize if needed
+    func loadImage(maxSize: CGSize = CGSize(width: 1920, height: 1080), progressHandler: ((Double) -> Void)? = nil) async throws -> Data {
         downloadTask?.cancel()
-        
-        // Create a new download task
         let task = Task<Data, Error> {
             print("Downloading image from: \(url.path)")
-            
-            // Create a temporary file for storing the image data
             let tempDir = FileManager.default.temporaryDirectory
             let tempURL = tempDir.appendingPathComponent(UUID().uuidString + ".img")
-            
-            // Create the directory if needed
             try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
-            
-            // Create an empty file to ensure it exists
             FileManager.default.createFile(atPath: tempURL.path, contents: nil)
-            
-            // Clean up temp file when done
-            defer {
-                try? FileManager.default.removeItem(at: tempURL)
-            }
-            
-            // Create an SSH connection directly
+            defer { try? FileManager.default.removeItem(at: tempURL) }
             let connection = SSHConnection(server: server)
-            
-            // Use our improved downloadFile method to retrieve the image
-            try await connection.downloadFile(remotePath: url.path, localURL: tempURL) { progress in
-                progressHandler?(progress)
+            let remoteTemp = "/tmp/thumb-\(UUID().uuidString).jpg"
+            var usedServerResize = false
+            // Find ffmpeg path (as in ThumbnailManagerIOS)
+            var ffmpegPath: String? = server.ffmpegPath
+            let knownPaths = ["ffmpeg", "$HOME/bin/ffmpeg", "$HOME/bin/ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe"]
+            if ffmpegPath == nil || ffmpegPath!.isEmpty {
+                for path in knownPaths {
+                    if let (_, testOutput) = try? await connection.executeCommand("\(path) -version || echo 'notfound'") {
+                        if !testOutput.contains("notfound") && !testOutput.contains("not found") {
+                            ffmpegPath = path
+                            break
+                        }
+                    }
+                }
             }
-            
-            // Clean up the connection when done
+            // If still not found, fallback to local resize
+            if ffmpegPath == nil || ffmpegPath!.isEmpty {
+                print("[RemoteImageLoader] ffmpeg not found on server, falling back to local resize.")
+                try await connection.downloadFile(remotePath: url.path, localURL: tempURL) { progress in
+                    progressHandler?(progress)
+                }
+                await connection.disconnect()
+                guard let data = try? Data(contentsOf: tempURL) else {
+                    throw NSError(domain: "RemoteImageLoader", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to read image data"])
+                }
+                return resizedImageData(data, maxSize: maxSize) ?? data
+            }
+            // Run ffmpeg to resize the image
+            let ffmpegCmd = "\(ffmpegPath!) -i '\(url.path)' -vf \"scale='min(iw,\(Int(maxSize.width)))':'min(ih,\(Int(maxSize.height)))':force_original_aspect_ratio=decrease\" '\(remoteTemp)' -y -loglevel error || echo $?"
+            do {
+                let (status, output) = try await connection.executeCommand(ffmpegCmd)
+                print("[RemoteImageLoader] ffmpeg output: \(output)")
+                print("[RemoteImageLoader] ffmpeg status: \(status)")
+                // Check if output file exists
+                let testCmd = "[ -f '\(remoteTemp)' ] && echo 'success' || echo 'failed'"
+                let (_ , testOutput) = try await connection.executeCommand(testCmd)
+                if testOutput.trimmingCharacters(in: .whitespacesAndNewlines) == "success" {
+                    try await connection.downloadFile(remotePath: remoteTemp, localURL: tempURL) { progress in
+                        progressHandler?(progress)
+                    }
+                    usedServerResize = true
+                }
+            } catch {
+                print("[RemoteImageLoader] ffmpeg resize failed: \(error)")
+            }
             await connection.disconnect()
-            
-            // Check if task was cancelled
-            try Task.checkCancellation()
-            
-            // Read the data from the temporary file
-            guard let data = try? Data(contentsOf: tempURL) else {
-                throw NSError(domain: "RemoteImageLoader", code: -2,
-                              userInfo: [NSLocalizedDescriptionKey: "Failed to read image data"])
+            // Clean up remote temp file
+            if usedServerResize {
+                _ = try? await SSHConnection(server: server).executeCommand("rm -f '\(remoteTemp)'")
             }
-            
-            print("✅ Image downloaded successfully, size: \(data.count) bytes")
-            return data
+            guard let data = try? Data(contentsOf: tempURL) else {
+                throw NSError(domain: "RemoteImageLoader", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to read image data"])
+            }
+            if usedServerResize {
+                return data
+            } else {
+                return resizedImageData(data, maxSize: maxSize) ?? data
+            }
         }
-        
         self.downloadTask = task
-        
         do {
             return try await task.value
         } catch {
@@ -120,6 +168,9 @@ struct ImageBrowserView: View {
     @State private var isAnimating: Bool = false
     let sftpViewModel: SFTPFileBrowserViewModel
     @Environment(\.dismiss) private var dismiss
+    // Preloading state
+    @State private var preloadedImages: [Int: Data] = [:]
+    @State private var preloadTasks: [Int: Task<Void, Never>] = [:]
     
     init(imageUrls: [URL], initialIndex: Int, sftpConnection: SFTPFileBrowserViewModel) {
         self.imageUrls = imageUrls
@@ -154,10 +205,10 @@ struct ImageBrowserView: View {
             VStack {
                 TabView(selection: $currentIndex) {
                     ForEach(0..<imageUrls.count, id: \.self) { index in
-                        // Use SSHImageViewer instead of DDImageViewer
                         SSHImageViewer(
                             url: imageUrls[index],
-                            server: ServerManager.shared.selectedServer ?? sftpViewModel.server
+                            server: ServerManager.shared.selectedServer ?? sftpViewModel.server,
+                            preloadedData: preloadedImages[index]
                         )
                         .tag(index)
                     }
@@ -165,12 +216,10 @@ struct ImageBrowserView: View {
                 .tabViewStyle(.page)
                 .background(Color.black)
                 .onChange(of: currentIndex) {
-                    // Mark that we're animating
                     isAnimating = true
-                    
-                    // Once animation completes, clear animation flag
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                         isAnimating = false
+                        preloadAdjacentImages(currentIndex: currentIndex)
                     }
                 }
                 
@@ -200,6 +249,39 @@ struct ImageBrowserView: View {
             }
         }
         .statusBar(hidden: true)
+        .onAppear {
+            preloadAdjacentImages(currentIndex: currentIndex)
+        }
+        .onDisappear {
+            for task in preloadTasks.values { task.cancel() }
+            preloadTasks.removeAll()
+            preloadedImages.removeAll()
+            Task { await sftpViewModel.cleanup() }
+        }
+    }
+    
+    private func preloadAdjacentImages(currentIndex: Int) {
+        let indicesToPreload = [currentIndex - 1, currentIndex + 1].filter { $0 >= 0 && $0 < imageUrls.count }
+        for idx in indicesToPreload {
+            // Cancel any previous preload task for this index
+            preloadTasks[idx]?.cancel()
+            // If already loaded, skip
+            if preloadedImages[idx] != nil { continue }
+            let url = imageUrls[idx]
+            let server = ServerManager.shared.selectedServer ?? sftpViewModel.server
+            let task = Task {
+                let loader = RemoteImageLoader(url: url, server: server)
+                do {
+                    let data = try await loader.loadImage()
+                    await MainActor.run {
+                        preloadedImages[idx] = data
+                    }
+                } catch {
+                    // Ignore errors for preloading
+                }
+            }
+            preloadTasks[idx] = task
+        }
     }
 }
 
@@ -207,6 +289,7 @@ struct ImageBrowserView: View {
 struct SSHImageViewer: View {
     let url: URL
     let server: ServerEntity
+    let preloadedData: Data?
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var imageData: Data?
@@ -240,10 +323,14 @@ struct SSHImageViewer: View {
         }
         .background(Color.black)
         .onAppear {
-            loadImage()
+            if let preloaded = preloadedData {
+                self.imageData = preloaded
+                self.isLoading = false
+            } else {
+                loadImage()
+            }
         }
         .onDisappear {
-            // Cancel download if view disappears
             loader?.cancel()
             loadingTask?.cancel()
         }
@@ -316,34 +403,21 @@ struct ExternalImageBrowserView: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never)) // Hide the dots
-            .animation(.none) // Disable automatic animations
+            .animation(nil, value: sharedState.currentIndex) // Disable automatic animations
             .background(Color.black)
-            .onChange(of: sharedState.currentIndex) { newIndex in
+            .onChange(of: sharedState.currentIndex) { oldValue, newValue in
                 // When index changes, trigger fade transition
                 withAnimation(.easeInOut(duration: 0.3)) {
                     fadeOpacity = 0.0
                 }
-                
                 // After fade out completes, fade back in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     withAnimation(.easeInOut(duration: 0.3)) {
                         fadeOpacity = 1.0
                     }
                 }
-                
                 // Preload the next AND previous images
-                preloadAdjacentImages(currentIndex: newIndex)
-            }
-            
-            // Small display indicator
-            VStack {
-                Spacer()
-                Text("\(sharedState.currentIndex + 1) of \(imageUrls.count)")
-                    .foregroundColor(.white)
-                    .padding(8)
-                    .background(Color.black.opacity(0.5))
-                    .cornerRadius(10)
-                    .padding(.bottom, 20)
+                preloadAdjacentImages(currentIndex: newValue)
             }
         }
         .statusBar(hidden: true)
@@ -438,9 +512,9 @@ struct ExternalImageBrowserView: View {
                 if !(error is CancellationError) {
                     print("❌ Failed to preload image \(index+1): \(error.localizedDescription)")
                 }
-                await MainActor.run {
+                //await MainActor.run {
                     preloadTasks.removeValue(forKey: index)
-                }
+                //}
             }
         }
         
@@ -467,7 +541,8 @@ struct EnhancedExternalSSHImageViewer: View {
         ZStack {
             if let imageData = imageData {
                 ImageWebView(imageData: imageData)
-                    .opacity(fadeOpacity) // Apply fade effect
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
                     .onAppear {
                         // Report that image is loaded
                         sharedState.imageDidLoad()
@@ -651,7 +726,7 @@ struct ImageBrowserControlView: View {
                                 )
                                 .accentColor(.white)
                                 .frame(width: 120)
-                                .onChange(of: slideshowInterval) { _ in
+                                .onChange(of: slideshowInterval) {
                                     if sharedState.isPlayingSlideshow {
                                         resetCountdown()
                                     }
@@ -732,13 +807,13 @@ struct ImageBrowserControlView: View {
         .onDisappear {
             stopSlideshow()
         }
-        .onChange(of: sharedState.isImageLoaded) { newValue in
+        .onChange(of: sharedState.isImageLoaded) { oldValue, newValue in
             if newValue && sharedState.isPlayingSlideshow && !countdownActive {
                 // Image just loaded and slideshow is active, start countdown
                 startCountdown()
             }
         }
-        .onChange(of: sharedState.currentIndex) { _ in
+        .onChange(of: sharedState.currentIndex) { oldValue, newValue in
             // When index changes, wait for image to load before starting countdown again
             if sharedState.isPlayingSlideshow {
                 stopCountdown()
@@ -891,9 +966,11 @@ struct ImageWebView: UIViewRepresentable {
                     overflow: hidden;
                 }
                 img {
-                    max-width: 100%;
-                    max-height: 100vh;
+                    width: 100vw;
+                    height: 100vh;
                     object-fit: contain;
+                    display: block;
+                    margin: auto;
                 }
             </style>
         </head>
@@ -908,7 +985,7 @@ struct ImageWebView: UIViewRepresentable {
     
     // Helper function to determine the MIME type from image data
     private func determineMimeType(from data: Data) -> String {
-        var headerData = data.prefix(12)
+        let headerData = data.prefix(12)
         let headerBytes = [UInt8](headerData)
         
         // Check for common image format signatures
@@ -1144,6 +1221,11 @@ class ImageBrowserViewController: UIViewController {
     // Prepare for external display by notifying the manager
     private func prepareForExternalDisplay() {
         ExternalDisplayManager.shared.suspendForVideoPlayer()
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        Task { await sftpViewModel.cleanup() }
     }
     
     deinit {

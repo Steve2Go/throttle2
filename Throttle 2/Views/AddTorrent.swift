@@ -290,7 +290,7 @@ struct AddTorrentView: View {
                 
                 if deleteOnSuccess {
                     do {
-                        let secure = store.selectedFile!.startAccessingSecurityScopedResource()
+                        let _ = store.selectedFile!.startAccessingSecurityScopedResource()
                         try FileManager.default.removeItem(at: file!)
                         // File deleted successfully
                         

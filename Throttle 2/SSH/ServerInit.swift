@@ -190,10 +190,10 @@ extension Throttle_2App {
             }
     }
     #if os(iOS)
-    func setupExternalDisplayManager() {
-           // This will start monitoring for external displays and create a black screen when needed
-           ExternalDisplayManager.shared.startMonitoring()
-       }
+//    func setupExternalDisplayManager() {
+//           // This will start monitoring for external displays and create a black screen when needed
+//           ExternalDisplayManager.shared.startMonitoring()
+      // }
 
     
     #endif
@@ -206,20 +206,21 @@ extension Throttle_2App {
         Task {
             do {
                 // Clean up any existing servers
-                SimpleFTPServerManager.shared.removeServer(withIdentifier: "sftp-ftp")
+                //await SimpleFTPServerManager.shared.removeServer(withIdentifier: "sftp-ftp")
+                await SimpleFTPServerManager.shared.removeAllServers()
                 
                 // Create and start a new FTP server
                 let ftpServer = SimpleFTPServer(server: server)
                 try await ftpServer.start()
                 
                 // Store the server
-                SimpleFTPServerManager.shared.storeServer(ftpServer, withIdentifier: "sftp-ftp")
+                await SimpleFTPServerManager.shared.storeServer(ftpServer, withIdentifier: "sftp-ftp")
                 print("Simple FTP Server started on localhost:2121")
             } catch {
                 print("Failed to start FTP server: \(error)")
                 if tries < 3 {
                     //stopSFTP()
-                    SimpleFTPServerManager.shared.removeAllServers()
+                    await SimpleFTPServerManager.shared.removeAllServers()
                     try? await Task.sleep(nanoseconds: 2_000_000_000)
                     setupSimpleFTPServer(store: store, tries: tries + 1)
                 }else{
@@ -248,7 +249,9 @@ extension Throttle_2App {
         //guard let server = store.selection, server.sftpUsesKey == true else { return }
         
         //#if os(iOS)
-        SimpleFTPServerManager.shared.removeAllServers()
+        Task {
+            await SimpleFTPServerManager.shared.removeAllServers()
+        }
         //#endif
     }
   
@@ -281,7 +284,21 @@ class NetworkMonitor: ObservableObject {
 
 // Escape single quotes and special characters in paths
 func escapePath(_ path: String) -> String {
-        // Escape backslashes and double quotes
+    // Escape for safe use in double quotes in a shell command
+    // 1. Escape backslashes, double quotes, dollar signs, backticks
+    // 2. Parentheses are safe in double quotes, but single quotes are not
+    // 3. If the path contains a single quote, use a more robust approach
+    if path.contains("'") {
+        // Use the $'...' syntax for ANSI-C quoting if available (bash, zsh)
+        // Replace backslash, single quote, double quote, dollar, backtick
+        let escaped = path
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'\"'\"\\'") // break out of single quotes, insert escaped single quote, resume
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "$", with: "\\$")
+            .replacingOccurrences(of: "`", with: "\\`")
+        return "'\(escaped)'"
+    } else {
         let escaped = path
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
@@ -289,6 +306,7 @@ func escapePath(_ path: String) -> String {
             .replacingOccurrences(of: "`", with: "\\`")
         return "\"\(escaped)\""
     }
+}
 func urlEncodePath(_ path: String) -> String {
         guard let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
             return path // fallback to original if encoding fails

@@ -217,6 +217,7 @@ struct PathThumbnailViewMacOS: View {
         let imageName: String = {
             switch fileType {
             case .video: return "video"
+            case .audio: return "audio"
             case .image: return "image"
             case .other: return "document"
             }

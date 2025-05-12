@@ -375,7 +375,7 @@ struct TorrentListView: View {
         guard let torrent = selectedTorrent, !renameText.isEmpty else { return }
         
         do {
-            let result = try await manager.renamePath(
+            let _ = try await manager.renamePath(
                 ids: [torrent.id],
                 path: torrent.name ?? "",
                 newName: renameText

@@ -19,6 +19,7 @@ struct SettingsView: View {
     @AppStorage("qlVideo") var qlVideo: Bool = false
     @AppStorage("isAbout") var isAbout = false
     @AppStorage("unMountOnClose") var unMountOnClose = true
+    @AppStorage("mountOnOpen") var mountOnOpen = true
     @ObservedObject var presenting: Presenting
     @State var installerView = false
     @ObservedObject var manager: TorrentManager
@@ -135,9 +136,14 @@ struct SettingsView: View {
 //                    installerView.toggle()
 //                }
                 settingRow(
+                    title: "Mount servers on launch",
+                    description: "Mount the fuse file system whe the app opens",
+                    control: Toggle("", isOn: $unMountOnClose)
+                )
+                settingRow(
                     title: "Unmount Server Files on close",
                     description: "Unmount the fuse file system whe the app closes",
-                    control: Toggle("", isOn: $unMountOnClose)
+                    control: Toggle("", isOn: $mountOnOpen)
                 )
                 Text("About").font(.headline)
                 Text("Mac version installs fuse-t with sshfs").font(.caption)

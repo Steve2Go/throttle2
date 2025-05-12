@@ -17,6 +17,7 @@ struct ServerStatusBar: View {
     
     // Timer for refresh
     @State private var timer: Timer?
+    //@State private var ftpServerCount: Int = 0
     
     // Computed properties for formatted values
     private var downloadSpeedFormatted: String {
@@ -43,7 +44,6 @@ var isiPad: Bool {
         
         let spacing: CGFloat = 12
         let innerSpacing: CGFloat = 4
-        let dividerHeight: CGFloat = 16
         var horizontalPadding: CGFloat = 16
         var verticalPadding: CGFloat = 6
         
@@ -116,23 +116,6 @@ var isiPad: Bool {
                             .foregroundStyle(.green,.blue)
                             .foregroundColor(.green)
                     }
-//                    #else
-//                    if store.selection?.sftpRpc == true {
-//                        if TunnelManagerHolder.shared.activeTunnels.count > 0 {
-//                            Image(systemName: "checkmark.circle")
-//                                .foregroundColor(.green)
-//                        } else{
-//                            Image(systemName: "circle.dotted.circle")
-//                                .foregroundColor(.green)
-//                                .symbolEffect(.pulse.byLayer, options: .repeat(.continuous))
-//                        }
-//                    } else{
-//                        Image(systemName: "arrow.up.arrow.down")
-//                            .scaleEffect(x: -1, y: 1)
-//                            .symbolRenderingMode(.palette)
-//                            .foregroundStyle(.green,.blue)
-//                            .foregroundColor(.green)
-//                    }
 //                    #endif
                     // activity
                     Text("\(activeTorrents)/\(totalTorrents)")
@@ -214,11 +197,17 @@ var isiPad: Bool {
         .onAppear {
             startRefreshCycle()
             updateStats()
+//            Task {
+//                let count = await SimpleFTPServerManager.shared.activeServersCount()
+//                await MainActor.run {
+//                    ftpServerCount = count
+//                }
+//            }
         }
         .onDisappear {
             stopRefreshCycle()
         }
-        .onChange(of: manager.sessionId) { _ in
+        .onChange(of: manager.sessionId) {
             resetStats()
             
             // Only try to update stats if we have a selected server
@@ -230,7 +219,7 @@ var isiPad: Bool {
             }
         }
         // Restart refresh cycle when manager's refresh rate changes
-        .onChange(of: manager.refreshRate) { _ in
+        .onChange(of: manager.refreshRate) {
             startRefreshCycle()
         } .padding(.top, 0)
             .onChange(of: manager.fetchTimer?.isValid){
@@ -260,6 +249,12 @@ var isiPad: Bool {
         // Create a new timer
         timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { _ in
             updateStats()
+//            Task {
+//                let count = await SimpleFTPServerManager.shared.activeServersCount()
+//                await MainActor.run {
+//                    ftpServerCount = count
+//                }
+//            }
         }
     }
     
@@ -420,7 +415,7 @@ extension TorrentManager {
     
     func getFreeSpace(path: String) async throws -> FreeSpaceInfo {
         struct FreeSpaceRequest: Codable {
-            let method = "free-space"
+            var method = "free-space"
             let arguments: Arguments
             
             struct Arguments: Codable {

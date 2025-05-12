@@ -79,7 +79,7 @@ struct RenameSheetView: View {
         if let torrent = selectedTorrent {
             Task {
                 do {
-                    try await manager.renamePath(
+                   _ = try await manager.renamePath(
                         ids: [torrent.id],
                         path: torrent.name ?? "",
                         newName: renameText

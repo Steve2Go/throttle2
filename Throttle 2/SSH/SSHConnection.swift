@@ -80,6 +80,13 @@ class SSHConnectionManager {
 
 // Connection class for both SSH commands and SFTP operations
 class SSHConnection {
+    /**
+     Usage:
+     try await SSHConnection.withConnection(server: server) { connection in
+         // ... use connection ...
+     }
+     This ensures the connection is always disconnected at all exit points.
+     */
     private var server: ServerEntity
     private var client: SSHClient?
     private var sftpClient: SFTPClient?
@@ -648,14 +655,27 @@ class SSHConnection {
         try await connect()
     }
     
-    deinit {
-        // Unregister from the connection manager
-        SSHConnectionManager.shared.unregister(connection: self)
-        
-        Task {
-            await disconnect()
+    /// Helper to run an async operation with automatic disconnect at all exit points.
+    static func withConnection<T>(
+        server: ServerEntity,
+        operation: @escaping (SSHConnection) async throws -> T
+    ) async throws -> T {
+        let connection = SSHConnection(server: server)
+        do {
+            let result = try await operation(connection)
+            await connection.disconnect()
+            return result
+        } catch {
+            await connection.disconnect()
+            throw error
         }
     }
+    
+     deinit {
+         // Unregister from the connection manager
+         SSHConnectionManager.shared.unregister(connection: self)
+         // Do not launch a Task here; let the connection be cleaned up elsewhere
+     }
 }
 
 // Helper function to create an SSH connection from a server entity

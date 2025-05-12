@@ -20,37 +20,29 @@ let videoExtensionsPlayable: Set<String> = ["mp4", "mov", "mpeg", "m4v"]
 
 @main
 struct Throttle_2App: App {
+    @Environment(\.managedObjectContext) var viewContext
     let dataManager = DataManager.shared
     var tunnelManager: SSHTunnelManager?
     // Monitor the scene phase so we can restart the proxy when needed.
     @Environment(\.scenePhase) private var scenePhase
-    
+    @State var serverArray: [ServerEntity] = []
     @ObservedObject var manager = TorrentManager()
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject var presenting = Presenting()
     @ObservedObject var filter = TorrentFilters()
     @ObservedObject var store = Store()
-  //  @StateObject var proxyServer = SSHProxyServer.shared
     @StateObject var networkMonitor = NetworkMonitor()
     @State var isBackground: Timer?
     @State var tunnelClosed = false
     @State var isTunneling = false
-    @AppStorage("canAirplay") var canAirplay = false
-
-    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-        .synchronizable(true)
-#if os(iOS)
-    init() {
-            // Initialize external display manager at app startup
-            setupExternalDisplayManager()
-        }
-    #endif
-    
+    @AppStorage("unMountOnClose") var unMountOnClose = true
+    @AppStorage("mountOnOpen") var mountOnOpen = true
+    @AppStorage("sftpCompression") var sftpCompression: Bool = false
     var body: some Scene {
         #if os(macOS)
         // Use a single window for macOS:
         Window("Throttle 2", id: "main-window") {
-            ContentView(presenting: presenting,manager: manager, filter: filter, store: store)
+            ContentView(presenting: presenting,manager: manager, filter: filter, store: store )
                 .environment(\.managedObjectContext, DataManager.shared.viewContext)
                 .handlesExternalEvents(preferring: Set(arrayLiteral: "*"), allowing: Set(arrayLiteral: "*"))
                 .environmentObject(networkMonitor)
@@ -59,6 +51,15 @@ struct Throttle_2App: App {
                 
                 .onAppear {
                     presenting.didStart = true
+                    // Manual fetch of servers after context is available
+                    let context = DataManager.shared.viewContext
+                    let fetchRequest: NSFetchRequest<ServerEntity> = ServerEntity.fetchRequest()
+                    fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \ServerEntity.name, ascending: true)]
+                    do {
+                        serverArray = try context.fetch(fetchRequest)
+                    } catch {
+                        print("Failed to fetch servers: \(error)")
+                    }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                                     // This code will be executed just before the app terminates
@@ -78,6 +79,15 @@ struct Throttle_2App: App {
                 .onChange(of: store.selection) {
                     //Task {
                         setupServer(store: store, torrentManager: manager)
+                    // Refresh serverArray on selection change
+                    let context = DataManager.shared.viewContext
+                    let fetchRequest: NSFetchRequest<ServerEntity> = ServerEntity.fetchRequest()
+                    fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \ServerEntity.name, ascending: true)]
+                    do {
+                        serverArray = try context.fetch(fetchRequest)
+                    } catch {
+                        print("Failed to fetch servers: \(error)")
+                    }
                    // }
                     }
                    
@@ -109,13 +119,65 @@ struct Throttle_2App: App {
                 }
                 
             }
+            CommandMenu("Mount") {
+                
+
+                Button("Mount") {
+                    if !serverArray.isEmpty {
+                        ServerMountManager.shared.mountAllServers(serverArray)
+                    }
+                }
+                .keyboardShortcut("m", modifiers: [.command, .shift])
+
+                Button("Refresh") {
+                    ServerMountManager.shared.unmountAllServers()
+                    if !serverArray.isEmpty {
+                        ServerMountManager.shared.mountAllServers(serverArray)
+                        manager.reset()
+                    }
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+                
+                Button("Unmount") {
+                    ServerMountManager.shared.unmountAllServers()
+                }
+                .keyboardShortcut("u", modifiers: [.command, .shift])
+                
+                Divider()
+                // Toggle for Mount on Open
+                Button(action: { mountOnOpen.toggle() }) {
+                    Text("Mount on Open" + (mountOnOpen ? "  ✓" : ""))
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+
+                // Toggle for Unmount on Close
+                Button(action: { unMountOnClose.toggle() }) {
+                    Text("Unmount on Close" + (unMountOnClose ? "  ✓" : ""))
+                }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+                
+                // Toggle for Compression
+                Button(action: {
+                    sftpCompression.toggle()
+                    ServerMountManager.shared.unmountAllServers()
+                    if !serverArray.isEmpty {
+                        ServerMountManager.shared.mountAllServers(serverArray)
+                        manager.reset()
+                    }
+                }) {
+                    Text("Compress Transfers" + (sftpCompression ? "  ✓" : ""))
+                    
+                }
+            }
             
             
         }
+
+            
         #else
         // Use WindowGroup for iOS (or other platforms)
         WindowGroup {
-            ContentView(presenting: presenting, manager: manager, filter: filter, store: store)
+            ContentView(presenting: presenting,manager: manager, filter: filter, store: store)
                 .environment(\.managedObjectContext, DataManager.shared.viewContext)
                 .environmentObject(networkMonitor)
                 .environment(\.externalDisplayManager, ExternalDisplayManager.shared)
@@ -134,7 +196,6 @@ struct Throttle_2App: App {
                         if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                             refeshTunnel(store: store, torrentManager: manager)
                         }
-                        ExternalDisplayManager.shared.startMonitoring()
                         print("Foreground- starting queue")
                         manager.isLoading = false
                     }
@@ -144,7 +205,9 @@ struct Throttle_2App: App {
                     manager.stopPeriodicUpdates()
                     //stopSFTP()
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                        SimpleFTPServerManager.shared.removeAllServers()
+//                        Task{
+//                            await SimpleFTPServerManager.shared.removeAllServers()
+//                        }
                         TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
                     }
                     print("Background - stopping queue")
@@ -157,14 +220,13 @@ struct Throttle_2App: App {
                             if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                                 refeshTunnel(store: store, torrentManager: manager)
                             }
-                            ExternalDisplayManager.shared.startMonitoring()
                             print("Foreground- starting queue")
                             manager.isLoading = false
                         }
                     }
                 }
                 .onChange(of: store.selection) { oldValue, newValue in
-                           // Task {
+                            Task {
                                 if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                                     //if oldValue != nil {
                                         manager.isLoading = true
@@ -172,7 +234,7 @@ struct Throttle_2App: App {
                                         //stopSFTP()
                                         TunnelManagerHolder.shared.tearDownAllTunnels()
                                         TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
-                                        SimpleFTPServerManager.shared.removeAllServers()
+                                        await SimpleFTPServerManager.shared.removeAllServers()
                                     
                                     //}
                                     setupServer(store: store, torrentManager: manager)
@@ -180,7 +242,10 @@ struct Throttle_2App: App {
                                     setupServer(store: store, torrentManager: manager)
                                 }
                             }
-               // }
+                }
+                .onChange(of: UIApplication.shared.connectedScenes) { 
+                    ExternalDisplayManager.shared.updateExternalDisplayStatus()
+                }
         }
       
         #endif

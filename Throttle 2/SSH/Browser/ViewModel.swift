@@ -56,6 +56,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     private var activeThumbnailOperations: [URL: Task<Void, Never>] = [:]
     
+    @Published var musicPlayerPlaylist: [URL] = []
+    @Published var musicPlayerStartIndex: Int = 0
+    @Published var showingMusicPlayer = false
+    
     protocol SFTPFileBrowserViewModelDelegate: AnyObject {
         func viewModel(_ viewModel: SFTPFileBrowserViewModel, didRequestVideoPlayback configuration: VideoPlayerConfiguration)
     }
@@ -185,7 +189,6 @@ class SFTPFileBrowserViewModel: ObservableObject {
     func navigateToFolder(_ folderName: String) {
         clearThumbnailOperations()
         let newPath = "\(currentPath)/\(folderName)".replacingOccurrences(of: "//", with: "/")
-        
         Task { @MainActor in
             self.currentPath = newPath
             self.fetchItems()
@@ -194,13 +197,11 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     func navigateUp() {
         clearThumbnailOperations()
-        
         // Special handling for initial file path
         if isInitialPathAFile {
             // Get the parent directory path
             let url = URL(fileURLWithPath: initialPath)
             let parentPath = url.deletingLastPathComponent().path
-            
             Task { @MainActor in
                 self.isInitialPathAFile = false
                 self.currentPath = parentPath
@@ -306,7 +307,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
                 ToastManager.shared.show(message: "Deleted", icon: "info.circle", color: Color.green)
             } catch {
                 self.isLoading = false
-                ToastManager.shared.show(message: "Failed to Delete: \(error)", icon: "exclamationmark.triangle", color: Color.red)
+                //ToastManager.shared.show(message: "Failed to Delete: \(error)", icon: "exclamationmark.triangle", color: Color.red)
             }
         }
     }
@@ -376,11 +377,9 @@ class SFTPFileBrowserViewModel: ObservableObject {
         
         switch fileType {
         case .video:
-            if preferVLC && isVLCInstalled() {
-                openVideoInVLC(item: item, server: server)
-            } else {
-                openVideo(item: item, server: server)
-            }
+            openVideo(item: item, server: server)
+        case .audio:
+            openAudio(item: item, server: server)
         case .image:
             openImageBrowser(item)
         case .other:
@@ -390,97 +389,6 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     // MARK: - Video Playback
     
-    func isVLCInstalled() -> Bool {
-        #if os(iOS)
-        // Use a simple vlc:// URL to test if VLC is installed
-        guard let vlcUrl = URL(string: "vlc://") else { return false }
-        return UIApplication.shared.canOpenURL(vlcUrl)
-        #else
-        // For macOS, you might want to check differently or always return true
-        return false
-        #endif
-    }
-    
-    // To be compatible with the property used in openFile
-    var preferVLC: Bool {
-        return UserDefaults.standard.bool(forKey: "preferVLC")
-    }
-    
-    func openVideoInVLC(item: FileItem, server: ServerEntity) {
-        // Check if VLC is installed
-        if !isVLCInstalled() {
-            showVLCDownload.toggle()
-            return
-        }
-        
-        // Get all video files from current directory
-        let videoItems = items.filter { item in
-            !item.isDirectory && FileType.determine(from: item.url) == .video
-        }
-        
-        if videoItems.isEmpty {
-            print("❌ No video files found in the current directory")
-            return
-        }
-        
-        // Find the selected video's index
-        guard let selectedIndex = videoItems.firstIndex(where: { $0.url.path == item.url.path }) else {
-            print("❌ Selected video not found in filtered list")
-            return
-        }
-        
-        // Save remaining videos to AppStorage - Fix range handling
-        var remainingVideos: [String] = []
-        
-        // Add videos after the current one - safer range handling
-        if selectedIndex < videoItems.count - 1 {
-            let afterVideos = videoItems[(selectedIndex + 1)...].map { $0.url.path }
-            remainingVideos.append(contentsOf: afterVideos)
-        }
-        
-        // Add videos before the current one - safer range handling
-        if selectedIndex > 0 {
-            let beforeVideos = videoItems[..<selectedIndex].map { $0.url.path }
-            remainingVideos.append(contentsOf: beforeVideos)
-        }
-        
-        do {
-            // Encode and save to AppStorage
-            pendingVideoFiles = try JSONEncoder().encode(remainingVideos)
-            // Save server name for later reference
-            currentServerName = server.name ?? ""
-        } catch {
-            print("❌ Failed to encode video list: \(error)")
-        }
-        
-        // Use existing code to open the selected video in VLC
-        @AppStorage("useCloudKit") var useCloudKit: Bool = true
-        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
-        guard let username = server.sftpUser,
-              let password = keychain["sftpPassword" + (server.name ?? "")],
-              let hostname = server.sftpHost else {
-            print("❌ Missing server credentials")
-            return
-        }
-        
-        let port = server.sftpPort
-        let path = item.url.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
-        
-        // Properly encode the password for URL
-        let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
-        
-        let vlcUrl = URL(string: "vlc-x-callback://x-callback-url/stream?x-success=throttle://x-callback-url/playbackDidFinish&x-error=throttle://x-callback-url/playbackDidFail&url=sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")
-        
-        if let url = vlcUrl {
-            DispatchQueue.main.async {
-                #if os(iOS)
-                UIApplication.shared.open(url)
-                #else
-                NSWorkspace.shared.open(url)
-                #endif
-            }
-        }
-    }
     
     func openVideo(item: FileItem, server: ServerEntity) {
         // Get all video files from current directory
@@ -548,138 +456,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
             self.showingVideoPlayer = true
         }
     }
-    
-    // MARK: - VLC Playlist Handling
-    
-    func handleVLCCallback(server: ServerEntity) {
-        print("📲 Received VLC callback with server: \(server.name ?? "unknown")")
-        
-        // Check if we have pending videos
-        guard !pendingVideoFiles.isEmpty else {
-            print("✅ No more videos in queue")
-            return
-        }
-        
-        do {
-            // Decode the list of video paths
-            let videoPaths = try JSONDecoder().decode([String].self, from: pendingVideoFiles)
-            
-            guard !videoPaths.isEmpty else {
-                print("✅ No more videos in queue")
-                pendingVideoFiles = Data() // Clear the storage
-                return
-            }
-            
-            // Get the next video path
-            let nextVideoPath = videoPaths[0]
-            
-            // Create a FileItem for the next video
-            let nextVideoName = URL(fileURLWithPath: nextVideoPath).lastPathComponent
-            let nextVideoItem = FileItem(
-                name: nextVideoName,
-                url: URL(fileURLWithPath: nextVideoPath),
-                isDirectory: false,
-                size: nil,
-                modificationDate: Date()
-            )
-            
-            // Remove this video from the list and update storage
-            let remainingVideos = Array(videoPaths.dropFirst())
-            pendingVideoFiles = try JSONEncoder().encode(remainingVideos)
-            
-            // Show alert with countdown before playing next video
-            showNextVideoAlert(item: nextVideoItem, server: server)
-        } catch {
-            print("❌ Failed to decode video list: \(error)")
-            pendingVideoFiles = Data() // Clear on error
-        }
-    }
-    
-    // Show alert with countdown before playing next video
-    private func showNextVideoAlert(item: FileItem, server: ServerEntity) {
-        DispatchQueue.main.async {
-            self.nextVideoItem = item
-            self.nextVideoCountdown = UserDefaults.standard.integer(forKey: "waitPlaylist")
-            self.showingNextVideoAlert = true
-            
-            // Start countdown timer
-            self.nextVideoTimer?.invalidate()
-            self.nextVideoTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-                guard let self = self else {
-                    timer.invalidate()
-                    return
-                }
-                
-                if self.nextVideoCountdown > 0 {
-                    self.nextVideoCountdown -= 1
-                    // Manually trigger an update since we're not using @Published
-                    self.objectWillChange.send()
-                } else {
-                    // Time's up, play the video
-                    self.playNextVideo(server: server)
-                    timer.invalidate()
-                }
-            }
-        }
-    }
-    
-    func restartNextVideoTimer(server: ServerEntity) {
-        guard let item = nextVideoItem else { return }
-        
-        // Clear any existing timer
-        nextVideoTimer?.invalidate()
-        
-        // Start countdown timer
-        nextVideoTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
-            }
-            
-            if self.nextVideoCountdown > 0 {
-                self.nextVideoCountdown -= 1
-                // Manually trigger an update since we're not using @Published
-                self.objectWillChange.send()
-            } else {
-                // Time's up, play the video
-                self.playNextVideo(server: server)
-                timer.invalidate()
-            }
-        }
-    }
-    
-    // Function to play the next video
-    func playNextVideo(server: ServerEntity) {
-        guard let item = nextVideoItem else {
-            showingNextVideoAlert = false
-            return
-        }
-        
-        // Close the alert
-        showingNextVideoAlert = false
-        
-        // Send to VLC (reusing the existing VLC opener)
-        openVideoInVLC(item: item, server: server)
-        
-        // Clear references
-        nextVideoItem = nil
-        nextVideoTimer?.invalidate()
-        nextVideoTimer = nil
-    }
-    
-    // Function to cancel next video playback
-    func cancelNextVideo() {
-        // Close the alert
-        showingNextVideoAlert = false
-        
-        // Clear the queue
-        pendingVideoFiles = Data()
-        
-        // Clear references
-        nextVideoItem = nil
-        nextVideoTimer?.invalidate()
-        nextVideoTimer = nil
-    }
+
     
     func openImageBrowser(_ item: FileItem) {
         if let index = imageUrls.firstIndex(of: item.url) {
@@ -811,6 +588,81 @@ class SFTPFileBrowserViewModel: ObservableObject {
             operation.cancel()
         }
         activeThumbnailOperations.removeAll()
+    }
+    
+    func openAudio(item: FileItem, server: ServerEntity) {
+        // Get all audio files from current directory
+        let audioItems = items.filter { item in
+            !item.isDirectory && FileType.determine(from: item.url) == .audio
+        }
+        if audioItems.isEmpty {
+            print("❌ No audio files found in the current directory")
+            return
+        }
+        // Find the selected audio's index
+        guard let selectedIndex = audioItems.firstIndex(where: { $0.url.path == item.url.path }) else {
+            print("❌ Selected audio not found in filtered list")
+            return
+        }
+        // Get credentials
+        @AppStorage("useCloudKit") var useCloudKit: Bool = true
+        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+        guard let username = server.sftpUser,
+              let password = keychain["sftpPassword" + (server.name ?? "")],
+              let hostname = server.sftpHost else {
+            print("❌ Missing server credentials")
+            return
+        }
+        let port = server.sftpPort
+        let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
+        if audioItems.count == 1 {
+            let path = item.url.path
+            print("Found Audio \(path)")
+            var audioUrl: URL!
+            let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(.init(charactersIn: "#"))) ?? path
+            if server.sftpUsesKey == true {
+                audioUrl = URL(string: "ftp://localhost:2121\(encodedPath)")!
+            } else {
+                audioUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
+            }
+            self.musicPlayerPlaylist = [audioUrl]
+            self.musicPlayerStartIndex = 0
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.showingMusicPlayer = true
+            }
+        } else {
+            var playlist: [URL] = []
+            for item in audioItems {
+                let path = item.url.path
+                print("Found Audio \(path)")
+                let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(.init(charactersIn: "#"))) ?? path
+                if server.sftpUsesKey == true {
+                    playlist.append(URL(string: "ftp://localhost:2121\(encodedPath)")!)
+                } else {
+                    playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!)
+                }
+            }
+            self.musicPlayerPlaylist = playlist
+            self.musicPlayerStartIndex = selectedIndex
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.showingMusicPlayer = true
+            }
+        }
+    }
+    
+    /// Call this before releasing the view model to ensure proper async cleanup.
+    @MainActor
+    func cleanup() async {
+        // Invalidate timer
+        nextVideoTimer?.invalidate()
+        nextVideoTimer = nil
+        // Cancel download task
+        downloadTask?.cancel()
+        downloadTask = nil
+        // Clear thumbnail operations
+        clearThumbnailOperations()
+        // Disconnect SSH connection
+        await sshConnection.disconnect()
     }
 }
 

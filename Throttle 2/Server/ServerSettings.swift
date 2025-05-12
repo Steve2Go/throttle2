@@ -529,7 +529,7 @@ struct TransmissionSettingsView: View {
                         #if os(iOS)
                         DatePicker("", selection: $startTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
-                            .onChange(of: startTime) { _ in
+                            .onChange(of: startTime) {
                                 updateAltSpeedTimeBegin()
                             }
                         #else
@@ -578,7 +578,7 @@ struct TransmissionSettingsView: View {
                         #if os(iOS)
                         DatePicker("", selection: $endTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
-                            .onChange(of: endTime) { _ in
+                            .onChange(of: endTime) {
                                 updateAltSpeedTimeEnd()
                             }
                         #else
@@ -628,7 +628,7 @@ struct TransmissionSettingsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(0..<weekdays.count, id: \.self) { index in
                             Toggle(weekdays[index], isOn: $selectedDays[index])
-                                .onChange(of: selectedDays[index]) { _ in
+                                .onChange(of: selectedDays[index]) { 
                                     updateAltSpeedTimeDay()
                                 }
                         }

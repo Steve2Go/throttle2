@@ -172,12 +172,10 @@ struct InstallerView: View {
         
         // Open the app using NSWorkspace
         DispatchQueue.main.async {
-            do {
-                try NSWorkspace.shared.open(appURL)
+        
+                NSWorkspace.shared.open(appURL)
                 self.appendOutput("\nSuccessfully launched QuickLookVideo.")
-            } catch {
-                self.appendOutput("\nError launching QuickLookVideo: \(error.localizedDescription)")
-            }
+          
         }
     }
     

@@ -27,13 +27,10 @@ struct ContentView: View {
     @AppStorage("detailView") private var detailView = false
     @AppStorage("firstRun") private var firstRun = true
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = true
-    @State var isMounted = false
+    @AppStorage("mountOnOpen") var mountOnOpen = true
     @State var isCreating = false
 #if os(iOS)
     @State var currentSFTPViewModel: SFTPFileBrowserViewModel?
-#endif
-#if os(macOS)
-    var mountManager = ServerMountManager()
 #endif
     
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
@@ -47,8 +44,8 @@ struct ContentView: View {
             MacOSContentView( presenting: presenting,
                               manager: manager,
                               filter: filter,
-                              store: store,
-                              isMounted: isMounted
+                              store: store
+                              
             )
             
 #else
@@ -103,10 +100,10 @@ struct ContentView: View {
         .onAppear {
             
             #if os(macOS)
-            print("Mounting")
-            let serverArray = Array(servers)
-           // print (serverArray)
-            mountManager.mountAllServers(serverArray)
+            if mountOnOpen {
+                let serverArray = Array(servers)
+                ServerMountManager.shared.mountAllServers(serverArray)
+            }
             #endif
             
             if presenting.didStart {
@@ -148,7 +145,7 @@ struct ContentView: View {
         .onOpenURL { url in
             if url.isFileURL {
                 store.selectedFile = url
-                store.selectedFile!.startAccessingSecurityScopedResource()
+                _ = store.selectedFile!.startAccessingSecurityScopedResource()
                 //if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true  {
                     Task{
                         try? await Task.sleep(nanoseconds: 500_000_000)
@@ -185,25 +182,25 @@ struct ContentView: View {
 
 }
 
-    func isRemoteMounted(byName remoteName: String) -> Bool {
-        // 1. Determine the expected mount point path
-        
-        ///private/tmp/com.srgim.Throttle-2.sftp/Backup
-        let mountsDirectory = "private/tmp/com.srgim.Throttle-2.sftp" // Standard location for macOS mounts
-        let mountPath = "\(mountsDirectory)/\(remoteName)"
-        
-        // 2. Check if the mount exists and is accessible
-        let fileManager = FileManager.default
-        let isDirectory = UnsafeMutablePointer<ObjCBool>.allocate(capacity: 1)
-        defer { isDirectory.deallocate() }
-        
-        // Check if path exists and is a directory
-        let exists = fileManager.fileExists(atPath: mountPath, isDirectory: isDirectory)
-        
-        // 3. Optional: Check if directory has content (additional validation)
-        let hasContent = exists && isDirectory.pointee.boolValue &&
-                       ((try? fileManager.contentsOfDirectory(atPath: mountPath).isEmpty) == false) //?? false
-        
-        return exists && isDirectory.pointee.boolValue
-        // Or use the stricter check: return hasContent
-    }
+//    func isRemoteMounted(byName remoteName: String) -> Bool {
+//        // 1. Determine the expected mount point path
+//        
+//        ///private/tmp/com.srgim.Throttle-2.sftp/Backup
+//        let mountsDirectory = "private/tmp/com.srgim.Throttle-2.sftp" // Standard location for macOS mounts
+//        let mountPath = "\(mountsDirectory)/\(remoteName)"
+//        
+//        // 2. Check if the mount exists and is accessible
+//        let fileManager = FileManager.default
+//        let isDirectory = UnsafeMutablePointer<ObjCBool>.allocate(capacity: 1)
+//        defer { isDirectory.deallocate() }
+//        
+//        // Check if path exists and is a directory
+//        let exists = fileManager.fileExists(atPath: mountPath, isDirectory: isDirectory)
+//        
+//        // 3. Optional: Check if directory has content (additional validation)
+//        let _ = exists && isDirectory.pointee.boolValue &&
+//                       ((try? fileManager.contentsOfDirectory(atPath: mountPath).isEmpty) == false) //?? false
+//        
+//        return exists && isDirectory.pointee.boolValue
+//        // Or use the stricter check: return hasContent
+ //   }

@@ -41,6 +41,7 @@ class TunnelManagerHolder {
             tunnelLock.lock()
             activeTunnels.removeValue(forKey: identifier)
             tunnelLock.unlock()
+            
         }
     }
     
@@ -61,6 +62,13 @@ class TunnelManagerHolder {
     }
 }
 
+// Actor to manage tunnel state safely in async contexts
+actor TunnelState {
+    private var _isStarted: Bool = false
+    var isStarted: Bool { _isStarted }
+    func setStarted(_ value: Bool) { _isStarted = value }
+}
+
 class SSHTunnelManager {
     private var client: SSHClient?
     private var localServer: Channel?
@@ -69,8 +77,7 @@ class SSHTunnelManager {
     private let remoteHost: String
     private let remotePort: Int
     private let server: ServerEntity
-    private var isStarted = false
-    private let tunnelLock = NSLock()
+    private let state = TunnelState()
     
     init(server: ServerEntity, localPort: Int, remoteHost: String, remotePort: Int) throws {
         self.server = server
@@ -91,13 +98,11 @@ class SSHTunnelManager {
     }
     
     func start() async throws {
-        tunnelLock.lock()
-        guard !isStarted else {
-            tunnelLock.unlock()
+        let alreadyStarted = await state.isStarted
+        if alreadyStarted {
             throw SSHTunnelError.tunnelAlreadyConnected
         }
-        isStarted = true
-        tunnelLock.unlock()
+        await state.setStarted(true)
         
         do {
             // 1. Connect to SSH server
@@ -108,75 +113,60 @@ class SSHTunnelManager {
             
             print("SSH Tunnel established: localhost:\(localPort) -> \(remoteHost):\(remotePort)")
         } catch {
-            tunnelLock.lock()
-            isStarted = false
-            tunnelLock.unlock()
+            await state.setStarted(false)
             stop()
             throw SSHTunnelError.connectionFailed(error)
         }
     }
     
+    private static func connectChannels(localChannel: Channel, sshChannel: Channel) async throws {
+        // Add handlers to relay data between channels
+        try await localChannel.pipeline.addHandler(SimpleRelayHandler(targetChannel: sshChannel)).get()
+        try await sshChannel.pipeline.addHandler(SimpleRelayHandler(targetChannel: localChannel)).get()
+    }
+
     private func setupLocalProxy() async throws {
         guard let client = client else {
             throw SSHTunnelError.tunnelNotConnected
         }
-        
-        // Create a server bootstrap that forwards connections through the SSH tunnel
+        let remoteHost = self.remoteHost
+        let remotePort = self.remotePort
+        let localPort = self.localPort
+        let connectChannels = SSHTunnelManager.connectChannels
         let bootstrap = ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
             .serverChannelOption(ChannelOptions.backlog, value: 256)
             .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-            .childChannelInitializer { [weak self] localChannel in
-                guard let self = self else {
-                    return localChannel.eventLoop.makeFailedFuture(SSHTunnelError.tunnelNotConnected)
-                }
-                
+            .childChannelInitializer { localChannel in
                 let promise = localChannel.eventLoop.makePromise(of: Void.self)
-                
                 Task {
                     do {
-                        // Create a DirectTCPIP tunnel through the SSH connection
                         let originAddress = try SocketAddress(ipAddress: "127.0.0.1", port: 0)
                         let settings = SSHChannelType.DirectTCPIP(
-                            targetHost: self.remoteHost,
-                            targetPort: self.remotePort,
+                            targetHost: remoteHost,
+                            targetPort: remotePort,
                             originatorAddress: originAddress
                         )
-                        
-                        // The magic happens here - Citadel does most of the work for us
                         let sshChannel = try await client.createDirectTCPIPChannel(using: settings) { channel in
                             return channel.eventLoop.makeSucceededVoidFuture()
                         }
-                        
-                        // Connect the two channels with simple relay handlers
-                        try await self.connectChannels(localChannel: localChannel, sshChannel: sshChannel)
+                        try await connectChannels(localChannel, sshChannel)
                         promise.succeed(())
                     } catch {
                         localChannel.close(promise: nil)
                         promise.fail(error)
                     }
                 }
-                
                 return promise.futureResult
             }
             .childChannelOption(ChannelOptions.allowRemoteHalfClosure, value: true)
             .childChannelOption(ChannelOptions.socketOption(.tcp_nodelay), value: 1)
-        
         // Start the local server
         localServer = try await bootstrap.bind(host: "127.0.0.1", port: localPort).get()
         print("Local proxy server listening on 127.0.0.1:\(localPort)")
     }
     
-    // Simple method to connect the two channels bidirectionally
-    private func connectChannels(localChannel: Channel, sshChannel: Channel) async throws {
-        // Add handlers to relay data between channels
-        try await localChannel.pipeline.addHandler(SimpleRelayHandler(targetChannel: sshChannel)).get()
-        try await sshChannel.pipeline.addHandler(SimpleRelayHandler(targetChannel: localChannel)).get()
-    }
-    
     func stop() {
-        tunnelLock.lock()
-        isStarted = false
-        tunnelLock.unlock()
+        Task { [weak self] in await self?.state.setStarted(false) }
         
         // Close the local server
         localServer?.close(promise: nil)
@@ -184,10 +174,10 @@ class SSHTunnelManager {
         
         // Close the SSH client
         if let client = client {
-            Task {
+            Task { [weak self] in
                 try? await client.close()
+                self?.client = nil
             }
-            self.client = nil
         }
         
         print("SSHTunnelManager: Tunnel stopped")
@@ -195,7 +185,7 @@ class SSHTunnelManager {
 }
 
 // Simple relay handler to forward data between channels
-private class SimpleRelayHandler: ChannelInboundHandler {
+private class SimpleRelayHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = ByteBuffer
     typealias OutboundOut = ByteBuffer
     

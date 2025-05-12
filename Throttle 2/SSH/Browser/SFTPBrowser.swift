@@ -36,9 +36,6 @@ struct SFTPFileBrowserView: View {
         @State private var videoPlayerConfiguration: VideoPlayerConfiguration?
         @State private var showingVideoPlayer = false
     
-    //vlc playback
-    @AppStorage("pendingVideoFiles") private var pendingVideoFiles: Data = Data()
-    private var nextVideoTimer: Timer?
     
     
     
@@ -70,8 +67,17 @@ struct SFTPFileBrowserView: View {
                 .onChange(of: searchQuery) {
                     viewModel.fetchItems()
                 }
+                .onChange(of : currentPath){
+                    Task {
+                        await ThumbnailManager.shared.cleanup()
+                    }
+                    searchQuery = ""
+                }
                 .onDisappear {
                     searchQuery = ""
+                    Task{
+                        await viewModel.cleanup()
+                    }
                 }
 //                //tools
                 .toolbar {
@@ -181,66 +187,7 @@ struct SFTPFileBrowserView: View {
                     .presentationDetents([.medium])
                     }
             
-            .fullScreenCover(isPresented: Binding(
-                get: { viewModel.showingNextVideoAlert },
-                set: { viewModel.showingNextVideoAlert = $0 }
-            )) {
-                ZStack {
-                    // Black background that fills the entire screen
-                    Color.black.edgesIgnoringSafeArea(.all)
-                    
-                    VStack(spacing: 16) {
-                        Spacer()
-                        
-                        // Content unavailable view
-                        VStack(spacing: 20) {
-                            Image(systemName: "play.rectangle.on.rectangle")
-                                .font(.system(size: 60))
-                                .foregroundColor(.white)
-                            
-                            Text("Continue Playback?")
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                            
-                            if let nextVideo = viewModel.nextVideoItem {
-                                Text(nextVideo.name)
-                                    .font(.headline)
-                                    .foregroundColor(.white.opacity(0.8))
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal)
-                            }
-                            
-                            Text("Playback will begin in \(viewModel.nextVideoCountdown) seconds")
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.7))
-                            
-                            Text("Tap anywhere to play now")
-                                .font(.callout)
-                                .foregroundColor(.white.opacity(0.9))
-                                .padding(.top, 8)
-                        }
-                        .padding()
-                        
-                        Spacer()
-                        
-                        // Cancel button
-                        Button("Cancel") {
-                            viewModel.cancelNextVideo()
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.large)
-                        .tint(.white)
-                        .padding(.bottom, 50)
-                    }
-                    .padding()
-                }
-                // Tap gesture applied to the entire ZStack for easy tapping
-                .onTapGesture {
-                    viewModel.playNextVideo(server: server)
-                }
-                .foregroundColor(.white)
-            }
+      
 //            // Rename Alert
             .alert("Rename Item", isPresented: $showRenamePrompt) {
                 TextField("New Name", text: $newItemName)
@@ -349,6 +296,13 @@ struct SFTPFileBrowserView: View {
                     
                     Button("Cancel", role: .cancel) {}
                 }
+            }
+            .sheet(isPresented: $viewModel.showingMusicPlayer) {
+                VLCMusicPlayer(urls: viewModel.musicPlayerPlaylist, startIndex: viewModel.musicPlayerStartIndex)
+                    .ignoresSafeArea(edges: .all)
+                    .onDisappear {
+                        viewModel.showingMusicPlayer = false
+                    }
             }
         }
     }
@@ -483,7 +437,7 @@ struct SFTPFileBrowserView: View {
         .frame(height: 140)
         .padding(8)
         .onTapGesture {
-            if fileType == .video || fileType == .image {
+            if fileType == .video || fileType == .image || fileType == .audio {
                 viewModel.openFile(item: item, server: server)
             }  else {
                 selectedItem = item
@@ -491,15 +445,12 @@ struct SFTPFileBrowserView: View {
             }
         }
         .contextMenu {
-            if fileType == .image || fileType == .video {
+            if fileType == .image || fileType == .video || fileType == .audio {
                 Button(action: {
                     viewModel.openFile(item: item, server: server)
                 }) {
                     Label("Open", systemImage: "play")
                 }
-//                if fileType == .video {
-//                    Button("Play in VLC", systemImage: "play.square") { viewModel.openVideoInVLC(item: item, server: server) }
-//                }
             }
             
             
@@ -541,7 +492,7 @@ struct SFTPFileBrowserView: View {
                         .foregroundColor(.secondary)
                 }
             }.onTapGesture {
-                if  fileType == .image || fileType == .video {
+                if fileType == .image || fileType == .video || fileType == .audio {
                     viewModel.openFile(item: item, server: server)
                 } else {
                     selectedItem = item
@@ -560,7 +511,7 @@ struct SFTPFileBrowserView: View {
             
         }.contentShape(Rectangle())
             .contextMenu {
-                if fileType == .video || fileType == .image {
+                if fileType == .video || fileType == .image || fileType == .audio {
                     Button(action: {
                         self.viewModel.openFile(item: item, server: server)
                     }) {

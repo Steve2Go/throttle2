@@ -19,7 +19,6 @@ struct iOSContentView: View {
     @AppStorage("detailView") private var detailView = false
     @AppStorage("firstRun") private var firstRun = true
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = true
-    @State var isMounted = false
     @State private var splitViewVisibility = NavigationSplitViewVisibility.automatic
     @State var isCreating = false
     @State private var isPortrait: Bool = false

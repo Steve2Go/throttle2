@@ -156,7 +156,7 @@ class VideoPlayerViewController: UIViewController {
     }()
     func prepareForExternalDisplay() {
             // Force a check for external displays first
-            ExternalDisplayManager.shared.startMonitoring()
+            //ExternalDisplayManager.shared.startMonitoring()
             
             // Notify the external display manager that the video player will take control
             ExternalDisplayManager.shared.suspendForVideoPlayer()

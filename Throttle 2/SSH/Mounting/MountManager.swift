@@ -1,9 +1,10 @@
 #if os(macOS)
-import Foundation
+import SwiftUI
 import CoreData
 import Combine
 import KeychainAccess
 import AppKit
+
 
 enum MountError: Error {
     case directoryCreationFailed
@@ -23,6 +24,7 @@ class ServerMountManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
     var mountProcesses: [String: Process] = [:]
+    @AppStorage("sftpCompression") var sftpCompression: Bool = false
     
     // Maps server entity IDs to mount key
     private var serverMountMap: [NSManagedObjectID: String] = [:]
@@ -182,7 +184,11 @@ class ServerMountManager: ObservableObject {
         process.launchPath = "/bin/zsh"
         
         let url = directoryURL.path
-        var sshfsOptions = "ServerAliveInterval=30,ServerAliveCountMax=4,reconnect,auto_cache,kernel_cache,location=Throttle"
+        var sshfsOptions = "ServerAliveInterval=30,ServerAliveCountMax=6,reconnect,auto_cache,kernel_cache,location=Throttle"
+        
+        if sftpCompression != true {
+            sshfsOptions += ",compression=no"
+        }
         
         // Add host key check options
         sshfsOptions += ",StrictHostKeyChecking=no,UserKnownHostsFile=/dev/null"

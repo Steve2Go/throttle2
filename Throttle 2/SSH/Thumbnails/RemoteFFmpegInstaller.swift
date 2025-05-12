@@ -17,8 +17,8 @@ struct RemoteFFmpegInstaller {
         }
 
         // 2. Detect OS and arch
-        let (osStatus, osName) = try await connection.executeCommand("uname -s")
-        let (archStatus, archName) = try await connection.executeCommand("uname -m")
+        let (_, osName) = try await connection.executeCommand("uname -s")
+        let (_, archName) = try await connection.executeCommand("uname -m")
         let os = osName.trimmingCharacters(in: .whitespacesAndNewlines)
         let arch = archName.trimmingCharacters(in: .whitespacesAndNewlines)
         print("[RemoteFFmpegInstaller] Detected OS: \(os), Arch: \(arch)")  

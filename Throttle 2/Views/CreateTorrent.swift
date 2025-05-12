@@ -219,7 +219,7 @@ struct CreateTorrent: View {
         
         // Get script from bundle
         guard let scriptURL = Bundle.main.url(forResource: "torrent_creator", withExtension: "sh"),
-              let scriptContent = try? String(contentsOf: scriptURL) else {
+              let scriptContent = try? String(contentsOf: scriptURL, encoding: .utf8) else {
             isError = true
             commandOutput += "\nError: Could not load torrent creator script from app bundle"
             return
@@ -330,7 +330,7 @@ struct CreateTorrent: View {
         }
         
         // Execute the background command - this should return quickly
-        let (_, bgOutput) = try await connection.executeCommand(backgroundCmd)
+        let _ = try await connection.executeCommand(backgroundCmd)
         
         // Start monitoring for the output file
         commandOutput += "\nMonitoring for torrent file creation..."
@@ -343,7 +343,7 @@ struct CreateTorrent: View {
         let maxAttempts = 120 // 10 minutes at 5-second intervals
         var lastLogSize = 0
         var currentProgressLine = "Progress: Initializing..."
-        var lastProgressLineIndex = commandOutput.components(separatedBy: "\n").count - 1
+        let lastProgressLineIndex = commandOutput.components(separatedBy: "\n").count - 1
         
         // Track pieces progress for the progress bar
         var totalPieces: Int? = nil

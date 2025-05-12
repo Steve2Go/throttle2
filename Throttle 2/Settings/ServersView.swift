@@ -198,7 +198,6 @@ struct ServerEditView: View {
 
     #if os(macOS)
     @State private var installerSheetPresented = false
-    @State private var needsInstaller = false
     #endif
 
     let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
@@ -249,6 +248,11 @@ struct ServerEditView: View {
     }
     
     var body: some View {
+        #if os(macOS)
+        let fileManager = FileManager.default
+        let fusetIsInstalled = fileManager.fileExists(atPath: "/usr/local/lib/libfuse-t.dylib")
+        let sshfsIsInstalled = fileManager.fileExists(atPath: "/usr/local/bin/sshfs")
+        #endif
         NavigationStack {
             Form {
                 // **Torrent**
@@ -337,16 +341,6 @@ struct ServerEditView: View {
                 // **SFTP Authentication & Path Mapping**
                 Section(header: Text("SSH Connection")) {
                     #if os(macOS)
-                    let fileManager = FileManager.default
-                    let fusetIsInstalled = fileManager.fileExists(atPath: "/usr/local/lib/libfuse-t.dylib")
-                    let sshfsIsInstalled = fileManager.fileExists(atPath: "/usr/local/bin/sshfs")
-                    let qlvIsInstalled = fileManager.fileExists(atPath: "'/Applications/QuickLook Video.app'")
-                    if !fusetIsInstalled || !sshfsIsInstalled {
-                        Text("We need to set up the File System using FUSE-T to connect to your server.").font(.caption)
-                        Button("Set Up Filesystem") {
-                            installerView.toggle()
-                        }
-                    }
                     Toggle("SFTP Path Mapping", isOn: $sftpBrowse)
                         .disabled(!fusetIsInstalled || !sshfsIsInstalled)
                     #else
@@ -481,13 +475,6 @@ struct ServerEditView: View {
                 }
                 #endif
             }
-            .sheet(isPresented: $installerView){
-    #if os(macOS)
-                InstallerView()
-                    .frame(width: 500, height: 500)
-                
-    #endif
-            }
             .fileImporter(
                 isPresented: $showingSFTPKeyImporter,
                 allowedContentTypes: [.item],
@@ -500,28 +487,16 @@ struct ServerEditView: View {
                     }
                 }
             )
-            .sheet(isPresented: $installerSheetPresented, onDismiss: {
-#if os(macOS)
-                // Re-check after installer closes
-                needsInstaller = !FileManager.default.fileExists(atPath: "/usr/local/lib/libfuse-t.dylib") || !FileManager.default.fileExists(atPath: "/usr/local/bin/sshfs")
-#endif
-            }) {
-#if os(macOS)
+            #if os(macOS)
+            .sheet(isPresented: $installerSheetPresented) {
                 InstallerView()
                     .frame(width: 500, height: 500)
-#endif
             }
-            .onAppear {
-#if os(macOS)
-                if sftpBrowse {
-                    needsInstaller = !FileManager.default.fileExists(atPath: "/usr/local/lib/libfuse-t.dylib") || !FileManager.default.fileExists(atPath: "/usr/local/bin/sshfs")
-                }
-#endif
-            }
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
 #if os(macOS)
-                    if needsInstaller {
+                    if sftpBrowse && (!fusetIsInstalled || !sshfsIsInstalled) {
                         Button("Install Required Components") {
                             installerSheetPresented = true
                         }

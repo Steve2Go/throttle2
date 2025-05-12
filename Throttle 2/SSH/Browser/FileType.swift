@@ -10,6 +10,7 @@ import SwiftUI
 // MARK: - Constants for file types
 enum FileType {
     case video
+    case audio
     case image
     case other
     
@@ -19,10 +20,13 @@ enum FileType {
         let ext = getFileExtension(from: path)
         
         let videoExtensions = ["mp4", "mov", "m4v", "avi", "mkv", "wmv", "flv", "webm", "3gp", "mpg", "mpeg","vob"]
+        let audioExtensions = ["mp3", "aac", "m4a", "wav", "flac", "ogg", "opus", "wma", "alac", "aiff", "aif", "caf"]
         let imageExtensions = ["jpg", "jpeg", "png", "gif", "heic", "heif", "bmp", "tiff", "webp","jfif"]
         
         if videoExtensions.contains(ext) {
             return .video
+        } else if audioExtensions.contains(ext) {
+            return .audio
         } else if imageExtensions.contains(ext) {
             return .image
         } else {

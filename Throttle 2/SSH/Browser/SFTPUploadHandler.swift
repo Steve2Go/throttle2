@@ -55,43 +55,28 @@ class SFTPUploadManager: ObservableObject {
         uploadTask = Task {
             do {
                 defer { localURL.stopAccessingSecurityScopedResource() }
-                
                 let destinationPath = "\(self.uploadHandler.currentPath)/\(localURL.lastPathComponent)"
                     .replacingOccurrences(of: "//", with: "/")
-                
-                // Create a new SSH connection
-                let connection = SSHConnection(server: server)
-                self.sshConnection = connection
-                
-                // Upload the file with progress monitoring
-                try await connection.uploadFile(
-                    localURL: localURL,
-                    remotePath: destinationPath
-                ) { progress in
-                    // Update progress on the main thread
-                    Task { @MainActor in
-                        self.uploadProgress = progress
+                // Use the helper for robust cleanup
+                try await SSHConnection.withConnection(server: server) { connection in
+                    self.sshConnection = connection
+                    try await connection.uploadFile(
+                        localURL: localURL,
+                        remotePath: destinationPath
+                    ) { progress in
+                        Task { @MainActor in
+                            self.uploadProgress = progress
+                        }
                     }
                 }
-                
-                // Clean up connection when done
-                await connection.disconnect()
                 self.sshConnection = nil
-                
                 await MainActor.run {
                     self.uploadHandler.refreshItems()
                     self.isUploading = false
                     self.uploadProgress = 1.0
                 }
             } catch {
-                // Clean up connection on error
-                if let connection = self.sshConnection {
-                    Task {
-                        await connection.disconnect()
-                        self.sshConnection = nil
-                    }
-                }
-                
+                self.sshConnection = nil
                 if error is CancellationError {
                     print("Upload cancelled by user")
                 } else {
@@ -118,9 +103,28 @@ class SFTPUploadManager: ObservableObject {
         currentUploadFileName = localURL.lastPathComponent
         uploadProgress = 0
         
+        // Collect all URLs synchronously before entering async context
+        let fileManager = FileManager.default
+        let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .nameKey]
+        let directoryEnumerator = fileManager.enumerator(
+            at: localURL,
+            includingPropertiesForKeys: resourceKeys,
+            options: [.skipsHiddenFiles],
+            errorHandler: { url, error in
+                print("❌ Error enumerating \(url): \(error)")
+                return true // Continue enumeration
+            }
+        )
+        var enumeratedURLs: [URL] = []
+        if let enumerator = directoryEnumerator {
+            for case let fileURL as URL in enumerator {
+                enumeratedURLs.append(fileURL)
+            }
+        }
+        
         // Create a new SSH connection using the server from the handler
         if let server = uploadHandler.getServer() {
-            uploadFolderWithSSH(localURL: localURL, server: server)
+            uploadFolderWithSSH(localURL: localURL, server: server, enumeratedURLs: enumeratedURLs)
         } else {
             Task { @MainActor in
                 self.error = "Server configuration not found"
@@ -130,150 +134,60 @@ class SFTPUploadManager: ObservableObject {
         }
     }
     
-    private func uploadFolderWithSSH(localURL: URL, server: ServerEntity) {
+    // Add enumeratedURLs as a parameter
+    private func uploadFolderWithSSH(localURL: URL, server: ServerEntity, enumeratedURLs: [URL]) {
         uploadTask = Task {
             do {
                 defer {
                     localURL.stopAccessingSecurityScopedResource()
                     print("📂 Stopped accessing security-scoped resource for main folder")
                 }
-                
-                let fileManager = FileManager.default
-                
-                // Create the base remote directory first
+                let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .nameKey]
                 let destinationBase = "\(self.uploadHandler.currentPath)/\(localURL.lastPathComponent)"
                     .replacingOccurrences(of: "//", with: "/")
                 print("📂 Creating base remote directory: \(destinationBase)")
-                
-                // Create a new SSH connection
-                let connection = SSHConnection(server: server)
-                self.sshConnection = connection
-                
-                // Create the base directory
-                try await connection.createDirectory(path: destinationBase)
-                
-                // Get all contents
-                let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .nameKey]
-                let directoryEnumerator = fileManager.enumerator(
-                    at: localURL,
-                    includingPropertiesForKeys: resourceKeys,
-                    options: [.skipsHiddenFiles],
-                    errorHandler: { url, error in
-                        print("❌ Error enumerating \(url): \(error)")
-                        return true // Continue enumeration
-                    }
-                )
-                
-                guard let enumerator = directoryEnumerator else {
-                    throw NSError(domain: "SFTPUpload", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create enumerator"])
-                }
-                
-                print("📂 Starting enumeration of contents")
-                var files: [URL] = []
-                var directories: [String] = []
-                let basePath = localURL.path
-                
-                // First pass: identify all files and directories
-                for case let fileURL as URL in enumerator {
-                    // Check for cancellation
-                    try Task.checkCancellation()
-                    
-                    print("📂 Found item: \(fileURL)")
-                
-                    let resourceValues = try fileURL.resourceValues(forKeys: Set(resourceKeys))
-                    let isDirectory = resourceValues.isDirectory ?? false
-                    
-                    // Get relative path from the base folder
-                    var relativePath = String(fileURL.path.dropFirst(basePath.count))
-                    if relativePath.hasPrefix("/") {
-                        relativePath = String(relativePath.dropFirst())
-                    }
-                    
-                    let destinationPath = "\(destinationBase)/\(relativePath)"
-                        .replacingOccurrences(of: "//", with: "/")
-                    
-                    print("📂 Processing: \(relativePath) -> \(destinationPath)")
-                    print("📂 Is directory: \(isDirectory)")
-                    
-                    if isDirectory {
-                        directories.append(destinationPath)
-                    } else {
-                        files.append(fileURL)
-                    }
-                }
-                
-                // Create all directories first
-                print("📂 Creating \(directories.count) directories")
-                for path in directories {
-                    try Task.checkCancellation()
-                    print("📂 Creating directory: \(path)")
-                    try await connection.createDirectory(path: path)
-                }
-                
-                // Then upload all files
-                print("📂 Uploading \(files.count) files")
-                self.totalFiles = files.count
-                self.processedFiles = 0
-                
-                for (index, fileURL) in files.enumerated() {
-                    try Task.checkCancellation()
-                    
-                    print("📂 Starting upload of file: \(fileURL)")
-                    
-                    var relativePath = String(fileURL.path.dropFirst(basePath.count))
-                    if relativePath.hasPrefix("/") {
-                        relativePath = String(relativePath.dropFirst())
-                    }
-                    
-                    let destinationPath = "\(destinationBase)/\(relativePath)"
-                        .replacingOccurrences(of: "//", with: "/")
-                    
-                    print("📂 Uploading to: \(destinationPath)")
-                    
-                    // Get file size for progress reporting
-                    let fileAttributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-                    let fileSize = (fileAttributes[.size] as? NSNumber)?.uint64Value ?? 1 // Avoid division by zero
-                    
-                    // Upload the file with progress monitoring
-                    try await connection.uploadFile(
-                        localURL: fileURL,
-                        remotePath: destinationPath
-                    ) { fileProgress in
-                        // Calculate overall progress (file progress + already completed files)
-                        let overallProgress = (Double(index) + fileProgress) / Double(files.count)
-                        
-                        Task { @MainActor in
-                            self.uploadProgress = overallProgress
+                // Use the helper for robust cleanup
+                try await SSHConnection.withConnection(server: server) { connection in
+                    self.sshConnection = connection
+                    try await connection.createDirectory(path: destinationBase)
+                    print("📂 Starting enumeration of contents")
+                    var files: [URL] = []
+                    var directories: [String] = []
+                    let basePath = localURL.path
+                    for fileURL in enumeratedURLs {
+                        try Task.checkCancellation()
+                        print("📂 Found item: \(fileURL)")
+                        let resourceValues = try fileURL.resourceValues(forKeys: Set(resourceKeys))
+                        let isDirectory = resourceValues.isDirectory ?? false
+                        var relativePath = String(fileURL.path.dropFirst(basePath.count))
+                        if relativePath.hasPrefix("/") {
+                            relativePath = String(relativePath.dropFirst())
+                        }
+                        let destinationPath = "\(destinationBase)/\(relativePath)"
+                            .replacingOccurrences(of: "//", with: "/")
+                        print("📂 Processing: \(relativePath) -> \(destinationPath)")
+                        if isDirectory {
+                            try await connection.createDirectory(path: destinationPath)
+                            directories.append(destinationPath)
+                        } else {
+                            try await connection.uploadFile(
+                                localURL: fileURL,
+                                remotePath: destinationPath
+                            ) { progress in
+                                // Optionally update progress here
+                            }
+                            files.append(fileURL)
                         }
                     }
-                    
-                    self.processedFiles += 1
-                    let progress = Double(self.processedFiles) / Double(self.totalFiles)
-                    print("📂 Progress: \(progress * 100)%")
-                    
-                    await MainActor.run {
-                        self.uploadProgress = progress
-                    }
                 }
-                
-                // Clean up connection when done
-                await connection.disconnect()
                 self.sshConnection = nil
-                
                 await MainActor.run {
                     self.uploadHandler.refreshItems()
                     self.isUploading = false
                     self.uploadProgress = 1.0
                 }
             } catch {
-                // Clean up connection on error
-                if let connection = self.sshConnection {
-                    Task {
-                        await connection.disconnect()
-                        self.sshConnection = nil
-                    }
-                }
-                
+                self.sshConnection = nil
                 if error is CancellationError {
                     print("Upload cancelled by user")
                 } else {

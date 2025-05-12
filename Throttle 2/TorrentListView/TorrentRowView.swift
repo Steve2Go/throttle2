@@ -215,7 +215,7 @@ struct TorrentRowView: View {
                 
                 Task {
                     ToastManager.shared.show(message: "Verifying" ,icon: "externaldrive.badge.questionmark", color: Color.yellow)
-                    try await manager.verifyTorrents(ids: [torrent.id])
+                    _ = try await manager.verifyTorrents(ids: [torrent.id])
                 }
             } label: {
                 Text("Verify")
@@ -224,7 +224,7 @@ struct TorrentRowView: View {
             Button {
                 Task {
                     ToastManager.shared.show(message: "Announcing" ,icon: "megaphone.fill", color: Color.blue)
-                    try await manager.reannounceTorrents(ids: [torrent.id])
+                    _ = try await manager.reannounceTorrents(ids: [torrent.id])
                 }
             } label: {
                 Text("Announce")
@@ -234,7 +234,7 @@ struct TorrentRowView: View {
                 Button {
                     Task {
                         ToastManager.shared.show(message: "Starting" ,icon: "play", color: Color.green)
-                        try await manager.startTorrents(ids: [torrent.id])
+                        _ = try await manager.startTorrents(ids: [torrent.id])
                     }
                 } label: {
                     Text("Start")
@@ -244,7 +244,7 @@ struct TorrentRowView: View {
                 Button {
                     Task {
                         ToastManager.shared.show(message: "Stopping" ,icon: "stop", color: Color.red)
-                        try await manager.stopTorrents(ids: [torrent.id])
+                        _ = try await manager.stopTorrents(ids: [torrent.id])
                     }
                 } label: {
                     Text("Stop")
@@ -347,8 +347,8 @@ struct TorrentRowView: View {
         if var path = torrent.dynamicFields["downloadDir"]?.value as? String {
             if path.hasPrefix(baseDir) {
                 path = String(path.dropFirst(baseDir.count))
-                let returnvalue = "/private/tmp/com.srgim.Throttle-2.sftp/\(ServerMountUtilities.getMountKey(for: store.selection!)!)/\(path)/\(name)".replacingOccurrences(of: "//", with: "/")
-//                print("returning path: " + returnvalue)
+                let returnvalue = "\(ServerMountManager.shared.getMountPath(for: store.selection!).absoluteString.dropLast().replacingOccurrences(of: "file://", with: ""))\(path)/\(name)"
+                print("returning path: " + returnvalue)
                 return returnvalue
             }
         }
@@ -364,8 +364,8 @@ struct TorrentRowView: View {
             if path.hasPrefix(baseDir) {
                 path = String(path.dropFirst(baseDir.count))
                 path = (server.pathFilesystem ?? "") + path
-                let returnvalue = "/private/tmp/com.srgim.Throttle-2.sftp/\(ServerMountUtilities.getMountKey(for: store.selection!)!)/\(path)/\(name)".replacingOccurrences(of: "//", with: "/")
-//                print("returning path: " + returnvalue)
+                let returnvalue = "\(ServerMountManager.shared.getMountPath(for: store.selection!).absoluteString.dropLast().replacingOccurrences(of: "file://", with: ""))\(path)/\(name)"
+                print("returning path: " + returnvalue)
                 return returnvalue
             }
         }

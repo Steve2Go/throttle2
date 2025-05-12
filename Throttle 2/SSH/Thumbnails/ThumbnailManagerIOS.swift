@@ -25,15 +25,55 @@ public class ThumbnailManager: NSObject {
     private var connections = [String: SSHConnection]()
     private let connectionsLock = NSLock()
     
+    // Semaphore dictionary to limit connections per server
+    private var serverSemaphores = [String: DispatchSemaphore]()
+    private let semaphoreAccess = NSLock()
+    
+    // Add an async actor-based semaphore
+    actor AsyncSemaphore {
+        private var value: Int
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        init(value: Int) {
+            self.value = value
+        }
+
+        func wait() async {
+            if value > 0 {
+                value -= 1
+            } else {
+                await withCheckedContinuation { continuation in
+                    waiters.append(continuation)
+                }
+            }
+        }
+
+        func signal() {
+            if !waiters.isEmpty {
+                let continuation = waiters.removeFirst()
+                continuation.resume()
+            } else {
+                value += 1
+            }
+        }
+    }
+    
+    // Replace getSemaphore(for:) to return AsyncSemaphore
+    private var asyncSemaphores: [String: AsyncSemaphore] = [:]
+    private func getAsyncSemaphore(for server: ServerEntity) -> AsyncSemaphore {
+        let key = server.name ?? server.sftpHost ?? "default"
+        if let sem = asyncSemaphores[key] { return sem }
+        let max = max(1, server.thumbMax)
+        let sem = AsyncSemaphore(value: Int(max))
+        asyncSemaphores[key] = sem
+        return sem
+    }
+    
     // Cache directory for saved thumbnails
     private var cacheDirectory: URL? {
         fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
             .first?.appendingPathComponent("thumbnailCache")
     }
-    
-    // Semaphore dictionary to limit connections per server
-    private var serverSemaphores = [String: DispatchSemaphore]()
-    private let semaphoreAccess = NSLock()
     
     override init() {
         super.init()
@@ -83,23 +123,6 @@ public class ThumbnailManager: NSObject {
         return visiblePaths.contains(path)
     }
     
-    private func getSemaphore(for server: ServerEntity) -> DispatchSemaphore {
-        let key = server.name ?? server.sftpHost ?? "default"
-        
-        semaphoreAccess.lock()
-        defer { semaphoreAccess.unlock() }
-        
-        if let semaphore = serverSemaphores[key] {
-            return semaphore
-        } else {
-            // Create a new semaphore with the server's max connections value
-            let maxConnections = max(1, Int(server.thumbMax))
-            let semaphore = DispatchSemaphore(value: maxConnections)
-            serverSemaphores[key] = semaphore
-            return semaphore
-        }
-    }
-    
     /// Main entry point – returns a SwiftUI Image thumbnail for a given path.
     public func getThumbnail(for path: String, server: ServerEntity) async throws -> Image {
         print("[ThumbnailManager] getThumbnail called for path: \(path), server: \(server.name ?? server.sftpHost ?? "default")")
@@ -124,65 +147,43 @@ public class ThumbnailManager: NSObject {
             return defaultThumbnail(for: path)
         }
         
-        defer {
-            clearInProgress(path: path)
-        }
-        
-        // Get semaphore for this server
-        let semaphore = getSemaphore(for: server)
-        
-        // Use async/await with semaphore for connection limiting
-        return await withCheckedContinuation { continuation in
-            Task {
-                // Wait for a semaphore slot (respecting server.thumbMax)
-                await withUnsafeContinuation { innerContinuation in
-                    DispatchQueue.global().async {
-                        semaphore.wait()
-                        innerContinuation.resume()
-                    }
-                }
-                
-                // Once we have a slot, generate the thumbnail
-                defer {
-                    // Always release the semaphore when done
-                    semaphore.signal()
-                }
-                
-                // Check again if path is still visible before proceeding
-                if !isVisible(path) {
-                    continuation.resume(returning: defaultThumbnail(for: path))
-                    return
-                }
-                
-                do {
-                    let fileType = FileType.determine(from: URL(fileURLWithPath: path))
-                    
-                    let thumbnail: Image
-                    if fileType == .video || fileType == .image {
-                        if server.ffThumb {
-                            // Use server-side FFmpeg thumbnailing if enabled
-                            do {
-                                thumbnail = try await generateFFmpegThumbnail(for: path, server: server)
-                            } catch {
-                                print("FFmpeg thumbnail failed, using default: \(error.localizedDescription)")
-                                thumbnail = defaultThumbnail(for: path)
-                            }
-                        } else {
-                            // Use default for videos when server-side FFmpeg is not enabled
-                            thumbnail = defaultThumbnail(for: path)
-                        }
-                    } else {
-                        thumbnail = defaultThumbnail(for: path)
-                    }
-                    
-                    continuation.resume(returning: thumbnail)
-                } catch {
-                    // Always return a default thumbnail on any error
-                    print("Thumbnail generation failed with error: \(error.localizedDescription)")
-                    continuation.resume(returning: defaultThumbnail(for: path))
-                }
+        let semaphore = self.getAsyncSemaphore(for: server)
+        await semaphore.wait()
+        var didSignal = false
+        func signalIfNeeded() async {
+            if !didSignal {
+                await semaphore.signal()
+                didSignal = true
             }
         }
+        defer { clearInProgress(path: path) }
+        
+        // Check again if path is still visible before proceeding
+        if !self.isVisible(path) {
+            await signalIfNeeded()
+            return self.defaultThumbnail(for: path)
+        }
+        
+        let fileType = FileType.determine(from: URL(fileURLWithPath: path))
+        let thumbnail: Image
+        if fileType == .video || fileType == .image {
+            if server.ffThumb {
+                do {
+                    thumbnail = try await self.generateFFmpegThumbnail(for: path, server: server)
+                } catch {
+                    print("FFmpeg thumbnail failed, using default: \(error.localizedDescription)")
+                    thumbnail = self.defaultThumbnail(for: path)
+                }
+            } else {
+                thumbnail = self.defaultThumbnail(for: path)
+            }
+        } else if fileType == .audio {
+            thumbnail = Image(systemName: "music.note")
+        } else {
+            thumbnail = self.defaultThumbnail(for: path)
+        }
+        await signalIfNeeded()
+        return thumbnail
     }
     
     private func markInProgress(path: String) -> Bool {
@@ -209,12 +210,11 @@ public class ThumbnailManager: NSObject {
         print("[ThumbnailManager] generateFFmpegThumbnail called for path: \(path), server: \(server.name ?? server.sftpHost ?? "default")")
         // Ensure the thumbs directory exists before any ffmpeg command
         let connection = getConnection(for: server)
-        let remoteThumbsDir = "$HOME/thumbs"
         let createThumbsDirCmd = "mkdir -p $HOME/thumbs"
         let (mkdirStatus, mkdirOutput) = try await connection.executeCommand(createThumbsDirCmd)
         print("[ThumbnailManager] mkdir status: \(mkdirStatus), output: \(mkdirOutput)")
         
-        guard var ffmpegPath = await ensureFFmpegAvailable(for: server) else {
+        guard let ffmpegPath = await ensureFFmpegAvailable(for: server) else {
             print("[ThumbnailManager] FFmpeg not available on server, using default thumbnail.")
             throw NSError(domain: "ThumbnailManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "FFmpeg not available on server"])
         }
@@ -226,8 +226,8 @@ public class ThumbnailManager: NSObject {
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
         FileManager.default.createFile(atPath: localTempURL.path, contents: nil)
         defer { try? FileManager.default.removeItem(at: localTempURL) }
-        let escapedPath = escapePath(path)
-        let escapedThumbPath = escapePath(remoteTempThumbPath)
+        let escapedPath = escapePath(path.precomposedStringWithCanonicalMapping)
+        let escapedThumbPath = escapePath(remoteTempThumbPath.precomposedStringWithCanonicalMapping)
         let fileType = FileType.determine(from: URL(fileURLWithPath: path))
         let timestamps = ["00:01:00.000","00:00:10.000", "00:00:00.000", "00:00:00.000"]
         var attempts = 0
@@ -253,7 +253,7 @@ public class ThumbnailManager: NSObject {
                 if ffmpegOutput.contains("not found") || ffmpegOutput.contains("No such file or directory") || status == 127 {
                     print("[ThumbnailManager] ffmpeg binary missing or not executable, clearing server.ffmpegPath and will reinstall on next request.")
                     server.ffmpegPath = nil
-                    try? server.managedObjectContext?.save()
+                    _ = try? server.managedObjectContext?.save()
                     continue
                 }
                 let testCmd = "[ -f \(escapedThumbPath) ] && echo 'success' || echo 'failed'"
@@ -263,7 +263,7 @@ public class ThumbnailManager: NSObject {
                     do {
                         try await connection.downloadFile(remotePath: remoteTempThumbPath, localURL: localTempURL) { _ in }
                         let cleanupCmd = "rm -f \(escapedThumbPath)"
-                        try? await connection.executeCommand(cleanupCmd)
+                        _ = try? await connection.executeCommand(cleanupCmd)
                         guard let imageData = try? Data(contentsOf: localTempURL), let uiImage = UIImage(data: imageData) else {
                             print("[ThumbnailManager] Failed to load image data from localTempURL: \(localTempURL)")
                             continue
@@ -273,7 +273,7 @@ public class ThumbnailManager: NSObject {
                             continue
                         }
                         let thumb = processThumbnail(uiImage: uiImage, isVideo: fileType == .video ? true : false)
-                        try? saveToCache(image: uiImage, for: path)
+                        _ = try? saveToCache(image: uiImage, for: path)
                         print("[ThumbnailManager] Successfully generated and cached thumbnail for path: \(path)")
                         return thumb
                     } catch {
@@ -284,7 +284,7 @@ public class ThumbnailManager: NSObject {
                     print("[ThumbnailManager] ffmpeg did not create a thumbnail for path: \(path), testResult: \(testResult)")
                 }
                 let cleanupCmd = "rm -f \(escapedThumbPath)"
-                try? await connection.executeCommand(cleanupCmd)
+                _ = try? await connection.executeCommand(cleanupCmd)
             } catch {
                 print("[ThumbnailManager] Error running ffmpeg command for path: \(path): \(error)")
                 continue
@@ -396,6 +396,8 @@ public class ThumbnailManager: NSObject {
             return Image("playback")
         case .image:
             return Image("image")
+        case .audio:
+            return Image(systemName: "music.note")
         default:
             return Image("item")
         }
@@ -551,11 +553,22 @@ public class ThumbnailManager: NSObject {
         }
         if let foundPath = foundPath {
             server.ffmpegPath = foundPath
-            try? server.managedObjectContext?.save()
+            _ = try? server.managedObjectContext?.save()
             print("[ThumbnailManager] Persisted ffmpegPath for server: \(server.name ?? server.sftpHost ?? "default"): \(foundPath)")
             return foundPath
         }
         return nil
+    }
+    
+    /// Disconnects all cached SSH connections. Call this explicitly when shutting down or logging out.
+    public func cleanup() async {
+        connectionsLock.lock()
+        let allConnections = Array(connections.values)
+        connections.removeAll()
+        connectionsLock.unlock()
+        for connection in allConnections {
+            await connection.disconnect()
+        }
     }
 }
 
@@ -600,6 +613,12 @@ public struct PathThumbnailView: View {
                         .padding(.trailing, 10)
                 case .image:
                     Image("image")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                        .padding(.trailing, 10)
+                case .audio:
+                    Image("audio")
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 60, height: 60)

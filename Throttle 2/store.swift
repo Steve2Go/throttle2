@@ -74,29 +74,7 @@ class Store: NSObject, ObservableObject {
 //#endif
 #if os(iOS)
     var currentSFTPViewModel: SFTPFileBrowserViewModel?
-    
 
-    
-    func handleVLCCallback(_ url: URL) {
-        let action = url.lastPathComponent
-        
-        if (action == "playbackDidFinish" || action == "playbackDidFinish/") &&
-           currentSFTPViewModel != nil && self.selection != nil {
-            print("🔄 Store handling VLC callback for action: \(action)")
-            // Call the handler with the stored references
-            DispatchQueue.main.async {
-                self.currentSFTPViewModel?.handleVLCCallback(server: self.selection!)
-            }
-        } else {
-            print("⚠️ Cannot handle VLC callback: missing view model or server")
-            if currentSFTPViewModel == nil {
-                print("  - currentSFTPViewModel is nil")
-            }
-            if self.selection == nil {
-                print("  - server.selection is nil")
-            }
-        }
-    }
     #endif
     func restoreSelection() {
         guard let savedId = selectedServerId,
