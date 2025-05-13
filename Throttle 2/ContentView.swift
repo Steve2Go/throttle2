@@ -1,6 +1,9 @@
 import SwiftUI
 import CoreData
 import KeychainAccess
+#if os(macOS)
+import ServiceManagement
+#endif
 
 // Keep only one enum for sheet types
 enum SheetType: String, Identifiable {
@@ -27,7 +30,7 @@ struct ContentView: View {
     @AppStorage("detailView") private var detailView = false
     @AppStorage("firstRun") private var firstRun = true
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = true
-    @AppStorage("mountOnOpen") var mountOnOpen = true
+    @AppStorage("mountOnLogin") var mountOnLogin = false
     @State var isCreating = false
 #if os(iOS)
     @State var currentSFTPViewModel: SFTPFileBrowserViewModel?
@@ -49,7 +52,7 @@ struct ContentView: View {
             )
             
 #else
-            if servers.count > 1 {
+            if servers.count > 0 {
                 iOSContentView( presenting: presenting,
                                 manager: manager,
                                 filter: filter,
@@ -88,19 +91,13 @@ struct ContentView: View {
                 }
             }
 #endif
-#if os(macOS)
-            
-            
-            
-            
-#endif
             
         }
         
         .onAppear {
             
             #if os(macOS)
-            if mountOnOpen {
+            if !mountOnLogin {
                 let serverArray = Array(servers)
                 ServerMountManager.shared.mountAllServers(serverArray)
             }
@@ -109,14 +106,55 @@ struct ContentView: View {
             if presenting.didStart {
                 if UserDefaults.standard.bool(forKey: "openDefaultServer") != false || UserDefaults.standard.object(forKey: "selectedServer") == nil {
                     store.selection = servers.first(where: { $0.isDefault }) ?? servers.first
-                }else{
+                } else{
                     store.selection = servers.first(where: { $0.id?.uuidString == UserDefaults.standard.string(forKey: "selectedServer")}) ?? servers.first
+                }
+                if servers.count > 0 && store.selection == nil {
+                    store.selection = servers.first
                 }
                 
                 presenting.didStart = false
             }
             
             // Set appropriate visibility only for iPad - preserves state on macOS
+        }
+        .onChange(of: mountOnLogin) {
+            #if os(macOS)
+            let fileManager = FileManager.default
+            let agentName = "com.srgim.throttle2.mounter.plist"
+            let launchAgentsURL = fileManager.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/LaunchAgents")
+            let destURL = launchAgentsURL.appendingPathComponent(agentName)
+
+            if mountOnLogin == true {
+                // Copy the plist from the app bundle to ~/Library/LaunchAgents/
+                if let srcURL = Bundle.main.url(forResource: "com.srgim.throttle2.mounter", withExtension: "plist") {
+                    do {
+                        // Create LaunchAgents directory if needed
+                        try fileManager.createDirectory(at: launchAgentsURL, withIntermediateDirectories: true)
+                        // Remove any existing file
+                        if fileManager.fileExists(atPath: destURL.path) {
+                            try fileManager.removeItem(at: destURL)
+                        }
+                        try fileManager.copyItem(at: srcURL, to: destURL)
+                        // Load the agent
+                        let task = Process()
+                        task.launchPath = "/bin/launchctl"
+                        task.arguments = ["load", destURL.path]
+                        try? task.run()
+                    } catch {
+                        print("Failed to install LaunchAgent: \(error)")
+                    }
+                }
+            } else {
+                // Unload and remove the LaunchAgent
+                let task = Process()
+                task.launchPath = "/bin/launchctl"
+                task.arguments = ["unload", destURL.path]
+                try? task.run()
+                try? fileManager.removeItem(at: destURL)
+            }
+            #endif
         }
     
         .sheet(item: activeSheetBinding) { sheetType in
@@ -162,6 +200,18 @@ struct ContentView: View {
                     //}
                 }
             }
+            else if url.scheme == "throttle2", url.host == "mountall" {
+                    #if os(macOS)
+                store.launching = true
+                    // Mount all servers and quit (headless)
+                    let serverArray = Array(servers)
+                    ServerMountManager.shared.mountAllServers(serverArray)
+                    // quit after mounting
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                        NSApp.terminate(nil)
+                    }
+                    #endif
+                }
             else {
                 print("URL ignored: Not a file or magnet link")
             }

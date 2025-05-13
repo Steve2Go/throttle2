@@ -410,12 +410,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
         // Get credentials
         @AppStorage("useCloudKit") var useCloudKit: Bool = true
         let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
-        guard let username = server.sftpUser,
-              let password = keychain["sftpPassword" + (server.name ?? "")],
-              let hostname = server.sftpHost else {
-            print("❌ Missing server credentials")
-            return
-        }
+
+        let username = server.sftpUser ?? ""
+        let password = keychain["sftpPassword" + (server.name ?? "")] ?? ""
+        let hostname = server.sftpHost ?? "127.0.0.1"
         
         let port = server.sftpPort
         let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""

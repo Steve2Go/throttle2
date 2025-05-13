@@ -15,9 +15,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E7150E162D631D08009C4217"
-               BuildableName = "Throttle 2.app"
-               BlueprintName = "Throttle 2"
+               BlueprintIdentifier = "E73ED4F32DD1793900933671"
+               BuildableName = "ThrottleMountHelper.app"
+               BlueprintName = "ThrottleMountHelper"
                ReferencedContainer = "container:Throttle 2.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -35,9 +35,9 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E7150E2D2D631D0A009C4217"
-               BuildableName = "Throttle 2Tests.xctest"
-               BlueprintName = "Throttle 2Tests"
+               BlueprintIdentifier = "E73ED50F2DD1793A00933671"
+               BuildableName = "ThrottleMountHelperUITests.xctest"
+               BlueprintName = "ThrottleMountHelperUITests"
                ReferencedContainer = "container:Throttle 2.xcodeproj">
             </BuildableReference>
          </TestableReference>
@@ -46,9 +46,9 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E7150E372D631D0A009C4217"
-               BuildableName = "Throttle 2UITests.xctest"
-               BlueprintName = "Throttle 2UITests"
+               BlueprintIdentifier = "E73ED5052DD1793A00933671"
+               BuildableName = "ThrottleMountHelperTests.xctest"
+               BlueprintName = "ThrottleMountHelperTests"
                ReferencedContainer = "container:Throttle 2.xcodeproj">
             </BuildableReference>
          </TestableReference>
@@ -68,9 +68,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E7150E162D631D08009C4217"
-            BuildableName = "Throttle 2.app"
-            BlueprintName = "Throttle 2"
+            BlueprintIdentifier = "E73ED4F32DD1793900933671"
+            BuildableName = "ThrottleMountHelper.app"
+            BlueprintName = "ThrottleMountHelper"
             ReferencedContainer = "container:Throttle 2.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -85,9 +85,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "E7150E162D631D08009C4217"
-            BuildableName = "Throttle 2.app"
-            BlueprintName = "Throttle 2"
+            BlueprintIdentifier = "E73ED4F32DD1793900933671"
+            BuildableName = "ThrottleMountHelper.app"
+            BlueprintName = "ThrottleMountHelper"
             ReferencedContainer = "container:Throttle 2.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

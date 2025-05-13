@@ -69,6 +69,7 @@ class Store: NSObject, ObservableObject {
     @Published var FileBrowseCover = false
     @Published var fileURL:String?
     @Published var fileBrowserName:String?
+    @Published var launching = false
    // #if os(iOS)
     //@Published var ssh: SSHConnection?
 //#endif

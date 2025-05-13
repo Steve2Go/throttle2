@@ -14,6 +14,7 @@ struct ServerStatusBar: View {
     @State private var totalTorrents: Int = 0
     @State private var freeSpace: Int64 = 0
     @State private var refreshTask: Task<Void, Never>?
+    @AppStorage("isMounted") var isMounted: Bool = false
     
     // Timer for refresh
     @State private var timer: Timer?
@@ -53,6 +54,9 @@ var isiPad: Bool {
         }
         horizontalPadding = -60.0
         verticalPadding = 0
+        #else
+        scale = 0.9
+        horizontalPadding = -30.0
         #endif
         
         return HStack(spacing: spacing) {
@@ -64,20 +68,7 @@ var isiPad: Bool {
                 Spacer()
             } else {
                 Spacer()
-                // speed
-               
-//                    Image(systemName: "arrow.up.arrow.down")
-//                        .scaleEffect(x: -1, y: 1)
-//                        .symbolRenderingMode(.palette)
-//                        .foregroundStyle(.green,.blue)
-//                        .foregroundColor(.green)
-//                    VStack{
-//                        Text("↓\(uploadSpeedFormatted)").font(.caption)
-//                        Text("↑\(uploadSpeedFormatted)").font(.caption)
-//                    }
-//                }
-                
-                
+       
                 VStack(alignment:.leading) {
                     HStack{
                         Text("↓").font(.caption).foregroundColor(.blue)
@@ -95,16 +86,39 @@ var isiPad: Bool {
 //                    .frame(height: dividerHeight)
                 //tunnels
                 HStack(spacing: innerSpacing) {
-                  //  #if os(iOS)
-                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                        if TunnelManagerHolder.shared.activeTunnels.count > 0  && SimpleFTPServerManager.shared.activeServers.count > 0  {
-                            Image(systemName: "arrow.up.arrow.down.circle.fill")
-                                .foregroundColor(.green)
-                        } else if TunnelManagerHolder.shared.activeTunnels.count > 0 ||  SimpleFTPServerManager.shared.activeServers.count > 0  {
-                            Image(systemName: "arrow.up.arrow.down.circle")
+                    #if os(iOS)
+                    //Disk Icon
+                    if store.selection?.sftpBrowse == true {
+                        if SimpleFTPServerManager.shared.activeServers.count > 0  {
+                            Image(systemName: "externaldrive")
                                 .foregroundColor(.green)
                         } else {
-                            Image(systemName: "arrow.up.arrow.down.circle")
+                            Image(systemName: "externaldrive")
+                                .foregroundColor(.orange)
+                                .symbolEffect(.pulse)
+                        }
+                    }
+                    #else
+                    
+                    if store.selection?.sftpBrowse == true {
+                        if isMounted  {
+                            Image(systemName: "externaldrive")
+                                .foregroundColor(.green)
+                        } else {
+                            Image(systemName: "externaldrive.badge.xmark")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    
+                    #endif
+
+                    // tunnel icon
+                    if store.selection?.sftpRpc == true {
+                        if TunnelManagerHolder.shared.activeTunnels.count > 0  {
+                            Image(systemName: "arrow.up.arrow.down")
+                                .foregroundColor(.green)
+                        } else {
+                            Image(systemName: "arrow.up.arrow.down")
                                 .foregroundColor(.orange)
                                 .symbolEffect(.pulse.byLayer, options: .repeat(.continuous))
                         }
@@ -118,25 +132,10 @@ var isiPad: Bool {
                     }
 //                    #endif
                     // activity
-                    Text("\(activeTorrents)/\(totalTorrents)")
+                    Text("\(activeTorrents)")   ////\(totalTorrents)")
                         .font(.caption)
-                }.onTapGesture {
-                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                        #if os(macOS)
-                        ToastManager.shared.show(message: "HTTP Tunnel Activity Status:\n\nOrange - Connecting\nGreen - Tunnel Active\n\nActive Torrents/All Torrents", icon: "arrow.up.arrow.down", color: Color.green)
-                        #else
-                        ToastManager.shared.show(message: "HTTP / FTP Tunnel Activity Status:\n\nOrange - Connecting\nGreen - 1 Tunnel Active\nGreen Solid - 2 Tunnels Tunnels Active\n\nActive Torrents/All Torrents", icon: "arrow.up.arrow.down", color: Color.green)
-                        #endif
-                    }
                 }
                 
-                // Active torrents
-                
-//                HStack(spacing: innerSpacing) {
-//                    Image(systemName: "checkmark.circle")
-//                        .foregroundColor(.gray)
-//                    
-//                }
                 
                 // Visible torrents
                 HStack(spacing: innerSpacing) {
@@ -144,10 +143,6 @@ var isiPad: Bool {
                         .foregroundColor(filterdCount == totalTorrents  ? .green : .orange)
                     Text("\(filterdCount)/\(totalTorrents)")
                         .font(.caption)
-                }.onTapGesture {
-                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                        ToastManager.shared.show(message: "Visible Torrents/All Torrents", icon: "eye", color: Color.green)
-                    }
                 }
                 
                 // Free space
@@ -158,17 +153,7 @@ var isiPad: Bool {
                         .font(.caption)
                 }
                 Spacer()
-               // #if os(iOS)
-//                if isiPad {
-//                    HStack {
-//                        Button {
-//                            showServerSettings.toggle()
-//                        } label: {
-//                            Image(systemName: "gearshape")
-//                        }
-//                    }
-//                }
-//                #else
+
                 HStack {
                     Button {
                         showServerSettings.toggle()
@@ -176,7 +161,7 @@ var isiPad: Bool {
                         Image(systemName: "gearshape")
                     }
                 }
-                //#endif
+
                 
                 Spacer()
             }

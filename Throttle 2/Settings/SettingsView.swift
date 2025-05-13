@@ -18,8 +18,7 @@ struct SettingsView: View {
     @AppStorage("deleteOnSuccess") var deleteOnSuccess: Bool = true
     @AppStorage("qlVideo") var qlVideo: Bool = false
     @AppStorage("isAbout") var isAbout = false
-    @AppStorage("unMountOnClose") var unMountOnClose = true
-    @AppStorage("mountOnOpen") var mountOnOpen = true
+    @AppStorage("mountOnLogin") var mountOnLogin = false
     @ObservedObject var presenting: Presenting
     @State var installerView = false
     @ObservedObject var manager: TorrentManager
@@ -135,16 +134,21 @@ struct SettingsView: View {
 //                Button("Install Fuse File System") {
 //                    installerView.toggle()
 //                }
+//                settingRow(
+//                    title: "Mount servers on launch",
+//                    description: "Mount remote files when Throttle opens",
+//                    control: Toggle("", isOn: $mountOnLogin)
+//                )
                 settingRow(
-                    title: "Mount servers on launch",
-                    description: "Mount the fuse file system whe the app opens",
+                    title: "Mount Servers on login",
+                    description: "Mount remote files when you log into your Computer",
                     control: Toggle("", isOn: $unMountOnClose)
                 )
-                settingRow(
-                    title: "Unmount Server Files on close",
-                    description: "Unmount the fuse file system whe the app closes",
-                    control: Toggle("", isOn: $mountOnOpen)
-                )
+//                settingRow(
+//                    title: "Unmount Server Files on close",
+//                    description: "Unmount the fuse file system when the app closes",
+//                    control: Toggle("", isOn: $mountOnOpen)
+//                )
                 Text("About").font(.headline)
                 Text("Mac version installs fuse-t with sshfs").font(.caption)
                 Text("Mac bundle includes bundled QLVideo in it's entirety https://github.com/Marginal/QLVideo").font(.caption)

@@ -167,16 +167,14 @@ public class ThumbnailManager: NSObject {
         let fileType = FileType.determine(from: URL(fileURLWithPath: path))
         let thumbnail: Image
         if fileType == .video || fileType == .image {
-            if server.ffThumb {
+           
                 do {
                     thumbnail = try await self.generateFFmpegThumbnail(for: path, server: server)
                 } catch {
                     print("FFmpeg thumbnail failed, using default: \(error.localizedDescription)")
                     thumbnail = self.defaultThumbnail(for: path)
                 }
-            } else {
-                thumbnail = self.defaultThumbnail(for: path)
-            }
+            
         } else if fileType == .audio {
             thumbnail = Image(systemName: "music.note")
         } else {
@@ -226,8 +224,8 @@ public class ThumbnailManager: NSObject {
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
         FileManager.default.createFile(atPath: localTempURL.path, contents: nil)
         defer { try? FileManager.default.removeItem(at: localTempURL) }
-        let escapedPath = escapePath(path.precomposedStringWithCanonicalMapping)
-        let escapedThumbPath = escapePath(remoteTempThumbPath.precomposedStringWithCanonicalMapping)
+        let escapedPath = shellQuote(path)
+        let escapedThumbPath = shellQuote(remoteTempThumbPath)
         let fileType = FileType.determine(from: URL(fileURLWithPath: path))
         let timestamps = ["00:01:00.000","00:00:10.000", "00:00:00.000", "00:00:00.000"]
         var attempts = 0
@@ -515,6 +513,7 @@ public class ThumbnailManager: NSObject {
     
     // Helper to get or install ffmpeg for a server, pausing all requests until done
     private func ensureFFmpegAvailable(for server: ServerEntity) async -> String? {
+        print("starting ffmpeg checks")
         // Use the persistent ffmpegPath if available
         if let path = server.ffmpegPath, !path.isEmpty {
             print("[ThumbnailManager] Using persisted ffmpegPath for server: \(server.name ?? server.sftpHost ?? "default"): \(path)")
@@ -528,6 +527,7 @@ public class ThumbnailManager: NSObject {
             "$HOME/bin/ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe"
         ]
         var foundPath: String? = nil
+        print("checking paths")
         for path in knownInstallPaths {
             print("[ThumbnailManager] Checking ffmpeg at: \(path) for server: \(server.name ?? server.sftpHost ?? "default")")
             if let (_, testOutput) = try? await connection.executeCommand("\(path) -version || echo 'notfound'") {

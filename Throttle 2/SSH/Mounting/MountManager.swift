@@ -54,12 +54,12 @@ class ServerMountManager: ObservableObject {
             .store(in: &cancellables)
         
         // Setup cleanup on app termination
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(applicationWillTerminate),
-            name: NSApplication.willTerminateNotification,
-            object: nil
-        )
+//        NotificationCenter.default.addObserver(
+//            self,
+//            selector: #selector(applicationWillTerminate),
+//            name: NSApplication.willTerminateNotification,
+//            object: nil
+//        )
         
         // Setup periodic health check
         Timer.publish(every: 30, on: .main, in: .common)
@@ -133,6 +133,7 @@ class ServerMountManager: ObservableObject {
     
     // MARK: - Mount Operations
     func mountServer(_ server: ServerEntity) {
+        @AppStorage("isMounted") var isMounted: Bool = false
         guard let user = server.sftpUser,
               let host = server.sftpHost,
               let path = server.pathServer,
@@ -142,6 +143,7 @@ class ServerMountManager: ObservableObject {
               !path.isEmpty else {
             mountStatus[server.name ?? ""] = false
             mountErrors[server.name ?? ""] = MountError.invalidServerConfiguration
+            
             return
         }
         
@@ -245,6 +247,7 @@ class ServerMountManager: ObservableObject {
                 if process.terminationStatus == 0 {
                     // Update status for all servers using this mount key
                     self.updateStatusForMountKey(mountKey, success: true)
+                    isMounted = true
                 } else {
                     // Update error status for all servers using this mount key
                     self.updateStatusForMountKey(mountKey, success: false, error: MountError.mountProcessFailed)
@@ -357,7 +360,8 @@ class ServerMountManager: ObservableObject {
     func unmountAllServers() {
         // Get unique mount keys
         let mountKeys = Set(activeMounts.keys)
-        
+        @AppStorage("isMounted") var isMounted: Bool = false
+        isMounted = false
         for mountKey in mountKeys {
             if let mountURL = activeMounts[mountKey] {
                 // Try graceful unmount
@@ -416,9 +420,13 @@ class ServerMountManager: ObservableObject {
     }
     
     private func checkMountHealth() {
+        @AppStorage("isMounted") var isMounted: Bool = false
         for (mountKey, mountURL) in activeMounts {
             if !isDirectoryMounted(mountURL) {
                 updateStatusForMountKey(mountKey, success: false)
+                isMounted = false
+            } else{
+                isMounted = true
             }
         }
     }
@@ -431,17 +439,19 @@ class ServerMountManager: ObservableObject {
         temporaryKeyFiles.removeAll()
     }
     
-    @objc private func applicationWillTerminate() {
-        // Clean up all mounts when app terminates
-        unmountAllServers()
-        
-        // Clean up temporary files
-        cleanupTemporaryFiles()
-    }
+//    @objc private func applicationWillTerminate() {
+//        // Only unmount on close if unMountOnClose is true and not running in the helper
+//        let isHelper = Bundle.main.bundleIdentifier == "com.srgim.ThrottleMountHelper"
+//        let unMountOnClose = UserDefaults.standard.bool(forKey: "unMountOnClose")
+//        if unMountOnClose && !isHelper {
+//            unmountAllServers()
+//        }
+//        cleanupTemporaryFiles()
+ //   }
     
     deinit {
         cancellables.removeAll()
-        applicationWillTerminate()
+       // applicationWillTerminate()
     }
 }
 #endif

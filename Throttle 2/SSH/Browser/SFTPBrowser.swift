@@ -164,6 +164,7 @@ struct SFTPFileBrowserView: View {
                 }
             }
             .fullScreenCover(isPresented: $viewModel.showingVideoPlayer) {
+                
                         if let config = viewModel.videoPlayerConfiguration {
                             VideoPlayerContainerView(configuration: config)
                                 .ignoresSafeArea(edges: .all)

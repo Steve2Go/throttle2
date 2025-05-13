@@ -481,6 +481,7 @@ struct ServerEditView: View {
                 onCompletion: { result in
                     switch result {
                     case .success(let url):
+                        _ = url.startAccessingSecurityScopedResource()
                         handleSSHKey(keyFileURL: url)
                     case .failure(let error):
                         print("File selection error: \(error)")
@@ -544,6 +545,7 @@ struct ServerEditView: View {
         do {
 
             // Read the key content
+            
             let keyContent = try String(contentsOf: keyFileURL)
             
             // Store the full key content in the keychain with server name
@@ -559,6 +561,7 @@ struct ServerEditView: View {
             let keyFileName = keyFileURL.lastPathComponent
             //sftpKey = "key:" + keyFileName
             sftpUsesKey = true
+            sftpKey = keyFileName
             
             print("SSH key saved to keychain: \(keyFileName)")
 

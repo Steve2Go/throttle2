@@ -33,6 +33,16 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		E73ED5362DD184A000933671 /* Copy Files */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 12;
+			dstPath = Contents/Library/LoginItems;
+			dstSubfolderSpec = 1;
+			files = (
+			);
+			name = "Copy Files";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E7BEDF6F2D6EF03300E72E6F /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 12;
@@ -209,6 +219,7 @@
 				E7BEDF6F2D6EF03300E72E6F /* Embed Foundation Extensions */,
 				742215A652E9693CCC6C8667 /* [CP] Embed Pods Frameworks */,
 				E7F96D9C2D8F611800A19857 /* Embed Foundation Extensions */,
+				E73ED5362DD184A000933671 /* Copy Files */,
 			);
 			buildRules = (
 			);
@@ -272,7 +283,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1620;
+				LastSwiftUpdateCheck = 1630;
 				LastUpgradeCheck = 1630;
 				TargetAttributes = {
 					E7150E162D631D08009C4217 = {
@@ -550,7 +561,7 @@
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]" = "AppIcon macOS";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
-				CODE_SIGN_ENTITLEMENTS = "Throttle 2/Throttle_2.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Throttle 2/Throttle 2Release.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;

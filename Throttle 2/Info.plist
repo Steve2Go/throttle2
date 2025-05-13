@@ -36,6 +36,14 @@
 				<string>throttle</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.srgim.throttle2</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>throttle2</string>
+			</array>
+		</dict>
 	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>

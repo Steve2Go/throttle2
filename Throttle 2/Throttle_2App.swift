@@ -35,9 +35,9 @@ struct Throttle_2App: App {
     @State var isBackground: Timer?
     @State var tunnelClosed = false
     @State var isTunneling = false
-    @AppStorage("unMountOnClose") var unMountOnClose = true
-    @AppStorage("mountOnOpen") var mountOnOpen = true
+    @AppStorage("mountOnLogin") var mountOnLogin = false
     @AppStorage("sftpCompression") var sftpCompression: Bool = false
+    @State var ftpIsStarting = false
     var body: some Scene {
         #if os(macOS)
         // Use a single window for macOS:
@@ -63,7 +63,7 @@ struct Throttle_2App: App {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                                     // This code will be executed just before the app terminates
-                    if UserDefaults.standard.bool(forKey: "unMountOnClose") != false {
+                    if store.launching == false && mountOnLogin == false {
                         ServerMountManager.shared.unmountAllServers()
                     }
                                 }
@@ -122,14 +122,14 @@ struct Throttle_2App: App {
             CommandMenu("Mount") {
                 
 
-                Button("Mount") {
-                    if !serverArray.isEmpty {
-                        ServerMountManager.shared.mountAllServers(serverArray)
-                    }
-                }
-                .keyboardShortcut("m", modifiers: [.command, .shift])
+//                Button("Mount") {
+//                    if !serverArray.isEmpty {
+//                        ServerMountManager.shared.mountAllServers(serverArray)
+//                    }
+//                }
+//                .keyboardShortcut("m", modifiers: [.command, .shift])
 
-                Button("Refresh") {
+                Button("Refresh Mounts") {
                     ServerMountManager.shared.unmountAllServers()
                     if !serverArray.isEmpty {
                         ServerMountManager.shared.mountAllServers(serverArray)
@@ -137,25 +137,31 @@ struct Throttle_2App: App {
                     }
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
-                
-                Button("Unmount") {
-                    ServerMountManager.shared.unmountAllServers()
-                }
-                .keyboardShortcut("u", modifiers: [.command, .shift])
+//                
+//                Button("Unmount Remotes") {
+//                    ServerMountManager.shared.unmountAllServers()
+//                }
+//                .keyboardShortcut("u", modifiers: [.command, .shift])
                 
                 Divider()
                 // Toggle for Mount on Open
-                Button(action: { mountOnOpen.toggle() }) {
-                    Text("Mount on Open" + (mountOnOpen ? "  ✓" : ""))
+                Button(action: { mountOnLogin.toggle() }) {
+                    Text("Mount on Login" + (mountOnLogin ? "  ✓" : ""))
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
-
-                // Toggle for Unmount on Close
-                Button(action: { unMountOnClose.toggle() }) {
-                    Text("Unmount on Close" + (unMountOnClose ? "  ✓" : ""))
-                }
-                .keyboardShortcut("c", modifiers: [.command, .shift])
                 
+//                if !mountOnLogin {
+//                    Button(action: { mountOnOpen.toggle() }) {
+//                        Text("Mount on Open" + (mountOnOpen ? "  ✓" : ""))
+//                    }
+//                    .keyboardShortcut("o", modifiers: [.command, .shift])
+//                    
+//                    // Toggle for Unmount on Close
+//                    Button(action: { unMountOnClose.toggle() }) {
+//                        Text("Unmount on Close" + (unMountOnClose ? "  ✓" : ""))
+//                    }
+//                    .keyboardShortcut("c", modifiers: [.command, .shift])
+//                }
                 // Toggle for Compression
                 Button(action: {
                     sftpCompression.toggle()
@@ -190,30 +196,41 @@ struct Throttle_2App: App {
                 }
                 // app backgrounding
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { (_) in
-                    
+                    if networkMonitor.isConnected{
+                        refreshSFTP(store: store)
+                    }
                     if networkMonitor.isConnected && !manager.isLoading {
                         manager.isLoading = true
                         if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
                             refeshTunnel(store: store, torrentManager: manager)
                         }
                         print("Foreground- starting queue")
-                        manager.isLoading = false
+                        //manager.isLoading = false
                     }
                     
                 }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { (_) in
+                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                        stopSFTP()
+                        TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                        Task{
+                            await SSHConnectionManager.shared.cleanupBeforeTermination()
+                        }
+                    }
+                }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { (_) in
                     manager.stopPeriodicUpdates()
-                    //stopSFTP()
-                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-//                        Task{
-//                            await SimpleFTPServerManager.shared.removeAllServers()
-//                        }
-                        TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                    stopSFTP()
+                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                    Task{
+                        await SSHConnectionManager.shared.cleanupBeforeTermination()
                     }
+                    
                     print("Background - stopping queue")
                 }
                 .onChange(of: networkMonitor.gateways){
                     if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                        refreshSFTP(store: store)
                         
                         if networkMonitor.isConnected && !manager.isLoading {
                             manager.isLoading = true
@@ -221,23 +238,23 @@ struct Throttle_2App: App {
                                 refeshTunnel(store: store, torrentManager: manager)
                             }
                             print("Foreground- starting queue")
-                            manager.isLoading = false
+                            //manager.isLoading = false
                         }
+                        
                     }
                 }
                 .onChange(of: store.selection) { oldValue, newValue in
                             Task {
                                 if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                                    //if oldValue != nil {
+                                    if oldValue != nil {
                                         manager.isLoading = true
                                         manager.stopPeriodicUpdates()
-                                        //stopSFTP()
-                                        TunnelManagerHolder.shared.tearDownAllTunnels()
+                                        refreshSFTP(store: store)
                                         TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
-                                        await SimpleFTPServerManager.shared.removeAllServers()
-                                    
-                                    //}
-                                    setupServer(store: store, torrentManager: manager)
+                                    }
+                                    if newValue != nil {
+                                        setupServer(store: store, torrentManager: manager)
+                                    }
                                 } else {
                                     setupServer(store: store, torrentManager: manager)
                                 }
