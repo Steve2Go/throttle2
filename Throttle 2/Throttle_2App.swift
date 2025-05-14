@@ -197,7 +197,7 @@ struct Throttle_2App: App {
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { (_) in
                     Task {
                         try? await Task.sleep(nanoseconds: 500_000_000)
-                        connection( ftp: false, fullRefresh: false)
+                        connection( ftp: true, fullRefresh: false)
                     }
                     
                     
@@ -252,45 +252,34 @@ struct Throttle_2App: App {
     func connection(ftp:Bool = true, fullRefresh:Bool = true) {
         // are we doing this already?
         guard isTunneling == false, let server = store.selection else {return}
+        var isConnectingTunnel = false
+        var isconnectingFTP = false
         isTunneling = true
         manager.stopPeriodicUpdates()
         
-        // cleanup ftp
+        // FTP
         Task {
-        if await SimpleFTPServerManager.shared.activeServers.count > 0 && ftp {
+            if await SimpleFTPServerManager.shared.activeServers.count > 0 && ftp {
                 await SimpleFTPServerManager.shared.removeAllServers()
             }
-        }
-        // cleanup tunnels
-        if TunnelManagerHolder.shared.activeTunnels.count > 0 {
-            TunnelManagerHolder.shared.tearDownAllTunnels()
-        }
-        
-
-        // do we reconnect?
-        guard networkMonitor.isConnected else {return}
-        
-        var isConnectingTunnel = false
-        var isconnectingFTP = false
-        
-        //ftp
-        Task {
-            if server.sftpBrowse == true && ftp {
+            if server.sftpBrowse && networkMonitor.isConnected && ftp {
                 isconnectingFTP = true
                 await connectFTP(store: store)
-            }
-            // are we all done?
-            isconnectingFTP = false
-            if !isConnectingTunnel {
-                isTunneling = false
+                // are we all done?
+                isconnectingFTP = false
+                if !isConnectingTunnel {
+                    isTunneling = false
+                }
             }
         }
+        
+        //Tunnels
         Task {
-            //tunnel handling
-            
-            if store.selection?.sftpRpc == true {
+            if TunnelManagerHolder.shared.activeTunnels.count > 0 {
+                TunnelManagerHolder.shared.tearDownAllTunnels()
+            }
+            if store.selection?.sftpRpc == true && networkMonitor.isConnected {
                 isConnectingTunnel = true
-                try? await Task.sleep(nanoseconds: 500_000_000)
                 setupServer(store: store, torrentManager: manager, fullRefresh: fullRefresh)
             }
             // are we all done?
@@ -299,6 +288,8 @@ struct Throttle_2App: App {
                 isTunneling = false
             }
         }
+        
+        
         
     }
     func connectFTP(store: Store , tries:Int = 0) async {
