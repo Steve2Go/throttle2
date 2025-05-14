@@ -154,22 +154,12 @@ class VideoPlayerViewController: UIViewController {
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
-    func prepareForExternalDisplay() {
-            // Force a check for external displays first
-            //ExternalDisplayManager.shared.startMonitoring()
-            
-            // Notify the external display manager that the video player will take control
-            ExternalDisplayManager.shared.suspendForVideoPlayer()
-        }
     
     override func viewDidLoad() {
-            // Notify the external display manager before setting up our own display
-            prepareForExternalDisplay()
-            
-            super.viewDidLoad()
-            print("ViewDidLoad called")
-            setupUI()
-        }
+        super.viewDidLoad()
+        print("ViewDidLoad called")
+        setupUI()
+    }
     
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
@@ -475,15 +465,12 @@ class VideoPlayerViewController: UIViewController {
     }
     
     deinit {
-            print("VideoPlayerViewController is being deinitialized")
-            controlsTimer?.invalidate()
-            mediaPlayer.stop()
-            externalWindow?.isHidden = true
-            externalWindow = nil
-            
-            // Notify the external display manager to resume the black screen
-            ExternalDisplayManager.shared.resumeAfterVideoPlayer()
-        }
+        print("VideoPlayerViewController is being deinitialized")
+        controlsTimer?.invalidate()
+        mediaPlayer.stop()
+        externalWindow?.isHidden = true
+        externalWindow = nil
+    }
     
     func configure(with url: URL) {
         print("Configuring player with single URL: \(url)")

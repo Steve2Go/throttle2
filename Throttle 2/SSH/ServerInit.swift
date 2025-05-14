@@ -54,17 +54,12 @@ extension Throttle_2App {
         }
     }
     
-    func setupServer (store: Store, torrentManager: TorrentManager, tries: Int = 0) {
+    func setupServer (store: Store, torrentManager: TorrentManager, tries: Int = 0, fullRefresh: Bool = true) {
         
         @AppStorage("trigger") var trigger = true
-    
-        // Reset all SSH connections
-//        Task{
-//            await SSHConnectionManager.shared.resetAllConnections()
-//        }
-            store.selectedTorrentId = nil
-            
-            if store.selection != nil {
+                
+                //deselct details view
+                store.selectedTorrentId = nil
                 
                 
                 
@@ -73,7 +68,7 @@ extension Throttle_2App {
                 let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
                 let server = store.selection
                 
-                // trying to keep it as clear as possible
+                // trying to keep it as clear as possible, building url
                 let proto = (server?.protoHttps ?? false) ? "https" : "http"
                 let domain = server?.url ?? "127.0.0.1"
                 let user = server?.sftpUser ?? ""
@@ -89,20 +84,7 @@ extension Throttle_2App {
                 var url = ""
                 var at = ""
                 
-//#if os(iOS)
-//                if server?.sftpUsesKey == true {
-// //                   setupSFTPIfNeeded(store: store)
-////                    Task{
-////                        //sftp tunnel
-////                        let sftp = try SSHTunnelManager(server: server!, localPort: 2222, remoteHost: "127.0.0.1", remotePort: Int(server!.sftpPort))
-////                        try await sftp.start()
-////                        TunnelManagerHolder.shared.storeTunnel(sftp, withIdentifier: "sftp")
-////
-////                    }
-//                }
-//                #endif
                 if isTunnel{
-                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
                     
                     //server tunnel creation
                     if let server = server {
@@ -126,9 +108,11 @@ extension Throttle_2App {
                                 
                                 store.connectTransmission = url
                                 ServerManager.shared.setServer(store.selection!)
-                                torrentManager.isLoading = true
                                 
-                                torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
+                                if fullRefresh == true {
+                                    torrentManager.isLoading = true
+                                    torrentManager.updateBaseURL(URL( string: store.connectTransmission)!)
+                                }
                                 //torrentManager.reset()
                                // try? await Task.sleep(nanoseconds: 1_000_000_000)
                                 
@@ -148,12 +132,6 @@ extension Throttle_2App {
                                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                                 try await torrentManager.fetchUpdates(fullFetch: true)
                                 torrentManager.startPeriodicUpdates()
-                                //try await Task.sleep(for: .milliseconds(500))
-//                                if !store.magnetLink.isEmpty || store.selectedFile != nil {
-//                                    presenting.activeSheet = "adding"
-//                                    
-//
-//                                }
                             }
                         }
                     }
@@ -185,75 +163,46 @@ extension Throttle_2App {
 //                        }
                     }
                     
-                }
-
-            }
-    }
-    #if os(iOS)
-//    func setupExternalDisplayManager() {
-//           // This will start monitoring for external displays and create a black screen when needed
-//           ExternalDisplayManager.shared.startMonitoring()
-      // }
-
-    
-    #endif
-    
-    
-    func startFTP(store: Store,tries: Int = 0) {
-        guard let server = store.selection, server.sftpUsesKey == true else { return }
-        
-        #if os(iOS)
-        Task {
-            do {
-                // Create and start a new FTP server
-                let ftpServer = SimpleFTPServer(server: server)
-                try await ftpServer.start()
                 
-                // Store the server
-                await SimpleFTPServerManager.shared.storeServer(ftpServer, withIdentifier: "sftp-ftp")
-                print("Simple FTP Server started on localhost:2121")
-            } catch {
-                print("Failed to start FTP server: \(error)")
-                if tries < 3 {
-                    //stopSFTP()
-                    await SimpleFTPServerManager.shared.removeAllServers()
-                    try? await Task.sleep(nanoseconds: 2_000_000_000)
-                    startFTP(store: store, tries: tries + 1)
-                }else{
-                    // Show error toast
-                    ToastManager.shared.show(
-                        message: "Failed to start FTP server: \(error.localizedDescription)",
-                        icon: "exclamationmark.triangle",
-                        color: Color.red
-                    )
-                }
+
             }
-        }
-        #endif
     }
-    
-    
-    func refreshSFTP(store: Store) {
-        if ftpIsStarting == false {
-            ftpIsStarting = true
-            Task {
-                await SimpleFTPServerManager.shared.removeAllServers()
-                guard let server = store.selection, server.sftpUsesKey == true else { return }
-                startFTP(store: store)
-                ftpIsStarting = false
-            }
-        }
-    }
-    
-    func stopSFTP() {
-        guard let server = store.selection, server.sftpUsesKey == true else { return }
+
         
-        //#if os(iOS)
-        Task {
-            await SimpleFTPServerManager.shared.removeAllServers()
-        }
-        //#endif
-    }
+//    func startFTP(store: Store,tries: Int = 0) {
+//        guard let server = store.selection, server.sftpUsesKey == true else { return }
+//        
+//        #if os(iOS)
+//        Task {
+//            do {
+//                // Create and start a new FTP server
+//                let ftpServer = SimpleFTPServer(server: server)
+//                try await ftpServer.start()
+//                
+//                // Store the server
+//                await SimpleFTPServerManager.shared.storeServer(ftpServer, withIdentifier: "sftp-ftp")
+//                print("Simple FTP Server started on localhost:2121")
+//            } catch {
+//                print("Failed to start FTP server: \(error)")
+//                if tries < 3 {
+//                    //stopSFTP()
+//                    await SimpleFTPServerManager.shared.removeAllServers()
+//                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+//                    startFTP(store: store, tries: tries + 1)
+//                }else{
+//                    // Show error toast
+//                    ToastManager.shared.show(
+//                        message: "Failed to start FTP server: \(error.localizedDescription)",
+//                        icon: "exclamationmark.triangle",
+//                        color: Color.red
+//                    )
+//                }
+//            }
+//        }
+//        #endif
+//    }
+    
+
   
 }
 

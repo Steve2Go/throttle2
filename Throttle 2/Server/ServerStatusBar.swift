@@ -18,7 +18,8 @@ struct ServerStatusBar: View {
     
     // Timer for refresh
     @State private var timer: Timer?
-    //@State private var ftpServerCount: Int = 0
+    @State private var ftpServerCount: Int = 0
+    @State private var ftpStatusTimer: Timer? = nil
     
     // Computed properties for formatted values
     private var downloadSpeedFormatted: String {
@@ -86,43 +87,13 @@ var isiPad: Bool {
 //                    .frame(height: dividerHeight)
                 //tunnels
                 HStack(spacing: innerSpacing) {
-                    #if os(iOS)
-                    //Disk Icon
-                    if store.selection?.sftpBrowse == true {
-                        if SimpleFTPServerManager.shared.activeServers.count > 0  {
-                            Image(systemName: "externaldrive")
-                                .foregroundColor(.green)
-                        } else {
-                            Image(systemName: "externaldrive")
-                                .foregroundColor(.orange)
-                                .symbolEffect(.pulse)
-                        }
-                    }
-                    #else
-                    
-                    if store.selection?.sftpBrowse == true {
-                        if isMounted  {
-                            Image(systemName: "externaldrive")
-                                .foregroundColor(.green)
-                        } else {
-                            Image(systemName: "externaldrive.badge.xmark")
-                                .foregroundColor(.gray)
-                        }
-                    }
-                    
-                    #endif
-
                     // tunnel icon
-                    if store.selection?.sftpRpc == true {
-                        if TunnelManagerHolder.shared.activeTunnels.count > 0  {
-                            Image(systemName: "arrow.up.arrow.down")
-                                .foregroundColor(.green)
-                        } else {
-                            Image(systemName: "arrow.up.arrow.down")
-                                .foregroundColor(.orange)
-                                .symbolEffect(.pulse.byLayer, options: .repeat(.continuous))
+                    if store.selection?.sftpRpc == true && TunnelManagerHolder.shared.activeTunnels.count == 0 {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .scaleEffect(x: -1, y: 1)
+                            .foregroundColor(.gray)
+                            .symbolEffect(.wiggle.byLayer, options: .repeat(.continuous))
                         }
-                    }
                     else {
                         Image(systemName: "arrow.up.arrow.down")
                             .scaleEffect(x: -1, y: 1)
@@ -132,7 +103,7 @@ var isiPad: Bool {
                     }
 //                    #endif
                     // activity
-                    Text("\(activeTorrents)")   ////\(totalTorrents)")
+                    Text("\(activeTorrents)/\(totalTorrents)")
                         .font(.caption)
                 }
                 
@@ -147,8 +118,18 @@ var isiPad: Bool {
                 
                 // Free space
                 HStack(spacing: innerSpacing) {
-                    Image(systemName: "server.rack")
-                        .foregroundColor(.blue)
+                    //Disk Icon
+                    if store.selection?.sftpBrowse == true && ftpServerCount == 0 && isMounted == false   {
+                        
+                        Image(systemName: "externaldrive.badge.icloud")
+                            .foregroundColor(.gray)
+                            .symbolEffect(.pulse)
+                    }
+                        else{
+                            Image(systemName: "externaldrive")
+                                .foregroundColor(.blue)
+                        }
+
                     Text(freeSpaceFormatted)
                         .font(.caption)
                 }
@@ -182,15 +163,11 @@ var isiPad: Bool {
         .onAppear {
             startRefreshCycle()
             updateStats()
-//            Task {
-//                let count = await SimpleFTPServerManager.shared.activeServersCount()
-//                await MainActor.run {
-//                    ftpServerCount = count
-//                }
-//            }
+            startFTPStatusTimer()
         }
         .onDisappear {
             stopRefreshCycle()
+            stopFTPStatusTimer()
         }
         .onChange(of: manager.sessionId) {
             resetStats()
@@ -234,12 +211,6 @@ var isiPad: Bool {
         // Create a new timer
         timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { _ in
             updateStats()
-//            Task {
-//                let count = await SimpleFTPServerManager.shared.activeServersCount()
-//                await MainActor.run {
-//                    ftpServerCount = count
-//                }
-//            }
         }
     }
     
@@ -299,6 +270,30 @@ var isiPad: Bool {
                 print("Error updating server stats: \(error)")
             }
         }
+    }
+    
+    private func startFTPStatusTimer() {
+        stopFTPStatusTimer()
+        ftpStatusTimer = Timer.scheduledTimer(withTimeInterval: ftpServerCount > 0 ? 5.0 : 1.0, repeats: true) { _ in
+            Task {
+                let count = await SimpleFTPServerManager.shared.activeServersCount()
+                await MainActor.run {
+                    if ftpServerCount != count {
+                        ftpServerCount = count
+                        // Restart timer with new interval if status changed
+                        stopFTPStatusTimer()
+                        startFTPStatusTimer()
+                    } else {
+                        ftpServerCount = count
+                    }
+                }
+            }
+        }
+    }
+    
+    private func stopFTPStatusTimer() {
+        ftpStatusTimer?.invalidate()
+        ftpStatusTimer = nil
     }
     
     // Format bytes to human-readable string

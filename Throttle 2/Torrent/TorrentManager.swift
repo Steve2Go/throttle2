@@ -406,24 +406,7 @@ class TorrentManager: ObservableObject {
         var fieldsToFetch: [String] = []
         
         let firstFetch = fullFetch == true ? true : fileCache.isEmpty
-        
-        
-        
-        
-        
-        //do a full fecth every 15.
-//        //TODO: Do this only if there is a download
-//        if firstFetch {
-//            nextFull = 15
-//        }else{
-//            if nextFull == 0{
-//                nextFull = 15
-//                firstFetch = true
-//                fileCache = [:]
-//            }else {
-//                nextFull = nextFull - 1
-//            }
-//        }
+    
         
             
             fieldsToFetch = firstFetch ? standardFields + ["files"] : standardFields
@@ -495,7 +478,6 @@ class TorrentManager: ObservableObject {
         }
         
         downloadingCount = thisDownloadingCount
-        
         
         torrents = torrentsToUpdate
     }

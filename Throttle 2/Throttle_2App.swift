@@ -37,7 +37,6 @@ struct Throttle_2App: App {
     @State var isTunneling = false
     @AppStorage("mountOnLogin") var mountOnLogin = false
     @AppStorage("sftpCompression") var sftpCompression: Bool = false
-    @State var ftpIsStarting = false
     var body: some Scene {
         #if os(macOS)
         // Use a single window for macOS:
@@ -194,71 +193,53 @@ struct Throttle_2App: App {
                     presenting.didStart = true
                     
                 }
-                // app backgrounding
+                // app from Background
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { (_) in
-                    if networkMonitor.isConnected{
-                        refreshSFTP(store: store)
-                    }
-                    if networkMonitor.isConnected && !manager.isLoading {
-                        manager.isLoading = true
-                        if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                            refeshTunnel(store: store, torrentManager: manager)
-                        }
-                        print("Foreground- starting queue")
-                        //manager.isLoading = false
+                    Task {
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        connection( ftp: false, fullRefresh: false)
                     }
                     
+                    
                 }
+                // app closing
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { (_) in
-                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                        stopSFTP()
-                        TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
-                        Task{
-                            await SSHConnectionManager.shared.cleanupBeforeTermination()
+                    // cleanup ftp server
+                    if store.selection?.sftpUsesKey == true {
+                        Task {
+                            await SimpleFTPServerManager.shared.removeAllServers()
                         }
                     }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { (_) in
-                    manager.stopPeriodicUpdates()
-                    stopSFTP()
-                    TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
+                    //cleanup tunnels
+                    if store.selection?.sftpRpc == true {
+                        TunnelManagerHolder.shared.tearDownAllTunnels()
+                    }
+                    //cleanup connections
                     Task{
                         await SSHConnectionManager.shared.cleanupBeforeTermination()
                     }
-                    
+                }
+                // app backgrounding
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { (_) in
+                    manager.stopPeriodicUpdates()
+                    TunnelManagerHolder.shared.tearDownAllTunnels()
                     print("Background - stopping queue")
                 }
+            
+            
                 .onChange(of: networkMonitor.gateways){
-                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                        refreshSFTP(store: store)
-                        
-                        if networkMonitor.isConnected && !manager.isLoading {
-                            manager.isLoading = true
-                            if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                                refeshTunnel(store: store, torrentManager: manager)
-                            }
-                            print("Foreground- starting queue")
-                            //manager.isLoading = false
-                        }
+                    // netwok changed
+                    //TODO: - FTP Stability while streaming? Chek if it's the debugger or the app crashing when streaming
+                    Task{
+                        //VideoPlayerViewController.closeUniversal()
+                        connection( ftp: false, fullRefresh: false)
+ //                       SimpleFTPServerManager.shared.getServer(withIdentifier: "sftp-ftp")
                         
                     }
+                    
                 }
-                .onChange(of: store.selection) { oldValue, newValue in
-                            Task {
-                                if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
-                                    if oldValue != nil {
-                                        manager.isLoading = true
-                                        manager.stopPeriodicUpdates()
-                                        refreshSFTP(store: store)
-                                        TunnelManagerHolder.shared.removeTunnel(withIdentifier: "transmission-rpc")
-                                    }
-                                    if newValue != nil {
-                                        setupServer(store: store, torrentManager: manager)
-                                    }
-                                } else {
-                                    setupServer(store: store, torrentManager: manager)
-                                }
-                            }
+                .onChange(of: store.selection) {
+                    connection()
                 }
                 .onChange(of: UIApplication.shared.connectedScenes) { 
                     ExternalDisplayManager.shared.updateExternalDisplayStatus()
@@ -268,7 +249,75 @@ struct Throttle_2App: App {
         #endif
     }
     
-    
+    func connection(ftp:Bool = true, fullRefresh:Bool = true) {
+        // are we doing this already?
+        guard isTunneling == false, let server = store.selection else {return}
+        isTunneling = true
+        manager.stopPeriodicUpdates()
+        
+        // cleanup ftp
+        Task {
+        if await SimpleFTPServerManager.shared.activeServers.count > 0 && ftp {
+                await SimpleFTPServerManager.shared.removeAllServers()
+            }
+        }
+        // cleanup tunnels
+        if TunnelManagerHolder.shared.activeTunnels.count > 0 {
+            TunnelManagerHolder.shared.tearDownAllTunnels()
+        }
+        
+
+        // do we reconnect?
+        guard networkMonitor.isConnected else {return}
+        
+        var isConnectingTunnel = false
+        var isconnectingFTP = false
+        
+        //ftp
+        Task {
+            if server.sftpBrowse == true && ftp {
+                isconnectingFTP = true
+                await connectFTP(store: store)
+            }
+            // are we all done?
+            isconnectingFTP = false
+            if !isConnectingTunnel {
+                isTunneling = false
+            }
+        }
+        Task {
+            //tunnel handling
+            
+            if store.selection?.sftpRpc == true {
+                isConnectingTunnel = true
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                setupServer(store: store, torrentManager: manager, fullRefresh: fullRefresh)
+            }
+            // are we all done?
+            isConnectingTunnel = false
+            if !isconnectingFTP {
+                isTunneling = false
+            }
+        }
+        
+    }
+    func connectFTP(store: Store , tries:Int = 0) async {
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        if store.selection != nil {
+            do {
+                let ftpServer = SimpleFTPServer(server: store.selection!)
+                try await ftpServer.start()
+                await SimpleFTPServerManager.shared.storeServer(ftpServer, withIdentifier: "sftp-ftp")
+            } catch{
+                if tries < 4 {
+                    await SimpleFTPServerManager.shared.removeAllServers()
+                    await connectFTP(store:store ,tries: tries + 1)
+                } else {
+                    ToastManager.shared.show(message: "FTP Proxy failed after \(tries) Attempts")
+                }
+            }
+        }
+    }
     
 }
 
