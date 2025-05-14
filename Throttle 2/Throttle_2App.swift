@@ -223,6 +223,9 @@ struct Throttle_2App: App {
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { (_) in
                     manager.stopPeriodicUpdates()
                     TunnelManagerHolder.shared.tearDownAllTunnels()
+                    Task {
+                        await SimpleFTPServerManager.shared.removeAllServers()
+                    }
                     print("Background - stopping queue")
                 }
             
