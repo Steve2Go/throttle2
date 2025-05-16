@@ -699,6 +699,15 @@ struct ServerEditView: View {
             } catch {
                 print("Failed to save server: \(error)")
             }
+            do{
+                let serverArray = Array(try viewContext.fetch(ServerEntity.fetchRequest()))
+                ServerMountManager.shared.unmountAllServers()
+                if !serverArray.isEmpty {
+                }
+            } catch {
+                ServerMountManager.shared.unmountAllServers()
+            }
+            
             
             DispatchQueue.main.async {
                 dismiss()
@@ -743,8 +752,17 @@ struct ServerEditView: View {
             } catch {
                 print("Failed to delete server: \(error)")
             }
+            do {
+                let serverArray = Array(try viewContext.fetch(ServerEntity.fetchRequest()))
+                ServerMountManager.shared.unmountAllServers()
+                    if !serverArray.isEmpty {
+                        ServerMountManager.shared.mountAllServers(serverArray)
+                        store.selection = serverArray.first ?? nil
+                }
+            } catch {
+                store.selection = nil
+            }
             
-            store.selection = nil
             
             DispatchQueue.main.async {
                 dismiss()

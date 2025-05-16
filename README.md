@@ -2,6 +2,9 @@
 
 ## Transmission download & File Managment for iOS & Mac
 
+Tested on Debian Server, with Mac server supported.
+Windows server should work fine using the built in openSSH. A manual install of ffmpeg https://ffmpeg.org may be required if you use the iOS version
+
 ### Featuring
 - Tunnel RPC over SSH
 - Add & Monitor downloads
@@ -12,17 +15,26 @@
 - Torrent Creation (\*nix platform ignostic, server side)
 - Server Controls
 
+
 ## Mac
 - Automaticly Mount your remote drives over SFTP using SSHFS and Fuse-t for full file managment in finder
 
 ## iOS
 - Built in File Browser using SSH & SFTP
 - Split Screen control when mirroring. Image & video controls remain on device.
-- Server side thumbnails for media.
+- Server side thumbnails for media. (Uses ffmpeg)
 - Video playback and Image slideshows (On external display)
 
 ## To Come
 - Local Daemon (Mac, with easy remote connection from iOS)
+
+## IN 1.5 Release
+A Huge update wiht greatly simplified & refactored code
+- Removal of redundant settings that were still being referenced, causing unexpected behaviour.
+- Better & more reliable mouning & ssh operations
+- Improved speed options for Mac Version
+- Code cleanup & reactoring
+- Dependencies are now part of the config flow
 
 Based on lessons learned from Mission, https://github.com/TheNightmanCodeth/mission with borrowed code and ideas.
 

@@ -36,6 +36,7 @@ struct Throttle_2App: App {
     @State var isBackground = false
     @AppStorage("mountOnLogin") var mountOnLogin = false
     @AppStorage("sftpCompression") var sftpCompression: Bool = false
+    @AppStorage("sftpCipher") var sftpCipher: Bool = true
     var body: some Scene {
         #if os(macOS)
         // Use a single window for macOS:
@@ -66,7 +67,7 @@ struct Throttle_2App: App {
                     }
                                 }
                 .onChange(of: networkMonitor.gateways){
-                    if store.selection?.sftpBrowse == true || store.selection?.sftpRpc == true {
+                    if store.selection?.sftpRpc == true {
                         if networkMonitor.isConnected {
                             Task {
                                 setupServer(store: store, torrentManager: manager)
@@ -76,6 +77,7 @@ struct Throttle_2App: App {
                 }
                 .onChange(of: store.selection) {
                     Task {
+                        manager.isLoading = true
                         setupServer(store: store, torrentManager: manager)
                     // Refresh serverArray on selection change
                     let context = DataManager.shared.viewContext
@@ -117,17 +119,10 @@ struct Throttle_2App: App {
                 }
                 
             }
-            CommandMenu("Mount") {
+            CommandMenu("File System") {
                 
 
-//                Button("Mount") {
-//                    if !serverArray.isEmpty {
-//                        ServerMountManager.shared.mountAllServers(serverArray)
-//                    }
-//                }
-//                .keyboardShortcut("m", modifiers: [.command, .shift])
-
-                Button("Refresh Mounts") {
+                Button("Refresh Connection") {
                     ServerMountManager.shared.unmountAllServers()
                     if !serverArray.isEmpty {
                         ServerMountManager.shared.mountAllServers(serverArray)
@@ -135,31 +130,14 @@ struct Throttle_2App: App {
                     }
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
-//
-//                Button("Unmount Remotes") {
-//                    ServerMountManager.shared.unmountAllServers()
-//                }
-//                .keyboardShortcut("u", modifiers: [.command, .shift])
                 
                 Divider()
                 // Toggle for Mount on Login
                 Button(action: { mountOnLogin.toggle() }) {
-                    Text("Mount on Login" + (mountOnLogin ? "  ✓" : ""))
+                        Text(serverArray.count > 1 ? "Connect Drives on Login" :"Connect Drive on Login" + (mountOnLogin ? "  ✓" : ""))
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
                 
-//                if !mountOnLogin {
-//                    Button(action: { mountOnOpen.toggle() }) {
-//                        Text("Mount on Open" + (mountOnOpen ? "  ✓" : ""))
-//                    }
-//                    .keyboardShortcut("o", modifiers: [.command, .shift])
-//
-//                    // Toggle for Unmount on Close
-//                    Button(action: { unMountOnClose.toggle() }) {
-//                        Text("Unmount on Close" + (unMountOnClose ? "  ✓" : ""))
-//                    }
-//                    .keyboardShortcut("c", modifiers: [.command, .shift])
-//                }
                 // Toggle for Compression
                 Button(action: {
                     sftpCompression.toggle()
@@ -170,6 +148,19 @@ struct Throttle_2App: App {
                     }
                 }) {
                     Text("Compress Transfers" + (sftpCompression ? "  ✓" : ""))
+                    
+                }
+                
+                // Toggle for Compression
+                Button(action: {
+                    sftpCipher.toggle()
+                    ServerMountManager.shared.unmountAllServers()
+                    if !serverArray.isEmpty {
+                        ServerMountManager.shared.mountAllServers(serverArray)
+                        manager.reset()
+                    }
+                }) {
+                    Text("Faster Encryption (chacha20-poly1305)" + (sftpCipher ? "  ✓" : ""))
                     
                 }
             }
