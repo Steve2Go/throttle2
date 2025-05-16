@@ -32,9 +32,8 @@ struct Throttle_2App: App {
     @ObservedObject var filter = TorrentFilters()
     @ObservedObject var store = Store()
     @StateObject var networkMonitor = NetworkMonitor()
-    @State var isBackground: Timer?
     @State var tunnelClosed = false
-    @State var isTunneling = false
+    @State var isBackground = false
     @AppStorage("mountOnLogin") var mountOnLogin = false
     @AppStorage("sftpCompression") var sftpCompression: Bool = false
     var body: some Scene {
@@ -76,7 +75,7 @@ struct Throttle_2App: App {
                     }
                 }
                 .onChange(of: store.selection) {
-                    //Task {
+                    Task {
                         setupServer(store: store, torrentManager: manager)
                     // Refresh serverArray on selection change
                     let context = DataManager.shared.viewContext
@@ -87,7 +86,7 @@ struct Throttle_2App: App {
                     } catch {
                         print("Failed to fetch servers: \(error)")
                     }
-                   // }
+                    }
                     }
                    
                // }
@@ -136,14 +135,14 @@ struct Throttle_2App: App {
                     }
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
-//                
+//
 //                Button("Unmount Remotes") {
 //                    ServerMountManager.shared.unmountAllServers()
 //                }
 //                .keyboardShortcut("u", modifiers: [.command, .shift])
                 
                 Divider()
-                // Toggle for Mount on Open
+                // Toggle for Mount on Login
                 Button(action: { mountOnLogin.toggle() }) {
                     Text("Mount on Login" + (mountOnLogin ? "  ✓" : ""))
                 }
@@ -154,7 +153,7 @@ struct Throttle_2App: App {
 //                        Text("Mount on Open" + (mountOnOpen ? "  ✓" : ""))
 //                    }
 //                    .keyboardShortcut("o", modifiers: [.command, .shift])
-//                    
+//
 //                    // Toggle for Unmount on Close
 //                    Button(action: { unMountOnClose.toggle() }) {
 //                        Text("Unmount on Close" + (unMountOnClose ? "  ✓" : ""))
@@ -191,61 +190,63 @@ struct Throttle_2App: App {
             
                 .onAppear {
                     presenting.didStart = true
-                    
                 }
-                // app from Background
-                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { (_) in
-                    Task {
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        connection( ftp: true, fullRefresh: false)
-                    }
-                    
-                    
-                }
-                // app closing
-                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { (_) in
-                    // cleanup ftp server
-                    if store.selection?.sftpUsesKey == true {
+                .onChange(of: scenePhase) { oldPhase, newPhase in
+                    switch newPhase {
+                    case .active:
+                        // App became active (foreground)
+                        // only connect if not already handled, and only from background
+                        guard isBackground else { return }
+                        isBackground = false
+                        print("active")
                         Task {
-                            await SimpleFTPServerManager.shared.removeAllServers()
+                            connection(ftp: true, fullRefresh: false)
                         }
-                    }
-                    //cleanup tunnels
-                    if store.selection?.sftpRpc == true {
-                        TunnelManagerHolder.shared.tearDownAllTunnels()
-                    }
-                    //cleanup connections
-                    Task{
-                        await SSHConnectionManager.shared.cleanupBeforeTermination()
+                    case .inactive:
+                        // App going inactive (transitioning state)
+                        // No need for specific handling here
+                        break
+                    case .background:
+                        // App entered background
+                        isBackground = true
+                        Task {
+                            manager.stopPeriodicUpdates()
+                            TunnelManagerHolder.shared.tearDownAllTunnels()
+                            await SimpleFTPServerManager.shared.removeAllServers()
+                            
+                            // Handle app termination cleanup - similar to willTerminateNotification
+                            if store.selection?.sftpUsesKey == true {
+                                await SimpleFTPServerManager.shared.removeAllServers()
+                            }
+                            
+                            if store.selection?.sftpRpc == true {
+                                TunnelManagerHolder.shared.tearDownAllTunnels()
+                            }
+                            
+                            await SSHConnectionManager.shared.cleanupBeforeTermination()
+                        }
+                        print("Background - stopping queue")
+                    @unknown default:
+                        // Handle any future cases
+                        break
                     }
                 }
-                // app backgrounding
-                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { (_) in
-                    manager.stopPeriodicUpdates()
-                    TunnelManagerHolder.shared.tearDownAllTunnels()
+                .onChange(of: UIApplication.shared.connectedScenes) {
+                    ExternalDisplayManager.shared.updateExternalDisplayStatus()
+                }
+                .onChange(of: networkMonitor.gateways) {
+                    // network changed
+                    guard !isBackground else {return}
                     Task {
-                        await SimpleFTPServerManager.shared.removeAllServers()
+                        connection(ftp: true, fullRefresh: false)
+                        NotificationCenter.default
+                                        .post(name: .gatewayChanged,
+                                              object: nil,
+                                              userInfo: ["gateways": networkMonitor.gateways])
                     }
-                    print("Background - stopping queue")
-                }
-            
-            
-                .onChange(of: networkMonitor.gateways){
-                    // netwok changed
-                    //TODO: - FTP Stability while streaming? Chek if it's the debugger or the app crashing when streaming
-                    Task{
-                        //VideoPlayerViewController.closeUniversal()
-                        connection( ftp: false, fullRefresh: false)
- //                       SimpleFTPServerManager.shared.getServer(withIdentifier: "sftp-ftp")
-                        
-                    }
-                    
                 }
                 .onChange(of: store.selection) {
                     connection()
-                }
-                .onChange(of: UIApplication.shared.connectedScenes) { 
-                    ExternalDisplayManager.shared.updateExternalDisplayStatus()
                 }
         }
       
@@ -254,25 +255,18 @@ struct Throttle_2App: App {
     
     func connection(ftp:Bool = true, fullRefresh:Bool = true) {
         // are we doing this already?
-        guard isTunneling == false, let server = store.selection else {return}
-        var isConnectingTunnel = false
-        var isconnectingFTP = false
-        isTunneling = true
+        guard let server = store.selection else {return}
         manager.stopPeriodicUpdates()
         
         // FTP
         Task {
-            if await SimpleFTPServerManager.shared.activeServers.count > 0 && ftp {
+//            if await SimpleFTPServerManager.shared.activeServers.count > 0 && ftp {
                 await SimpleFTPServerManager.shared.removeAllServers()
-            }
+            
+//            }
             if server.sftpBrowse && networkMonitor.isConnected && ftp {
-                isconnectingFTP = true
                 await connectFTP(store: store)
                 // are we all done?
-                isconnectingFTP = false
-                if !isConnectingTunnel {
-                    isTunneling = false
-                }
             }
         }
         
@@ -282,19 +276,14 @@ struct Throttle_2App: App {
                 TunnelManagerHolder.shared.tearDownAllTunnels()
             }
             if store.selection?.sftpRpc == true && networkMonitor.isConnected {
-                isConnectingTunnel = true
                 setupServer(store: store, torrentManager: manager, fullRefresh: fullRefresh)
-            }
-            // are we all done?
-            isConnectingTunnel = false
-            if !isconnectingFTP {
-                isTunneling = false
             }
         }
         
         
         
     }
+    
     func connectFTP(store: Store , tries:Int = 0) async {
         try? await Task.sleep(nanoseconds: 500_000_000)
         if store.selection != nil {

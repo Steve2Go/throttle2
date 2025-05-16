@@ -11,48 +11,6 @@ import Network
 // created to unclutter the main app
 extension Throttle_2App {
     
-    func refeshTunnel(store: Store, torrentManager: TorrentManager){
-        Task{
-
-           
-                await SSHConnectionManager.shared.resetAllConnections()
-            
-            guard let server = store.selection else {return}
-            
-            let isTunnel = server.sftpRpc
-//#if os(iOS)
-//            if server.sftpUsesKey == true {
-//                setupSFTPIfNeeded(store: store)
-//            }
-//#endif
-            
-            
-            if isTunnel {
-                let localport = 4000 // update after tunnel logic
-                let port  = server.port
-                
-                //Task{
-                    
-                    let tmanager = try SSHTunnelManager(server: server, localPort: localport, remoteHost: "127.0.0.1", remotePort: Int(port))
-                    try await tmanager.start()
-                    TunnelManagerHolder.shared.storeTunnel(tmanager, withIdentifier: "transmission-rpc")
-                    try await torrentManager.fetchUpdates(fullFetch: true)
-                    torrentManager.startPeriodicUpdates()
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-//                    if !store.magnetLink.isEmpty || store.selectedFile != nil {
-//                        presenting.activeSheet = "adding"
-//                    }
-            } else{
-                try await torrentManager.fetchUpdates(fullFetch: true)
-                torrentManager.startPeriodicUpdates()
-//                if !store.magnetLink.isEmpty || store.selectedFile != nil {
-//                        try? await Task.sleep(nanoseconds: 500_000_000)
-//                        presenting.activeSheet = "adding"
-//                        
-//                }
-            }
-        }
-    }
     
     func setupServer (store: Store, torrentManager: TorrentManager, tries: Int = 0, fullRefresh: Bool = true) {
         
@@ -136,7 +94,6 @@ extension Throttle_2App {
                         }
                     }
                     
-                    isTunneling = false
                 }  else {
                     // just build the url
                     

@@ -159,6 +159,11 @@ class VideoPlayerViewController: UIViewController {
         super.viewDidLoad()
         print("ViewDidLoad called")
         setupUI()
+        // Observe gateway change notifications
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(handleGatewayChange),
+                                               name: .gatewayChanged,
+                                               object: nil)
     }
     
     override func viewDidLayoutSubviews() {
@@ -466,10 +471,37 @@ class VideoPlayerViewController: UIViewController {
     
     deinit {
         print("VideoPlayerViewController is being deinitialized")
+        // Stop observing gateway changes
+        NotificationCenter.default.removeObserver(self,
+                                                  name: .gatewayChanged,
+                                                  object: nil)
         controlsTimer?.invalidate()
         mediaPlayer.stop()
         externalWindow?.isHidden = true
         externalWindow = nil
+    }
+    @objc private func handleGatewayChange() {
+        // Save current playback state
+        let savedIndex = currentIndex
+        let savedTime = mediaPlayer.time.intValue
+
+        // Stop playback
+        mediaPlayer.stop()
+
+        // Wait for FTP server to be ready, then reload player and resume at saved position
+        Task {
+            // Wait until SimpleFTPServerManager.shared.activeServersCount() > 0
+            while await SimpleFTPServerManager.shared.activeServersCount() == 0 {
+                try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
+            }
+            // Wait a little extra for stability
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            DispatchQueue.main.async {
+                self.currentIndex = savedIndex
+                self.playCurrentVideo()
+                self.mediaPlayer.time = VLCTime(int: savedTime)
+            }
+        }
     }
     
     func configure(with url: URL) {
@@ -582,6 +614,11 @@ extension VideoPlayerViewController: VLCMediaPlayerDelegate {
         timeLabel.text = formatTime(current: Int(currentTime), total: Int(totalTime))
     }
 }
-
+extension Notification.Name {
+    /// Posted when the network gateway changes
+    static let gatewayChanged = Notification.Name("GatewayChangedNotification")
+}
 
 #endif
+
+

@@ -5,7 +5,7 @@ import Combine
 import KeychainAccess
 import AppKit
 
-
+// We'll keep this enum for compatibility
 enum MountError: Error {
     case directoryCreationFailed
     case mountProcessFailed
@@ -23,56 +23,56 @@ class ServerMountManager: ObservableObject {
     private let dataManager = DataManager.shared
     private var cancellables = Set<AnyCancellable>()
     private let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
-    var mountProcesses: [String: Process] = [:]
-    @AppStorage("sftpCompression") var sftpCompression: Bool = false
     
-    // Maps server entity IDs to mount key
-    private var serverMountMap: [NSManagedObjectID: String] = [:]
+    // Store mount info: server name → mount path
+    private var mountedServers: [String: String] = [:]
     
-    // Map of active mount points (mountKey → mountPath)
-    private(set) var activeMounts: [String: URL] = [:]
-    
-    // Track temporary key files for cleanup
-    private var temporaryKeyFiles: [String] = []
-    
+    // Published properties
     @Published private(set) var servers: [ServerEntity] = []
     @Published private(set) var mountStatus: [String: Bool] = [:]
-    @Published private(set) var mountErrors: [String: Error] = [:]
+    @Published private(set) var mountErrors: [String: Error] = [:] // Keep for compatibility
+    @AppStorage("sftpCompression") var sftpCompression: Bool = false
+    @AppStorage("isMounted") private var isMounted: Bool = false
     
     // MARK: - Initialization
     init() {
         // Fetch servers initially
-        refreshServersWithoutAutoMount()
+        refreshServers()
         
-        // Setup observation of context changes - only update server list, don't auto-mount
+        // Setup observation of context changes
         NotificationCenter.default
             .publisher(for: .NSManagedObjectContextObjectsDidChange, object: dataManager.viewContext)
             .debounce(for: .seconds(0.5), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.refreshServersWithoutAutoMount()
+                self?.refreshServers()
             }
             .store(in: &cancellables)
-        
-        // Setup cleanup on app termination
-//        NotificationCenter.default.addObserver(
-//            self,
-//            selector: #selector(applicationWillTerminate),
-//            name: NSApplication.willTerminateNotification,
-//            object: nil
-//        )
         
         // Setup periodic health check
-        Timer.publish(every: 30, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                self?.checkMountHealth()
-            }
-            .store(in: &cancellables)
+//        Timer.publish(every: 15, on: .main, in: .common)
+//            .autoconnect()
+//            .sink { [weak self] _ in
+//                self?.checkMounts()
+//            }
+//            .store(in: &cancellables)
     }
     
     // MARK: - Server Management
+    func refreshServers() {
+        let fetchRequest: NSFetchRequest<ServerEntity> = ServerEntity.fetchRequest()
+        fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \ServerEntity.name, ascending: true)]
+        
+        do {
+            let fetchedServers = try dataManager.viewContext.fetch(fetchRequest)
+            DispatchQueue.main.async {
+                self.servers = fetchedServers
+                self.mountAutoConnectServers()
+            }
+        } catch {
+            print("Error fetching servers: \(error)")
+        }
+    }
     
-    /// Refreshes the server list without attempting to mount servers
     func refreshServersWithoutAutoMount() {
         let fetchRequest: NSFetchRequest<ServerEntity> = ServerEntity.fetchRequest()
         fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \ServerEntity.name, ascending: true)]
@@ -87,88 +87,58 @@ class ServerMountManager: ObservableObject {
         }
     }
     
-    /// Refreshes server list and then mounts servers with sftpBrowse enabled
-    func refreshServers() {
-        refreshServersWithoutAutoMount()
-        mountAutoConnectServers()
-    }
-    
     private func mountAutoConnectServers() {
-        let autoConnectServers = servers.filter { $0.sftpBrowse }
-        mountServers(autoConnectServers)
-    }
-    
-    // MARK: - Mount Key Generation
-    
-    /// Gets the mount key for a server - DEPRECATED: Use ServerMountUtilities.getMountKey(for:) instead
-    @available(*, deprecated, message: "Use ServerMountUtilities.getMountKey(for:) instead")
-    func getMountKey(for server: ServerEntity) -> String? {
-        return ServerMountUtilities.getMountKey(for: server)
-    }
-    
-    // MARK: - Mount Path Generation
-    
-    /// Returns the mount path for a given server
-    func getMountPath(for server: ServerEntity) -> URL {
-        if let mountKey = ServerMountUtilities.getMountKey(for: server) {
-            // If this server has an active mount point, return that
-            if let existingPath = activeMounts[mountKey] {
-                return existingPath
-            }
-            
-            // Otherwise create a new mount path with the mount key
-            let path = ServerMountUtilities.getMountPath(for: mountKey)
-            
-            // Store the mount path for this key
-            activeMounts[mountKey] = path
-            return path
+        for server in servers where server.sftpBrowse {
+            mountServer(server)
         }
-        
-        // Fallback using server name if mount key can't be determined
-        return URL(fileURLWithPath: "/tmp")
-            .appendingPathComponent("com.srgim.Throttle-2.sftp/\(server.name ?? "unknown")", isDirectory: true)
     }
     
+    // MARK: - Mount Path Methods
+    
+    // Helper to create a normalized mount key
+    private func normalizedMountKey(host: String, path: String) -> String {
+        var cleanPath = path
+        if cleanPath.hasSuffix("/") {
+            cleanPath = String(cleanPath.dropLast())
+        }
+        if cleanPath.hasPrefix("/") {
+            cleanPath = String(cleanPath.dropFirst())
+        }
+        let colonPath = cleanPath.replacingOccurrences(of: "/", with: ":")
+        return "\(host):\(colonPath)"
+    }
 
+    // Update getMountPath to use normalizedMountKey
+    func getMountPath(for server: ServerEntity) -> URL {
+        guard let host = server.sftpHost, let path = server.pathServer else {
+            return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("com.srgim.Throttle-2.sftp/unknown", isDirectory: true)
+        }
+        let mountKey = normalizedMountKey(host: host, path: path)
+        return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("com.srgim.Throttle-2.sftp/\(mountKey)", isDirectory: true)
+    }
+
+    func getMountKey(for server: ServerEntity) -> String? {
+        guard let host = server.sftpHost, let path = server.pathServer else {
+            return nil
+        }
+        return normalizedMountKey(host: host, path: path)
+    }
     
     // MARK: - Mount Operations
     func mountServer(_ server: ServerEntity) {
-        @AppStorage("isMounted") var isMounted: Bool = false
         guard let user = server.sftpUser,
               let host = server.sftpHost,
               let path = server.pathServer,
-              let mountKey = ServerMountUtilities.getMountKey(for: server),
-              !user.isEmpty,
-              !host.isEmpty,
-              !path.isEmpty else {
-            mountStatus[server.name ?? ""] = false
-            mountErrors[server.name ?? ""] = MountError.invalidServerConfiguration
-            
+              !user.isEmpty, !host.isEmpty, !path.isEmpty else {
+            updateMountStatus(server: server, mounted: false, error: MountError.invalidServerConfiguration)
             return
         }
-        
-        // Associate this server with the mount key
-        if let objectID = server.objectID as? NSManagedObjectID {
-            serverMountMap[objectID] = mountKey
-        }
-        
-        // Check if we already have a mount for this connection
-        if mountProcesses[mountKey] != nil {
-            // Already mounted with this key, just update status
-            mountStatus[server.name ?? ""] = true
-            mountErrors.removeValue(forKey: server.name ?? "")
+        let mountKey = normalizedMountKey(host: host, path: path)
+        if mountStatus[mountKey] == true {
             return
         }
-        
-        let directoryURL = getMountPath(for: server)
-        
-        // Check if already mounted
-        if isDirectoryMounted(directoryURL) {
-            mountStatus[server.name ?? ""] = true
-            return
-        }
-        
-        // Create directory if needed
+        let mountPath = NSTemporaryDirectory() + "com.srgim.Throttle-2.sftp/\(mountKey)"
+        let directoryURL = URL(fileURLWithPath: mountPath)
         do {
             try FileManager.default.createDirectory(
                 at: directoryURL,
@@ -176,174 +146,86 @@ class ServerMountManager: ObservableObject {
                 attributes: nil
             )
         } catch {
-            mountStatus[server.name ?? ""] = false
-            mountErrors[server.name ?? ""] = error
+            print("Failed to create mount directory: \(error)")
+            updateMountStatus(server: server, mounted: false, error: error, mountKey: mountKey)
             return
         }
-        
-        // Setup mount process
         let process = Process()
         process.launchPath = "/bin/zsh"
-        
-        let url = directoryURL.path
         var sshfsOptions = "ServerAliveInterval=30,ServerAliveCountMax=6,reconnect,auto_cache,kernel_cache,location=Throttle"
-        
-        if sftpCompression != true {
-            sshfsOptions += ",compression=no"
-        }
-        
-        // Add host key check options
         sshfsOptions += ",StrictHostKeyChecking=no,UserKnownHostsFile=/dev/null"
-        
-        var command: String
-        
-        // Setup SSH key if needed
-        if server.sftpUsesKey {
-            // Create temporary key file
-            guard let keyContent = keychain["sftpKey" + (server.name ?? "")] else {
-                mountStatus[server.name ?? ""] = false
-                mountErrors[server.name ?? ""] = MountError.invalidServerConfiguration
-                return
-            }
-            
-            let tempDir = FileManager.default.temporaryDirectory
-            let keyFileName = "sshfs_key_\(UUID().uuidString)"
-            let keyPath = tempDir.appendingPathComponent(keyFileName)
-            
-            do {
-                // Write key to temporary file with restricted permissions
-                try keyContent.write(to: keyPath, atomically: true, encoding: .utf8)
-                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: keyPath.path)
-                
-                // Track temporary file for cleanup
-                temporaryKeyFiles.append(keyPath.path)
-                
-                // Use direct key file for authentication
-                sshfsOptions += ",PreferredAuthentications=publickey"
-                sshfsOptions += ",IdentityFile=\(keyPath.path)"
-                
-                command = "/usr/local/bin/sshfs \(user)@\(host):\(path) \(url) -o \(sshfsOptions)"
-            } catch {
-                mountStatus[server.name ?? ""] = false
-                mountErrors[server.name ?? ""] = error
-                return
-            }
-        } else {
-            // Use password authentication
-            let password = keychain["sftpPassword" + mountKey] ??
-                           keychain["sftpPassword" + (server.name ?? "")] ?? ""
-            
-            sshfsOptions += ",password_stdin"
-            command = "echo \(password) | /usr/local/bin/sshfs \(user)@\(host):\(path) \(url) -o \(sshfsOptions)"
+        if !sftpCompression {
+            sshfsOptions += ",Compression=no"
         }
-        
-        print("Fuse mounting with command: " + command)
+        sshfsOptions += ",Ciphers=chacha20-poly1305@openssh.com"
+        var command: String
+        if server.sftpUsesKey {
+            guard let name = server.name, let keyContent = keychain["sftpKey" + name] else {
+                updateMountStatus(server: server, mounted: false, error: MountError.invalidServerConfiguration, mountKey: mountKey)
+                return
+            }
+            let keyPath = createTemporaryKeyFile(content: keyContent, name: name)
+            if keyPath.isEmpty {
+                updateMountStatus(server: server, mounted: false, error: MountError.invalidServerConfiguration, mountKey: mountKey)
+                return
+            }
+            sshfsOptions += ",PreferredAuthentications=publickey,IdentityFile=\(keyPath)"
+            command = "/usr/local/bin/sshfs \(user)@\(host):\(path) \(mountPath) -o \(sshfsOptions)"
+        } else {
+            let name = server.name ?? ""
+            let password = keychain["sftpPassword" + name] ?? ""
+            sshfsOptions += ",password_stdin"
+            command = "echo \(password) | /usr/local/bin/sshfs \(user)@\(host):\(path) \(mountPath) -o \(sshfsOptions)"
+        }
         process.arguments = ["-c", command]
-        
-        // Setup termination handling
         process.terminationHandler = { [weak self] process in
-            guard let self = self else { return }
             DispatchQueue.main.async {
-                if process.terminationStatus == 0 {
-                    // Update status for all servers using this mount key
-                    self.updateStatusForMountKey(mountKey, success: true)
-                    isMounted = true
+                guard let self = self else { return }
+                let success = process.terminationStatus == 0
+                if success {
+                    self.updateMountStatus(server: server, mounted: true, mountKey: mountKey)
+                    self.mountedServers[mountKey] = mountPath
                 } else {
-                    // Update error status for all servers using this mount key
-                    self.updateStatusForMountKey(mountKey, success: false, error: MountError.mountProcessFailed)
+                    self.updateMountStatus(server: server, mounted: false, error: MountError.mountProcessFailed, mountKey: mountKey)
                 }
             }
         }
-        
-        // Run the mount process
         do {
             try process.run()
-            mountProcesses[mountKey] = process
-            // Update status for the current server
-            mountStatus[server.name ?? ""] = true
+            updateMountStatus(server: server, mounted: true, mountKey: mountKey)
+            mountedServers[mountKey] = mountPath
         } catch {
-            updateStatusForMountKey(mountKey, success: false, error: error)
-        }
-    }
-    
-    private func updateStatusForMountKey(_ mountKey: String, success: Bool, error: Error? = nil) {
-        // Find all servers that use this mount key and update their status
-        for server in servers {
-            guard let objectID = server.objectID as? NSManagedObjectID,
-                  let serverKey = serverMountMap[objectID],
-                  serverKey == mountKey,
-                  let name = server.name else {
-                continue
-            }
-            
-            mountStatus[name] = success
-            
-            if success {
-                mountErrors.removeValue(forKey: name)
-            } else if let error = error {
-                mountErrors[name] = error
-            }
+            print("Failed to start mount process: \(error)")
+            updateMountStatus(server: server, mounted: false, error: error, mountKey: mountKey)
         }
     }
     
     func unmountServer(_ server: ServerEntity) {
-        guard let name = server.name,
-              let mountKey = ServerMountUtilities.getMountKey(for: server) else {
+        guard let host = server.sftpHost, let path = server.pathServer else {
             return
         }
-        
-        // Check if other servers are using this mount
-        var otherServersUsingMount = false
-        for otherServer in servers where otherServer.name != name {
-            if getMountKey(for: otherServer) == mountKey {
-                otherServersUsingMount = true
-                break
-            }
-        }
-        
-        // If other servers are using this mount, just update the status for this server
-        if otherServersUsingMount {
-            mountStatus[name] = false
-            mountErrors.removeValue(forKey: name)
-            if let objectID = server.objectID as? NSManagedObjectID {
-                serverMountMap.removeValue(forKey: objectID)
-            }
+        let mountKey = normalizedMountKey(host: host, path: path)
+        guard let mountPath = mountedServers[mountKey] else {
             return
         }
-        
-        // No other servers using this mount, proceed with unmounting
-        let directoryURL = getMountPath(for: server)
-        
-        // Try graceful unmount
         let process = Process()
         process.launchPath = "/sbin/umount"
-        process.arguments = [directoryURL.path]
-        
+        process.arguments = [mountPath]
         do {
             try process.run()
             process.waitUntilExit()
-            
             if process.terminationStatus != 0 {
-                // Try force unmount if needed
                 let forceProcess = Process()
                 forceProcess.launchPath = "/sbin/umount"
-                forceProcess.arguments = ["-f", directoryURL.path]
-                
+                forceProcess.arguments = ["-f", mountPath]
                 try forceProcess.run()
                 forceProcess.waitUntilExit()
             }
-            
-            // Clean up mount resources
-            mountProcesses.removeValue(forKey: mountKey)
-            activeMounts.removeValue(forKey: mountKey)
-            updateStatusForMountKey(mountKey, success: false)
-            
-            // Remove this server from mount mapping
-            if let objectID = server.objectID as? NSManagedObjectID {
-                serverMountMap.removeValue(forKey: objectID)
-            }
+            updateMountStatus(server: server, mounted: false, mountKey: mountKey)
+            mountedServers.removeValue(forKey: mountKey)
         } catch {
-            mountErrors[name] = error
+            print("Error unmounting \(mountKey): \(error)")
+            updateMountStatus(server: server, mounted: false, error: MountError.unmountFailed, mountKey: mountKey)
         }
     }
     
@@ -358,100 +240,73 @@ class ServerMountManager: ObservableObject {
     }
     
     func unmountAllServers() {
-        // Get unique mount keys
-        let mountKeys = Set(activeMounts.keys)
-        @AppStorage("isMounted") var isMounted: Bool = false
-        isMounted = false
-        for mountKey in mountKeys {
-            if let mountURL = activeMounts[mountKey] {
-                // Try graceful unmount
-                let process = Process()
-                process.launchPath = "/sbin/umount"
-                process.arguments = [mountURL.path]
-                
-                do {
-                    try process.run()
-                    process.waitUntilExit()
-                    
-                    if process.terminationStatus != 0 {
-                        // Try force unmount if needed
-                        let forceProcess = Process()
-                        forceProcess.launchPath = "/sbin/umount"
-                        forceProcess.arguments = ["-f", mountURL.path]
-                        
-                        try forceProcess.run()
-                        forceProcess.waitUntilExit()
-                    }
-                    
-                    // Update status for all servers using this mount
-                    updateStatusForMountKey(mountKey, success: false)
-                    
-                    // Clean up mount resources
-                    mountProcesses.removeValue(forKey: mountKey)
-                    activeMounts.removeValue(forKey: mountKey)
-                } catch {
-                    print("Error unmounting \(mountKey): \(error)")
-                }
-            }
+        for server in servers {
+            unmountServer(server)
         }
-        
-        // Clear mapping
-        serverMountMap.removeAll()
+        mountedServers.removeAll()
+        updateGlobalMountStatus()
     }
     
-    private func isDirectoryMounted(_ path: URL) -> Bool {
-        let process = Process()
-        process.launchPath = "/bin/df"
-        process.arguments = [path.path]
-        
-        let pipe = Pipe()
-        process.standardOutput = pipe
+    // MARK: - Helper Methods
+    private func createTemporaryKeyFile(content: String, name: String) -> String {
+        let tempDir = FileManager.default.temporaryDirectory
+        let keyFileName = "key_\(name)_\(UUID().uuidString)"
+        let keyPath = tempDir.appendingPathComponent(keyFileName)
         
         do {
-            try process.run()
-            process.waitUntilExit()
-            
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-            return output.contains("sshfs")
+            try content.write(to: keyPath, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: keyPath.path)
+            return keyPath.path
         } catch {
-            return false
+            print("Failed to create key file: \(error)")
+            return ""
         }
     }
     
-    private func checkMountHealth() {
-        @AppStorage("isMounted") var isMounted: Bool = false
-        for (mountKey, mountURL) in activeMounts {
-            if !isDirectoryMounted(mountURL) {
-                updateStatusForMountKey(mountKey, success: false)
-                isMounted = false
-            } else{
-                isMounted = true
+    private func updateMountStatus(server: ServerEntity, mounted: Bool, error: Error? = nil, mountKey: String? = nil) {
+        let key = mountKey ?? server.name ?? "unknown"
+        mountStatus[key] = mounted
+        if let error = error {
+            mountErrors[key] = error
+        } else {
+            mountErrors.removeValue(forKey: key)
+        }
+        updateGlobalMountStatus()
+    }
+    
+    private func updateGlobalMountStatus() {
+        // If any server is mounted, consider the global status as mounted
+        isMounted = mountStatus.values.contains(true)
+    }
+    
+//    private func checkMounts() {
+//        // Check each mount to ensure it's still valid
+//        for (serverName, mountPath) in mountedServers {
+//            let stillMounted = isPathMounted(mountPath)
+//            
+//            // Update status if it changed
+//            if mountStatus[serverName] != stillMounted {
+//                if let server = servers.first(where: { $0.name == serverName }) {
+//                    updateMountStatus(server: server, mounted: stillMounted)
+//                }
+//            }
+//        }
+//    }
+    
+    func isPathMounted(_ path: String) -> Bool {
+        let mountPath = NSTemporaryDirectory() + "com.srgim.Throttle-2.sftp/\(path)"
+        var isDir: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: mountPath, isDirectory: &isDir)
+        if exists && isDir.boolValue {
+            if let contents = try? FileManager.default.contentsOfDirectory(atPath: mountPath) {
+                return !contents.isEmpty
             }
         }
+        return false
     }
-    
-    // MARK: - Cleanup
-    private func cleanupTemporaryFiles() {
-        for keyPath in temporaryKeyFiles {
-            try? FileManager.default.removeItem(atPath: keyPath)
-        }
-        temporaryKeyFiles.removeAll()
-    }
-    
-//    @objc private func applicationWillTerminate() {
-//        // Only unmount on close if unMountOnClose is true and not running in the helper
-//        let isHelper = Bundle.main.bundleIdentifier == "com.srgim.ThrottleMountHelper"
-//        let unMountOnClose = UserDefaults.standard.bool(forKey: "unMountOnClose")
-//        if unMountOnClose && !isHelper {
-//            unmountAllServers()
-//        }
-//        cleanupTemporaryFiles()
- //   }
     
     deinit {
         cancellables.removeAll()
-       // applicationWillTerminate()
     }
 }
 #endif

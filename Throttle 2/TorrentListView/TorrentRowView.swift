@@ -343,43 +343,41 @@ struct TorrentRowView: View {
     func get_media_path(file: TorrentFile, torrent: Torrent,  server: ServerEntity) -> String {
         let name = file.name
         let baseDir = server.pathServer!
-        
         if var path = torrent.dynamicFields["downloadDir"]?.value as? String {
             if path.hasPrefix(baseDir) {
                 path = String(path.dropFirst(baseDir.count))
-                let returnvalue = "\(ServerMountManager.shared.getMountPath(for: store.selection!).absoluteString.dropLast().replacingOccurrences(of: "file://", with: ""))\(path)/\(name)"
+                if path.hasPrefix("/") { path = String(path.dropFirst()) }
+                let mountBase = ServerMountManager.shared.getMountPath(for: store.selection!).absoluteString.dropLast().replacingOccurrences(of: "file://", with: "")
+                let returnvalue = "\(mountBase)/\(path)/\(name)"
                 print("returning path: " + returnvalue)
                 return returnvalue
             }
         }
-
         return ""
     }
     
     func get_mapped_path(file: TorrentFile, torrent: Torrent,  server: ServerEntity) -> String {
         let name = file.name
         let baseDir = server.pathServer!
-        
         if var path = torrent.dynamicFields["downloadDir"]?.value as? String {
             if path.hasPrefix(baseDir) {
                 path = String(path.dropFirst(baseDir.count))
-                path = (server.pathFilesystem ?? "") + path
-                let returnvalue = "\(ServerMountManager.shared.getMountPath(for: store.selection!).absoluteString.dropLast().replacingOccurrences(of: "file://", with: ""))\(path)/\(name)"
+                if path.hasPrefix("/") { path = String(path.dropFirst()) }
+                let mountBase = ServerMountManager.shared.getMountPath(for: store.selection!).absoluteString.dropLast().replacingOccurrences(of: "file://", with: "")
+                let returnvalue = "\(mountBase)/\(path)/\(name)"
                 print("returning path: " + returnvalue)
                 return returnvalue
             }
         }
-
         return ""
     }
     
 #if os(macOS)
 func get_fuse_path(torrent: Torrent, downloadDir: String) -> URL {
-    let tmpURL = URL(fileURLWithPath: "/private/tmp")
+    let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory())
     let mountKey = ServerMountUtilities.getMountKey(for: store.selection!)
     let openBasePath = tmpURL.appendingPathComponent("com.srgim.Throttle-2.sftp")
                             .appendingPathComponent(mountKey!)
-    
     // Clean up the download directory path
     var cleanPath = downloadDir
     if let baseDir = store.selection?.pathServer {
@@ -388,23 +386,14 @@ func get_fuse_path(torrent: Torrent, downloadDir: String) -> URL {
             cleanPath = String(cleanPath.dropFirst(baseDir.count))
         }
     }
-    
     // Remove any leading slashes
     cleanPath = cleanPath.trimmingCharacters(in: .init(charactersIn: "/"))
-    
     // Decode the torrent name
     let decodedName = torrent.name?.removingPercentEncoding ?? torrent.name ?? ""
-    
     // Build the final path
     let finalPath = openBasePath
         .appendingPathComponent(cleanPath)
         .appendingPathComponent(decodedName)
-    
-//    print("Base dir: \(store.selection?.pathServer ?? "none")")
-//    print("Original download dir: \(downloadDir)")
-//    print("Cleaned path: \(cleanPath)")
-//    print("Final path: \(finalPath.path)")
-    
     return finalPath
 }
 #endif

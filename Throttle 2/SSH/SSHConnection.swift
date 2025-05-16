@@ -676,6 +676,14 @@ class SSHConnection {
          SSHConnectionManager.shared.unregister(connection: self)
          // Do not launch a Task here; let the connection be cleaned up elsewhere
      }
+    
+    // Helper to check if SFTP attributes indicate a directory
+    static func isDirectory(attributes: SFTPFileAttributes) -> Bool {
+        if let perms = attributes.permissions {
+            return (perms & 0x4000) != 0
+        }
+        return false
+    }
 }
 
 // Helper function to create an SSH connection from a server entity

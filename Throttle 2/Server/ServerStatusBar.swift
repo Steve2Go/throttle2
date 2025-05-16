@@ -14,7 +14,7 @@ struct ServerStatusBar: View {
     @State private var totalTorrents: Int = 0
     @State private var freeSpace: Int64 = 0
     @State private var refreshTask: Task<Void, Never>?
-    @AppStorage("isMounted") var isMounted: Bool = false
+//    @AppStorage("isMounted") var isMounted: Bool = false
     
     // Timer for refresh
     @State private var timer: Timer?
@@ -69,7 +69,7 @@ var isiPad: Bool {
                 Spacer()
             } else {
                 Spacer()
-       
+                
                 VStack(alignment:.leading) {
                     HStack{
                         Text("↓").font(.caption).foregroundColor(.blue)
@@ -83,58 +83,81 @@ var isiPad: Bool {
                     }
                 }
                 Spacer()
-//                Divider()
-//                    .frame(height: dividerHeight)
+                //                Divider()
+                //                    .frame(height: dividerHeight)
                 //tunnels
                 HStack(spacing: innerSpacing) {
-                    // tunnel icon
-                    if store.selection?.sftpRpc == true && TunnelManagerHolder.shared.activeTunnels.count == 0 {
-                        Image(systemName: "arrow.up.arrow.down")
-                            .scaleEffect(x: -1, y: 1)
-                            .foregroundColor(.gray)
-                            .symbolEffect(.wiggle.byLayer, options: .repeat(.continuous))
+                    
+                    if store.selection?.sftpRpc == true{
+                        // connection status
+                        
+                        
+                        if TunnelManagerHolder.shared.activeTunnels.count == 0 {
+                            //connecting
+                            Image(systemName: "arrow.up.arrow.down")
+                                    .scaleEffect(x: -1, y: 1)
+                                    .foregroundColor(.orange)
+                            #if os(iOS)
+                                    .symbolEffect(.bounce.up.byLayer, options: .repeat(.continuous))
+                            #endif
+                        } else {
+                            Image(systemName: "arrow.up.arrow.down")
+                                        .scaleEffect(x: -1, y: 1)
+                                        .symbolRenderingMode(.palette)
+                                        .foregroundStyle(.green,.blue)
+                                        .foregroundColor(.green)
+                            
                         }
-                    else {
+                    }  else {
+                        // no rpc
                         Image(systemName: "arrow.up.arrow.down")
-                            .scaleEffect(x: -1, y: 1)
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.green,.blue)
-                            .foregroundColor(.green)
+                                    .scaleEffect(x: -1, y: 1)
+                                    .symbolRenderingMode(.palette)
+                                    .foregroundStyle(.green,.blue)
+                                    .foregroundColor(.green)
                     }
-//                    #endif
-                    // activity
-                    Text("\(activeTorrents)/\(totalTorrents)")
-                        .font(.caption)
+                    
+                    VStack(alignment:.leading) {
+                        Text("\(activeTorrents)/\(totalTorrents)")
+                            .font(.caption)
+                        Text("Active").font(.caption2)
+                    }
                 }
                 
                 
                 // Visible torrents
                 HStack(spacing: innerSpacing) {
-                    Image(systemName: "eye")
-                        .foregroundColor(filterdCount == totalTorrents  ? .green : .orange)
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(filterdCount >= totalTorrents  ? .blue : .orange, .blue)
+                    VStack( alignment: .leading) {
                     Text("\(filterdCount)/\(totalTorrents)")
                         .font(.caption)
+                    Text("Visible") .font(.caption2)
+                }
                 }
                 
                 // Free space
                 HStack(spacing: innerSpacing) {
                     //Disk Icon
-                    if store.selection?.sftpBrowse == true && ftpServerCount == 0 && isMounted == false   {
-                        
-                        Image(systemName: "externaldrive.badge.icloud")
-                            .foregroundColor(.gray)
-                            .symbolEffect(.pulse)
-                    }
-                        else{
-                            Image(systemName: "externaldrive")
-                                .foregroundColor(.blue)
-                        }
+                    //conencting / disconnected
+                    if store.selection?.sftpBrowse == true && ftpServerCount == 0    {
 
-                    Text(freeSpaceFormatted)
-                        .font(.caption)
+                        Image(systemName: "internaldrive")
+                            .foregroundColor(.orange)
+
+                    } else {
+                        Image(systemName: "internaldrive")
+                            .foregroundColor(.blue)
+                    }
+                    VStack( alignment: .leading) {
+                        Text(freeSpaceFormatted)
+                            .font(.caption)
+                        Text("Available") .font(.caption2)
+                    }
                 }
                 Spacer()
-
+                
                 HStack {
                     Button {
                         showServerSettings.toggle()
@@ -142,9 +165,10 @@ var isiPad: Bool {
                         Image(systemName: "gearshape")
                     }
                 }
-
+                
                 
                 Spacer()
+                
             }
         }
         .scaleEffect(scale)
@@ -274,6 +298,7 @@ var isiPad: Bool {
     
     private func startFTPStatusTimer() {
         stopFTPStatusTimer()
+#if os(iOS)
         ftpStatusTimer = Timer.scheduledTimer(withTimeInterval: ftpServerCount > 0 ? 5.0 : 1.0, repeats: true) { _ in
             Task {
                 let count = await SimpleFTPServerManager.shared.activeServersCount()
@@ -289,6 +314,31 @@ var isiPad: Bool {
                 }
             }
         }
+#else
+        ftpStatusTimer = Timer.scheduledTimer(withTimeInterval: ftpServerCount > 0 ? 5.0 : 1.0, repeats: true) { _ in
+            // On macOS, check the file system for each mount
+            let servers = ServerMountManager.shared.servers.filter { $0.sftpBrowse }
+            var count = 0
+            for server in servers {
+                if let mountKey = ServerMountManager.shared.getMountKey(for: server) {
+                    let mountPath = ServerMountUtilities.getMountPath(for: mountKey)
+                    if ServerMountManager.shared.isPathMounted(mountKey) {
+                        count += 1
+                    }
+                }
+            }
+            DispatchQueue.main.async {
+                if ftpServerCount != count {
+                    ftpServerCount = count
+                    // Restart timer with new interval if status changed
+                    stopFTPStatusTimer()
+                    startFTPStatusTimer()
+                } else {
+                    ftpServerCount = count
+                }
+            }
+        }
+#endif
     }
     
     private func stopFTPStatusTimer() {

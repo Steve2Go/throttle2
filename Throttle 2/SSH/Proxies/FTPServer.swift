@@ -635,7 +635,7 @@ class FTPSimpleHandler : @unchecked Sendable {
         case "SYST":
             sendResponse(215, "UNIX Type: L8")
         case "PWD":
-            sendResponse(257, "\"\(currentDirectory)\" is current directory")
+            sendResponse(257, "\"\(normalizePath(currentDirectory))\" is current directory")
         case "TYPE":
             sendResponse(200, "Type set to \(argument)")
             
@@ -780,24 +780,23 @@ class FTPSimpleHandler : @unchecked Sendable {
     // Handle directory change - now with async/await pattern
     private func handleChangeDirectory(_ path: String) async {
         if path.isEmpty {
+            currentDirectory = normalizePath(currentDirectory)
             sendResponse(250, "Directory unchanged")
             return
         }
-        
         // Handle special cases
         if path == "/" {
             currentDirectory = "/"
             sendResponse(250, "Directory changed to /")
             return
         }
-        
         if path == ".." {
             // Move up one level
             if currentDirectory == "/" {
+                currentDirectory = "/"
                 sendResponse(250, "Already at root directory")
                 return
             }
-            
             let components = currentDirectory.split(separator: "/")
             if components.isEmpty {
                 currentDirectory = "/"
@@ -807,11 +806,10 @@ class FTPSimpleHandler : @unchecked Sendable {
                     currentDirectory = "/"
                 }
             }
-            
+            currentDirectory = normalizePath(currentDirectory)
             sendResponse(250, "Directory changed to \(currentDirectory)")
             return
         }
-        
         // Combine paths for relative navigation
         var targetPath: String
         if path.hasPrefix("/") {
@@ -825,28 +823,21 @@ class FTPSimpleHandler : @unchecked Sendable {
                 targetPath = currentDirectory + "/" + path
             }
         }
-        
         // Normalize path (handle double slashes, etc)
         targetPath = normalizePath(targetPath)
-        
-        // Verify the directory exists
+        // Verify the directory exists using SFTP
         do {
-            // Get a fresh SSH connection
             let sshConnection = try await getSSHConnection()
-            
-            // Check if directory exists by running a command
-            let command = "[ -d \"\(targetPath)\" ] && echo 'exists' || echo 'notfound'"
-            let (_, output) = try await sshConnection.executeCommand(command)
-            let result = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            if result == "exists" {
-                currentDirectory = targetPath
-                sendResponse(250, "Directory changed to \(targetPath)")
+            let sftp = try await sshConnection.connectSFTP()
+            let attrs = try await sftp.getAttributes(at: targetPath)
+            if SSHConnection.isDirectory(attributes: attrs) {
+                currentDirectory = normalizePath(targetPath)
+                sendResponse(250, "Directory changed to \(currentDirectory)")
             } else {
-                sendResponse(550, "Directory not found")
+                sendResponse(550, "Not a directory")
             }
         } catch {
-            print("Error checking directory: \(error)")
+            print("Error checking directory via SFTP: \(error)")
             sendResponse(550, "Directory not found or inaccessible")
         }
     }

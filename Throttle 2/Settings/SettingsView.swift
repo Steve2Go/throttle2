@@ -142,7 +142,7 @@ struct SettingsView: View {
                 settingRow(
                     title: "Mount Servers on login",
                     description: "Mount remote files when you log into your Computer",
-                    control: Toggle("", isOn: $unMountOnClose)
+                    control: Toggle("", isOn: $mountOnLogin)
                 )
 //                settingRow(
 //                    title: "Unmount Server Files on close",
