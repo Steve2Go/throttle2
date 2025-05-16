@@ -206,3 +206,7 @@ func isWindowsFilePath(_ path: String) -> Bool {
     let pattern = "^[A-Za-z]:[\\\\/].*"
     return path.range(of: pattern, options: .regularExpression) != nil
 }
+
+// Example cleanup for file:// handling
+// Instead of manually stripping 'file://', use URL(fileURLWithPath:) and .path where possible.
+// (Apply this pattern to all relevant lines in this file.)

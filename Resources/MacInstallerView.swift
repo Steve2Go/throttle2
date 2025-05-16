@@ -121,7 +121,7 @@ struct InstallerView: View {
           echo 'Throttle already exists in /etc/hosts.'
         fi
         """
-        let scriptPath = "/tmp/throttle_install.sh"
+        let scriptPath = NSTemporaryDirectory() + "throttle_install.sh"
         do {
             try script.write(toFile: scriptPath, atomically: true, encoding: .utf8)
             // Make script executable

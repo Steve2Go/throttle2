@@ -246,12 +246,12 @@ struct CreateTorrent: View {
         // Get just the filename from the path
         let filename = filePath.components(separatedBy: "/").last ?? "output"
         // Create torrent in the system's temporary directory
-        let outputFile = "/tmp/\(filename).torrent"
+        let outputFile = NSTemporaryDirectory() + "\(filename).torrent"
         let escapedOutputFile = outputFile.replacingOccurrences(of: "'", with: "'\\''")
         let escapedPath = filePath.replacingOccurrences(of: "'", with: "'\\''")
         
         // Upload the shell script to the server
-        let scriptPath = "/tmp/torrent_creator.sh"
+        let scriptPath = NSTemporaryDirectory() + "torrent_creator.sh"
         
         // Write the script to the server
         commandOutput += "\nPreparing the server..."
@@ -315,12 +315,12 @@ struct CreateTorrent: View {
         
         // Create a unique ID for this job
         let jobId = UUID().uuidString.prefix(8)
-        let logFile = "/tmp/torrent_creation_\(jobId).log"
+        let logFile = NSTemporaryDirectory() + "torrent_creation_\(jobId).log"
         
         // Run in background with output redirected to log file
         let backgroundCmd = """
         nohup bash -c "\(shellCmd.joined(separator: " "))" > \(logFile) 2>&1 &
-        echo $! > /tmp/torrent_pid_\(jobId)
+        echo $! > \(NSTemporaryDirectory())/torrent_pid_\(jobId)
         """
         
         commandOutput += "\nStarting torrent creation in background..."
@@ -488,10 +488,10 @@ struct CreateTorrent: View {
                 break
             } else {
                 // 3. Check if process is still running
-                let (_, pidFileExists) = try await connection.executeCommand("[ -f /tmp/torrent_pid_\(jobId) ] && echo 'yes' || echo 'no'")
+                let (_, pidFileExists) = try await connection.executeCommand("[ -f \(NSTemporaryDirectory())/torrent_pid_\(jobId) ] && echo 'yes' || echo 'no'")
                 
                 if pidFileExists.contains("yes") {
-                    let (_, pidContent) = try await connection.executeCommand("cat /tmp/torrent_pid_\(jobId)")
+                    let (_, pidContent) = try await connection.executeCommand("cat \(NSTemporaryDirectory())/torrent_pid_\(jobId)")
                     let pid = pidContent.trimmingCharacters(in: .whitespacesAndNewlines)
                     
                     let (_, processCheck) = try await connection.executeCommand("ps -p \(pid) -o pid= || echo 'NOT_RUNNING'")
@@ -635,7 +635,7 @@ struct CreateTorrent: View {
             }
             
             // Clean up temp files
-            let (_, _) = try await connection.executeCommand("rm -f '\(escapedOutputFile)' '\(scriptPath)' /tmp/torrent_pid_\(jobId) \(logFile)")
+            let (_, _) = try await connection.executeCommand("rm -f '\(escapedOutputFile)' '\(scriptPath)' \(NSTemporaryDirectory())/torrent_pid_\(jobId) \(logFile)")
             commandOutput += "\nCleaned up temporary files"
         } catch {
             isError = true

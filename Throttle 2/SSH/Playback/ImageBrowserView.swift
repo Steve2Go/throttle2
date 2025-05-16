@@ -52,7 +52,7 @@ class RemoteImageLoader {
             FileManager.default.createFile(atPath: tempURL.path, contents: nil)
             defer { try? FileManager.default.removeItem(at: tempURL) }
             let connection = SSHConnection(server: server)
-            let remoteTemp = "/tmp/thumb-\(UUID().uuidString).jpg"
+            let remoteTemp = NSTemporaryDirectory() + "thumb-\(UUID().uuidString).jpg"
             var usedServerResize = false
             // Find ffmpeg path (as in ThumbnailManagerIOS)
             var ffmpegPath: String? = server.ffmpegPath
