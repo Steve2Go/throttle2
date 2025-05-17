@@ -254,6 +254,7 @@ var isiPad: Bool {
     
     private func updateStats() {
         // Cancel any ongoing task
+        guard ftpServerCount > 0 else {return}
         refreshTask?.cancel()
         
         // Check if we have a server selected

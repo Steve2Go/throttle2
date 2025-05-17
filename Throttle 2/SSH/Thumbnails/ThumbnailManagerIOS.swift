@@ -217,7 +217,7 @@ public class ThumbnailManager: NSObject {
             throw NSError(domain: "ThumbnailManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "FFmpeg not available on server"])
         }
         // Use NSTemporaryDirectory() for remote thumbnails
-        let remoteTempThumbPath = NSTemporaryDirectory() + "thumb_\(UUID().uuidString).jpg"
+        let remoteTempThumbPath = "thumb_\(UUID().uuidString).jpg"
         print("[ThumbnailManager] Remote temp thumb path: \(remoteTempThumbPath)")
         let tempDir = FileManager.default.temporaryDirectory
         let localTempURL = tempDir.appendingPathComponent(UUID().uuidString + ".jpg")

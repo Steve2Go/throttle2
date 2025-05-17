@@ -699,6 +699,7 @@ struct ServerEditView: View {
             } catch {
                 print("Failed to save server: \(error)")
             }
+            #if os(macOS)
             do{
                 let serverArray = Array(try viewContext.fetch(ServerEntity.fetchRequest()))
                 ServerMountManager.shared.unmountAllServers()
@@ -707,7 +708,7 @@ struct ServerEditView: View {
             } catch {
                 ServerMountManager.shared.unmountAllServers()
             }
-            
+            #endif
             
             DispatchQueue.main.async {
                 dismiss()
@@ -754,9 +755,13 @@ struct ServerEditView: View {
             }
             do {
                 let serverArray = Array(try viewContext.fetch(ServerEntity.fetchRequest()))
+#if os(macOS)
                 ServerMountManager.shared.unmountAllServers()
+                #endif
                     if !serverArray.isEmpty {
+                        #if os(macOS)
                         ServerMountManager.shared.mountAllServers(serverArray)
+                        #endif
                         store.selection = serverArray.first ?? nil
                 }
             } catch {

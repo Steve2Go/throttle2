@@ -202,13 +202,10 @@ struct Throttle_2App: App {
                         isBackground = true
                         Task {
                             manager.stopPeriodicUpdates()
-                            TunnelManagerHolder.shared.tearDownAllTunnels()
-                            await SimpleFTPServerManager.shared.removeAllServers()
-                            
                             // Handle app termination cleanup - similar to willTerminateNotification
-                            if store.selection?.sftpUsesKey == true {
-                                await SimpleFTPServerManager.shared.removeAllServers()
-                            }
+//                            if store.selection?.sftpUsesKey == true {
+//                                await SimpleFTPServerManager.shared.removeAllServers()
+//                            }
                             
                             if store.selection?.sftpRpc == true {
                                 TunnelManagerHolder.shared.tearDownAllTunnels()
@@ -252,7 +249,7 @@ struct Throttle_2App: App {
         // FTP
         Task {
 //            if await SimpleFTPServerManager.shared.activeServers.count > 0 && ftp {
-                await SimpleFTPServerManager.shared.removeAllServers()
+//                await SimpleFTPServerManager.shared.removeAllServers()
             
 //            }
             if server.sftpBrowse && networkMonitor.isConnected && ftp {
@@ -276,6 +273,7 @@ struct Throttle_2App: App {
     }
     
     func connectFTP(store: Store , tries:Int = 0) async {
+        await SimpleFTPServerManager.shared.removeAllServers()
         try? await Task.sleep(nanoseconds: 500_000_000)
         if store.selection != nil {
             do {
