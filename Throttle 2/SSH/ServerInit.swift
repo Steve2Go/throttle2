@@ -188,15 +188,30 @@ class NetworkMonitor: ObservableObject {
 
 
 
-// Safely quote a path for Unix shell usage
+//// Safely quote a path for Unix shell usage
+//func shellQuote(_ path: String) -> String {
+//    // If the path contains no single quotes, just wrap in single quotes
+//    if !path.contains("'") {
+//        return "'\(path)'"
+//    }
+//    // Otherwise, close the quote, insert an escaped single quote, and reopen
+//    // e.g. abc'def -> 'abc'\''def'
+//    return "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+//}
+
+// Safely quote a path for Unix shell usage with support for non-English characters
 func shellQuote(_ path: String) -> String {
+    // First ensure the string is properly encoded for shell usage
+    let encodedPath = path.precomposedStringWithCanonicalMapping
+    
     // If the path contains no single quotes, just wrap in single quotes
-    if !path.contains("'") {
-        return "'\(path)'"
+    if !encodedPath.contains("'") {
+        return "'\(encodedPath)'"
     }
+    
     // Otherwise, close the quote, insert an escaped single quote, and reopen
     // e.g. abc'def -> 'abc'\''def'
-    return "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    return "'" + encodedPath.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }
 
 func urlEncodePath(_ path: String) -> String {
