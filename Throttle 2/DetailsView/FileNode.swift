@@ -22,6 +22,56 @@ struct FileNode: Identifiable {
     }
 }
 
+extension Array where Element == (Int, TorrentFile) {
+    func toFileTree() -> [FileNode] {
+        var nodes: [String: FileNode] = [:]
+        // First pass: Create all directory nodes
+        for (index, file) in self {
+            let components = file.name.split(separator: "/")
+            // Create directory nodes
+            for (i, component) in components.dropLast().enumerated() {
+                let dirPath = String(components[...i].joined(separator: "/"))
+                if nodes[dirPath] == nil {
+                    nodes[dirPath] = FileNode(
+                        id: dirPath,
+                        name: String(component),
+                        path: dirPath,
+                        isDirectory: true,
+                        children: [],
+                        fileIndex: nil,
+                        length: nil,
+                        bytesCompleted: nil
+                    )
+                }
+            }
+            // Create file node
+            let filePath = file.name
+            nodes[filePath] = FileNode(
+                id: filePath,
+                name: String(components.last!),
+                path: filePath,
+                isDirectory: false,
+                children: [],
+                fileIndex: index,
+                length: file.length,
+                bytesCompleted: file.bytesCompleted
+            )
+        }
+        // Second pass: Build the tree structure
+        for (path, node) in nodes {
+            if node.isDirectory {
+                let dirPath = path + "/"
+                let children = nodes.filter {
+                    $0.key.hasPrefix(dirPath) &&
+                    $0.key.dropFirst(dirPath.count).contains("/") == false
+                }
+                nodes[path]?.children = children.values.sorted { $0.name < $1.name }
+            }
+        }
+        return nodes.values.filter { !$0.path.contains("/") }.sorted { $0.name < $1.name }
+    }
+}
+
 //extension Array where Element == TorrentFile {
 //    func toFileTree() -> [FileNode] {
 //        var nodes: [String: FileNode] = [:]

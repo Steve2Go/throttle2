@@ -20,6 +20,8 @@ struct DetailsView: View {
     @State var magnet = ""
     @State var showToast = false
     @State var fileStat: TorrentResponse?
+    @State private var sheetUnwantedFiles: Set<Int> = []
+    @State private var sheetFileTree: [FileNode] = []
     
     private let toastOptions = SimpleToastOptions(
             hideAfter: 5
@@ -236,7 +238,6 @@ struct DetailsView: View {
         }
         
         var body: some View {
-        
             VStack(alignment: .leading) {
                 Text(title)
                     .font(.headline)
@@ -396,26 +397,45 @@ Spacer()
                 }
                     // Files
                     DetailSection(title: "Files") {
-                        if let _ = store.selectedTorrentId,
-                           let torrentFiles = detailedTorrent?.files,
+                        if let torrentFiles = detailedTorrent?.files,
                            let fileStats = detailedTorrent?.dynamicFields["fileStats"]?.value as? [[String: Any]] {
-                            //DisclosureGroup(isExpanded: $showFiles) {
-                                let fileTree: [TorrentFileNode] = buildFileTree(from: torrentFiles, fileStats: fileStats)
-                                ForEach(Array(zip(fileTree.indices, fileTree)), id: \.1) { index, node in
-                                    TorrentFileNodeView(
-                                        node: node,
-                                        level: 0,
-                                        isWanted: isFileWanted,
-                                        toggleNode: toggleNode,
-                                        formatBytes: formatBytes
-                                    )
-                                    if index < fileTree.count - 1 {
-                                        Divider()
-                                    }
+                            // Convert wanted state from fileStats
+                            let wantedSet: Set<Int> = Set(fileStats.enumerated().compactMap { (i, stat) in
+                                let wanted = stat["wanted"] as? Bool ?? true
+                                return wanted ? nil : i
+                            })
+                            // Convert TorrentFile array to FileNode tree
+                            let fileTreeCopy = torrentFiles.enumerated().map { (i, file) in (i, file) }.toFileTree()
+                            let selectedCount = torrentFiles.count - unwantedFiles.count
+                            let totalCount = torrentFiles.count
+                            HStack {
+                                Button("\(selectedCount) of \(totalCount) files selected") {
+                                    sheetUnwantedFiles = unwantedFiles
+                                    sheetFileTree = fileTreeCopy
+                                    showFiles = true
                                 }
-//                            } label: {
-//                                Text("Show / Manage Files")
-//                            }
+                                Spacer()
+                            }
+                            .sheet(isPresented: $showFiles) {
+                                FileSelectionView(
+                                    fileTree: sheetFileTree,
+                                    initialUnwanted: sheetUnwantedFiles,
+                                    onSave: { newUnwanted in
+                                        Task {
+                                            unwantedFiles = newUnwanted
+                                            try? await manager.setTorrentFiles(
+                                                id: store.selectedTorrentId!,
+                                                wanted: Array(0..<torrentFiles.count).filter { !newUnwanted.contains($0) },
+                                                unwanted: Array(newUnwanted)
+                                            )
+                                            showFiles = false
+                                        }
+                                    },
+                                    onCancel: {
+                                        showFiles = false
+                                    }
+                                )
+                            }
                         }
                     }
                     

@@ -91,7 +91,7 @@ struct TorrentRowView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 60, height: 60)
-                            .padding(.trailing, 0)
+                            .padding(.trailing, 5)
                             .foregroundColor(.secondary)
                         
                     }
@@ -102,7 +102,7 @@ struct TorrentRowView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 60, height: 60)
-                    .padding(.trailing, 0)
+                    .padding(.trailing, 5)
                     .foregroundColor(.secondary)
             }
             
