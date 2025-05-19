@@ -93,6 +93,7 @@ class SSHConnection {
     private var isConnecting: Bool = false
     private var connectionLock = NSLock()
     private var lastActiveTime: Date = Date()
+    private let serialQueue = DispatchQueue(label: "com.throttle2.sshconnection.serial")
     
     // Connection timeout (1 minute of inactivity)
     private let connectionTimeout: TimeInterval = 60
@@ -321,15 +322,28 @@ class SSHConnection {
     }
     
     func executeCommand(_ command: String, maxResponseSize: Int? = nil, mergeStreams: Bool = true) async throws -> (status: Int32, output: String) {
+        return try await withCheckedThrowingContinuation { continuation in
+            serialQueue.async {
+                Task {
+                    do {
+                        let result = try await self._executeCommandInternal(command, maxResponseSize: maxResponseSize, mergeStreams: mergeStreams)
+                        continuation.resume(returning: result)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        }
+    }
+
+    // Internal method containing the original executeCommand logic
+    private func _executeCommandInternal(_ command: String, maxResponseSize: Int? = nil, mergeStreams: Bool = true) async throws -> (status: Int32, output: String) {
         try await ensureValidConnection()
-        
         guard let client = client else {
             throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
         }
-        
         // Update last active time
         lastActiveTime = Date()
-        
         // For multi-line commands, always merge streams by default
         let buffer: ByteBuffer
         if let maxSize = maxResponseSize {
@@ -338,9 +352,7 @@ class SSHConnection {
             // Use a default max response size that's reasonably large (10MB)
             buffer = try await client.executeCommand(command, maxResponseSize: 1024 * 1024 * 10, mergeStreams: mergeStreams)
         }
-        
         let output = String(buffer: buffer)
-        
         // We don't have access to the exit status with the current API, so we return a default success status
         // In a real implementation, we might want to check for error messages in the output
         return (0, output)
