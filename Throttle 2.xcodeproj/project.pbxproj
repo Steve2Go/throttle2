@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		752C71E982B1CD29F8F8DE8A /* Pods_Throttle_2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E706AFEF2D9993D6005825F4 /* Pods_Throttle_2.framework */; };
+		752C71E982B1CD29F8F8DE8A /* Pods_Throttle_2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E706AFEF2D9993D6005825F4 /* Pods_Throttle_2.framework */; platformFilter = ios; };
 		E70D09CA2D9CC9DD00C9CB48 /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */; platformFilter = ios; };
 		E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = E70D0AD42D9E84DD00C9CB48 /* Citadel */; };
 		E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = E7150E522D631F8B009C4217 /* KeychainAccess */; };
@@ -95,12 +95,8 @@
 				"transmission-mac/transmission-show",
 			);
 			platformFiltersByRelativePath = {
-				SSH/Mounting/MountManager.swift = (
-					macos,
-				);
-				SSH/Thumbnails/ThumbnailManagerLocal.swift = (
-					macos,
-				);
+				SSH/Mounting/MountManager.swift = (macos, );
+				SSH/Thumbnails/ThumbnailManagerLocal.swift = (macos, );
 			};
 			target = E7150E162D631D08009C4217 /* Throttle 2 */;
 		};
@@ -110,12 +106,8 @@
 				"install-ffmpeg-static.sh",
 			);
 			platformFiltersByRelativePath = {
-				"fuse-t-macos-installer-1.0.44.pkg" = (
-					macos,
-				);
-				"sshfs-macos-installer-1.0.2.pkg" = (
-					macos,
-				);
+				"fuse-t-macos-installer-1.0.44.pkg" = (macos, );
+				"sshfs-macos-installer-1.0.2.pkg" = (macos, );
 			};
 			target = E7150E162D631D08009C4217 /* Throttle 2 */;
 		};
@@ -392,13 +384,17 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Throttle 2/Pods-Throttle 2-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Throttle 2/Pods-Throttle 2-frameworks-${CONFIGURATION}-output-files.xcfilelist",
 			);
+			outputPaths = (
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Throttle 2/Pods-Throttle 2-frameworks.sh\"\n";
+			shellScript = "if [[ \"$PLATFORM_NAME\" == \"iphoneos\" || \"$PLATFORM_NAME\" == \"iphonesimulator\" ]]; then\n  \"${PODS_ROOT}/Target Support Files/Pods-Throttle 2/Pods-Throttle 2-frameworks.sh\"\nfi\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */

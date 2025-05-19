@@ -135,14 +135,14 @@ struct SettingsView: View {
             //Spacer()
             Section {
                 #if os(macOS)
-                Text("QLVideo is used for thumbnails not normally supported on Mac.").font(.caption)
-                Button("Thumbnail Settings"){
-                    
-                    
-                    let appURL = Bundle.main.url(forResource: "QuickLookVideo", withExtension: "app")
-                    // Open the app using NSWorkspace
-                    NSWorkspace.shared.open(appURL!)
-                }
+//                Text("QLVideo is used for thumbnails not normally supported on Mac.").font(.caption)
+//                Button("Thumbnail Settings"){
+//                    
+//                    
+//                    let appURL = Bundle.main.url(forResource: "QuickLookVideo", withExtension: "app")
+//                    // Open the app using NSWorkspace
+//                    NSWorkspace.shared.open(appURL!)
+//                }
                 Text("Fuse-t and sshfs are bundled to mount your files locally in Finder.").font(.caption)
 //                Button("Install Fuse File System") {
 //                    installerView.toggle()
@@ -164,13 +164,13 @@ struct SettingsView: View {
 //                )
                 Text("About").font(.headline)
                 Text("Mac version installs fuse-t with sshfs").font(.caption)
-                Text("Mac bundle includes bundled QLVideo in it's entirety https://github.com/Marginal/QLVideo").font(.caption)
+                Text("Recomendeded for Video Thumbnails: https://github.com/Marginal/QLVideo").font(.caption)
                 #else
                 
                 Text("About").font(.headline)
-                Text("iOS version installs ffmpeg on the server. https://ffmpeg.org").font(.caption)
-                #endif
                 
+                #endif
+                Text("Installs ffmpeg on the server. https://ffmpeg.org").font(.caption)
                 Text("In app icons via SF Icons and https://icons8.com.").font(.caption)
                 Text("App icon based on icon from https://www.iconarchive.com/").font(.caption)
                 Text("Uses open source libraries VLCKit, Simpletoast and Citadel.").font(.caption)

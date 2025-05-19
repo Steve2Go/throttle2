@@ -38,6 +38,9 @@ A Huge update wiht greatly simplified & refactored code
 
 Based on lessons learned from Mission, https://github.com/TheNightmanCodeth/mission with borrowed code and ideas.
 
+Throttle uses FFMpeg on the server to generate video thumbnails. After experimenting with all sorts of local generation, I've found this to be best - it's really fast, and puts almost no load on the server or the connection in comparison to local options.
+A small ffmpeg binary will downloaded to your server if you don't already have it installed.
+
 
 ## Installation
 
@@ -55,13 +58,8 @@ https://github.com/Marginal/QLVideo
 ### iOS
 Use your sideloading method of choice - I've found https://sideloadly.io/ to work well.
 
-
-Throttle for iOS needs FFMpeg on the server to generate video thumbnails. After experimenting with all sorts of local generation, I've found this to be best - it's really fast, and puts almost no load on the server or the connection in comparison to local options.
-A small ffmpeg binary will downloaded to your server if you don't already have it installed.
-You can still use Throttle without ffmpeg, but all thumbnails will be generic play icons.
-
 If you use key authentication, we also create a local proxy to play videos. It creates an FTP server on your iOS device for the video player to connect to, then streams over sftp using key authenication.
-If you use password authentication, VLC will connect directly instead using sftp.
+If you use password authentication, VLC will connect directly instead of using sftp.
 
 *Note for windows users - due to the vast difference between windows and \*nix systems, I've made the assumption that you're using the built in openSSH, but it's largely untested. If anyone wants to help me test this / expand windows supprt, let me know.
 

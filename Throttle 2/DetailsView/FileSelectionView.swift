@@ -131,35 +131,21 @@ struct FileSelectionView: View {
         }
     }
 
+    #if os(iOS)
     var body: some View {
         NavigationView {
-            List {
-                ForEach(fileTree) { node in
-                    FileNodeRow(
-                        node: node,
-                        level: 0,
-                        expandedFolders: $expandedFolders,
-                        unwantedFiles: $unwantedFiles,
-                        isFileWanted: isFileWanted,
-                        getAllFileIndices: getAllFileIndices,
-                        toggleNode: toggleNode,
-                        folderStatus: folderStatus
-                    )
-                    
-                }
-            }
-            .listStyle(.plain)
-            .navigationTitle("Select Files")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        onSave(unwantedFiles)
+            fileList
+                .navigationTitle("Select Files")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel", action: onCancel)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            onSave(unwantedFiles)
+                        }
                     }
                 }
-            }
         }
         .onAppear {
             if !initialized {
@@ -168,5 +154,49 @@ struct FileSelectionView: View {
                 initialized = true
             }
         }
+    }
+    #else
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Select Files")
+                    .font(.headline)
+                Spacer()
+                Button("Cancel", action: onCancel)
+                Button("Save") {
+                    onSave(unwantedFiles)
+                }
+            }
+            .padding()
+            Divider()
+            fileList
+        }
+        .frame(minWidth: 350, minHeight: 400)
+        .onAppear {
+            if !initialized {
+                unwantedFiles = initialUnwanted
+                expandedFolders = []
+                initialized = true
+            }
+        }
+    }
+    #endif
+
+    private var fileList: some View {
+        List {
+            ForEach(fileTree) { node in
+                FileNodeRow(
+                    node: node,
+                    level: 0,
+                    expandedFolders: $expandedFolders,
+                    unwantedFiles: $unwantedFiles,
+                    isFileWanted: isFileWanted,
+                    getAllFileIndices: getAllFileIndices,
+                    toggleNode: toggleNode,
+                    folderStatus: folderStatus
+                )
+            }
+        }
+        .listStyle(.plain)
     }
 }
