@@ -122,11 +122,14 @@ public class ThumbnailManagerRemote: NSObject {
     
     // MARK: - Main entry point
     func getThumbnail(for path: String, server: ServerEntity) async throws -> PlatformImage {
-        // Only proceed if visible
+        return try await getResizedImage(for: path, server: server, maxWidth: nil)
+    }
+    
+    // New: Get resized image with optional maxWidth
+    func getResizedImage(for path: String, server: ServerEntity, maxWidth: Int?) async throws -> PlatformImage {
         if !isVisible(path) {
-            throw NSError(domain: "ThumbnailManagerRemote", code: -10, userInfo: [NSLocalizedDescriptionKey: "Not visible"]) 
+            throw NSError(domain: "ThumbnailManagerRemote", code: -10, userInfo: [NSLocalizedDescriptionKey: "Not visible"])
         }
-        // Semaphore logic for queuing
         let key = server.name ?? server.sftpHost ?? "default"
         let max = max(1, server.thumbMax)
         let semaphore = await semaphoreStore.get(for: key, max: Int(max))
@@ -139,16 +142,13 @@ public class ThumbnailManagerRemote: NSObject {
             }
         }
         defer { Task { await signalIfNeeded() } }
-        // Check memory cache first
         if let cached = memoryCache.object(forKey: path as NSString) {
             return cached
         }
-        // Check disk cache next
         if let cached = try? await loadFromCache(for: path) {
             memoryCache.setObject(cached, forKey: path as NSString)
             return cached
         }
-        // If path isn't marked as in-progress, proceed with generating
         let alreadyInProgress = markInProgress(path: path)
         if alreadyInProgress {
             throw NSError(domain: "ThumbnailManagerRemote", code: -1, userInfo: [NSLocalizedDescriptionKey: "Thumbnail already in progress"])
@@ -157,7 +157,7 @@ public class ThumbnailManagerRemote: NSObject {
         let fileType = FileType.determine(from: URL(fileURLWithPath: path))
         if fileType == .video || fileType == .image {
             do {
-                let image = try await self.generateFFmpegThumbnail(for: path, server: server)
+                let image = try await self.generateFFmpegThumbnail(for: path, server: server, maxWidth: maxWidth)
                 memoryCache.setObject(image, forKey: path as NSString)
                 _ = try? saveToCache(image: image, for: path)
                 return image
@@ -191,9 +191,8 @@ public class ThumbnailManagerRemote: NSObject {
     }
     
     // MARK: - FFmpeg Thumbnail Generation (via SSH)
-    private func generateFFmpegThumbnail(for path: String, server: ServerEntity) async throws -> PlatformImage {
+    private func generateFFmpegThumbnail(for path: String, server: ServerEntity, maxWidth: Int?) async throws -> PlatformImage {
         let connection = getConnection(for: server)
-        // Ensure thumbs dir exists
         let _ = try? await connection.executeCommand("mkdir -p $HOME/thumbs")
         guard let ffmpegPath = await ensureFFmpegAvailable(for: server, connection: connection) else {
             throw NSError(domain: "ThumbnailManagerRemote", code: -3, userInfo: [NSLocalizedDescriptionKey: "FFmpeg not available on server"])
@@ -206,9 +205,10 @@ public class ThumbnailManagerRemote: NSObject {
         defer { try? FileManager.default.removeItem(at: localTempURL) }
         let escapedPath = shellQuote(path)
         let escapedThumbPath = shellQuote(remoteTempThumbPath)
-        let timestamps = ["00:02:00.000", "00:00:10.000", "00:00:00.000"]
-        for timestamp in timestamps {
-            let ffmpegCmd = "\(ffmpegPath) -ss \(timestamp) -i \(escapedPath) -vframes 1 \(escapedThumbPath) 2>/dev/null || echo $?"
+        let fileType = FileType.determine(from: URL(fileURLWithPath: path))
+        let width = maxWidth ?? 1920
+        if fileType == .image {
+            let ffmpegCmd = "\(ffmpegPath) -i \(escapedPath) -vf scale=\(width):-1 \(escapedThumbPath) 2>/dev/null || echo $?"
             let (_, ffmpegOutput) = try await connection.executeCommand(ffmpegCmd)
             let testCmd = "[ -f \(escapedThumbPath) ] && echo 'success' || echo 'failed'"
             let (_, testOutput) = try await connection.executeCommand(testCmd)
@@ -227,8 +227,31 @@ public class ThumbnailManagerRemote: NSObject {
             } else {
                 let _ = try? await connection.executeCommand("rm -f \(escapedThumbPath)")
             }
+        } else if fileType == .video {
+            let timestamps = ["00:02:00.000", "00:00:10.000", "00:00:00.000"]
+            for timestamp in timestamps {
+                let ffmpegCmd = "\(ffmpegPath) -ss \(timestamp) -i \(escapedPath) -vframes 1 -vf scale=\(width):-1 \(escapedThumbPath) 2>/dev/null || echo $?"
+                let (_, ffmpegOutput) = try await connection.executeCommand(ffmpegCmd)
+                let testCmd = "[ -f \(escapedThumbPath) ] && echo 'success' || echo 'failed'"
+                let (_, testOutput) = try await connection.executeCommand(testCmd)
+                if testOutput.trimmingCharacters(in: .whitespacesAndNewlines) == "success" {
+                    try await connection.downloadFile(remotePath: remoteTempThumbPath, localURL: localTempURL) { _ in }
+                    let _ = try? await connection.executeCommand("rm -f \(escapedThumbPath)")
+                    #if os(macOS)
+                    if let image = NSImage(contentsOf: localTempURL) {
+                        return image
+                    }
+                    #elseif os(iOS)
+                    if let data = try? Data(contentsOf: localTempURL), let image = UIImage(data: data) {
+                        return image
+                    }
+                    #endif
+                } else {
+                    let _ = try? await connection.executeCommand("rm -f \(escapedThumbPath)")
+                }
+            }
         }
-        throw NSError(domain: "ThumbnailManagerRemote", code: -5, userInfo: [NSLocalizedDescriptionKey: "FFmpeg did not create a thumbnail at any timestamp"])
+        throw NSError(domain: "ThumbnailManagerRemote", code: -5, userInfo: [NSLocalizedDescriptionKey: "FFmpeg did not create a thumbnail"])
     }
     
     // MARK: - FFmpeg Availability (iOS logic)
@@ -442,7 +465,7 @@ public struct RemotePathThumbnailView: View {
             // Optionally handle error
         }
     }
-} 
+}
 
 public struct FileRowThumbnail: View {
     let item: FileItem

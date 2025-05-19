@@ -41,75 +41,25 @@ class RemoteImageLoader {
         self.server = server
     }
     
-    // Use ffmpeg for server-side resizing, fallback to local resize if needed
-    func loadImage(maxSize: CGSize = CGSize(width: 1920*1.5, height: 1080*1.5), progressHandler: ((Double) -> Void)? = nil) async throws -> Data {
+    // Use ThumbnailManagerRemote for unified logic
+    func loadImage(maxWidth: Int? = nil, progressHandler: ((Double) -> Void)? = nil) async throws -> Data {
         downloadTask?.cancel()
         let task = Task<Data, Error> {
-            print("Downloading image from: \(url.path)")
-            let tempDir = FileManager.default.temporaryDirectory
-            let tempURL = tempDir.appendingPathComponent(UUID().uuidString + ".img")
-            try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
-            FileManager.default.createFile(atPath: tempURL.path, contents: nil)
-            defer { try? FileManager.default.removeItem(at: tempURL) }
-            let connection = SSHConnection(server: server)
-            let remoteTemp = NSTemporaryDirectory() + "thumb-\(UUID().uuidString).jpg"
-            var usedServerResize = false
-            // Find ffmpeg path (as in ThumbnailManagerIOS)
-            var ffmpegPath: String? = server.ffmpegPath
-            let knownPaths = ["ffmpeg", "$HOME/bin/ffmpeg", "$HOME/bin/ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe"]
-            if ffmpegPath == nil || ffmpegPath!.isEmpty {
-                for path in knownPaths {
-                    if let (_, testOutput) = try? await connection.executeCommand("\(path) -version || echo 'notfound'") {
-                        if !testOutput.contains("notfound") && !testOutput.contains("not found") {
-                            ffmpegPath = path
-                            break
-                        }
-                    }
-                }
-            }
-            // If still not found, fallback to local resize
-            if ffmpegPath == nil || ffmpegPath!.isEmpty {
-                print("[RemoteImageLoader] ffmpeg not found on server, falling back to local resize.")
-                try await connection.downloadFile(remotePath: url.path, localURL: tempURL) { progress in
-                    progressHandler?(progress)
-                }
-                await connection.disconnect()
-                guard let data = try? Data(contentsOf: tempURL) else {
-                    throw NSError(domain: "RemoteImageLoader", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to read image data"])
-                }
-                return resizedImageData(data, maxSize: maxSize) ?? data
-            }
-            // Run ffmpeg to resize the image
-            let ffmpegCmd = "\(ffmpegPath!) -i '\(url.path)' -vf \"scale='min(iw,\(Int(maxSize.width)))':'min(ih,\(Int(maxSize.height)))':force_original_aspect_ratio=decrease\" '\(remoteTemp)' -y -loglevel error || echo $?"
-            do {
-                let (status, output) = try await connection.executeCommand(ffmpegCmd)
-                print("[RemoteImageLoader] ffmpeg output: \(output)")
-                print("[RemoteImageLoader] ffmpeg status: \(status)")
-                // Check if output file exists
-                let testCmd = "[ -f '\(remoteTemp)' ] && echo 'success' || echo 'failed'"
-                let (_ , testOutput) = try await connection.executeCommand(testCmd)
-                if testOutput.trimmingCharacters(in: .whitespacesAndNewlines) == "success" {
-                    try await connection.downloadFile(remotePath: remoteTemp, localURL: tempURL) { progress in
-                        progressHandler?(progress)
-                    }
-                    usedServerResize = true
-                }
-            } catch {
-                print("[RemoteImageLoader] ffmpeg resize failed: \(error)")
-            }
-            await connection.disconnect()
-            // Clean up remote temp file
-            if usedServerResize {
-                _ = try? await SSHConnection(server: server).executeCommand("rm -f '\(remoteTemp)'")
-            }
-            guard let data = try? Data(contentsOf: tempURL) else {
-                throw NSError(domain: "RemoteImageLoader", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to read image data"])
-            }
-            if usedServerResize {
+            // Use the thumbnail manager for unified SSH/FFmpeg/caching logic
+            let image = try await ThumbnailManagerRemote.shared.getResizedImage(for: url.path, server: server, maxWidth: maxWidth)
+            #if os(iOS)
+            if let data = image.jpegData(compressionQuality: 0.9) {
                 return data
             } else {
-                return resizedImageData(data, maxSize: maxSize) ?? data
+                throw NSError(domain: "RemoteImageLoader", code: -3, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to data"])
             }
+            #elseif os(macOS)
+            if let tiffData = image.tiffRepresentation {
+                return tiffData
+            } else {
+                throw NSError(domain: "RemoteImageLoader", code: -3, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to data"])
+            }
+            #endif
         }
         self.downloadTask = task
         do {
