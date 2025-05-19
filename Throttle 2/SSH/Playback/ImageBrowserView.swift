@@ -211,14 +211,25 @@ struct ImageBrowserView: View {
     }
     
     private func preloadAdjacentImages(currentIndex: Int) {
-        let indicesToPreload = [currentIndex - 1, currentIndex + 1].filter { $0 >= 0 && $0 < imageUrls.count }
+        // Preload two images ahead and two behind
+        let indicesToPreload = (currentIndex-2...currentIndex+2)
+            .filter { $0 >= 0 && $0 < imageUrls.count && $0 != currentIndex }
+
+        // Cancel any previous preload task for indices not in the new set
+        for (idx, task) in preloadTasks {
+            if !indicesToPreload.contains(idx) {
+                let url = imageUrls[idx]
+                ThumbnailManagerRemote.shared.markAsInvisible(url.path)
+                task.cancel()
+                preloadTasks.removeValue(forKey: idx)
+            }
+        }
+
         for idx in indicesToPreload {
-            // Cancel any previous preload task for this index
-            preloadTasks[idx]?.cancel()
-            // If already loaded, skip
             if preloadedImages[idx] != nil { continue }
             let url = imageUrls[idx]
             let server = ServerManager.shared.selectedServer ?? sftpViewModel.server
+            ThumbnailManagerRemote.shared.markAsVisible(url.path)
             let task = Task {
                 let loader = RemoteImageLoader(url: url, server: server)
                 do {
@@ -229,6 +240,7 @@ struct ImageBrowserView: View {
                 } catch {
                     // Ignore errors for preloading
                 }
+                ThumbnailManagerRemote.shared.markAsInvisible(url.path)
             }
             preloadTasks[idx] = task
         }
@@ -273,6 +285,7 @@ struct SSHImageViewer: View {
         }
         .background(Color.black)
         .onAppear {
+            ThumbnailManagerRemote.shared.markAsVisible(url.path)
             if let preloaded = preloadedData {
                 self.imageData = preloaded
                 self.isLoading = false
@@ -281,6 +294,7 @@ struct SSHImageViewer: View {
             }
         }
         .onDisappear {
+            ThumbnailManagerRemote.shared.markAsInvisible(url.path)
             loader?.cancel()
             loadingTask?.cancel()
         }

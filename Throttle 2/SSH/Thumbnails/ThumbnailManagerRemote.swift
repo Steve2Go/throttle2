@@ -151,7 +151,19 @@ public class ThumbnailManagerRemote: NSObject {
         }
         let alreadyInProgress = markInProgress(path: path)
         if alreadyInProgress {
-            throw NSError(domain: "ThumbnailManagerRemote", code: -1, userInfo: [NSLocalizedDescriptionKey: "Thumbnail already in progress"])
+            // Wait for the thumbnail to become available in cache or on disk
+            for _ in 0..<100 { // Wait up to ~5 seconds (100 * 0.05s)
+                if let cached = memoryCache.object(forKey: path as NSString) {
+                    return cached
+                }
+                if let cached = try? await loadFromCache(for: path) {
+                    memoryCache.setObject(cached, forKey: path as NSString)
+                    return cached
+                }
+                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+                if Task.isCancelled { throw CancellationError() }
+            }
+            throw NSError(domain: "ThumbnailManagerRemote", code: -1, userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for thumbnail in progress"])
         }
         defer { clearInProgress(path: path) }
         let fileType = FileType.determine(from: URL(fileURLWithPath: path))
