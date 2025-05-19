@@ -221,12 +221,16 @@ public class ThumbnailManagerRemote: NSObject {
         let width = maxWidth ?? 1920
         if fileType == .image {
             let ffmpegCmd = "\(ffmpegPath) -i \(escapedPath) -vf scale=\(width):-1 \(escapedThumbPath) 2>/dev/null || echo $?"
+            print("[DEBUG] Running ffmpeg command for image: \(ffmpegCmd)")
             let (_, ffmpegOutput) = try await connection.executeCommand(ffmpegCmd)
             let testCmd = "[ -f \(escapedThumbPath) ] && echo 'success' || echo 'failed'"
+            print("[DEBUG] Running test command for image: \(testCmd)")
             let (_, testOutput) = try await connection.executeCommand(testCmd)
             if testOutput.trimmingCharacters(in: .whitespacesAndNewlines) == "success" {
                 try await connection.downloadFile(remotePath: remoteTempThumbPath, localURL: localTempURL) { _ in }
-                let _ = try? await connection.executeCommand("rm -f \(escapedThumbPath)")
+                let rmCmd = "rm -f \(escapedThumbPath)"
+                print("[DEBUG] Running rm command for image: \(rmCmd)")
+                let _ = try? await connection.executeCommand(rmCmd)
                 #if os(macOS)
                 if let image = NSImage(contentsOf: localTempURL) {
                     return image
@@ -237,18 +241,24 @@ public class ThumbnailManagerRemote: NSObject {
                 }
                 #endif
             } else {
-                let _ = try? await connection.executeCommand("rm -f \(escapedThumbPath)")
+                let rmCmd = "rm -f \(escapedThumbPath)"
+                print("[DEBUG] Running rm command for image (fail): \(rmCmd)")
+                let _ = try? await connection.executeCommand(rmCmd)
             }
         } else if fileType == .video {
             let timestamps = ["00:02:00.000", "00:00:10.000", "00:00:00.000"]
             for timestamp in timestamps {
                 let ffmpegCmd = "\(ffmpegPath) -ss \(timestamp) -i \(escapedPath) -vframes 1 -vf scale=\(width):-1 \(escapedThumbPath) 2>/dev/null || echo $?"
+                print("[DEBUG] Running ffmpeg command for video: \(ffmpegCmd)")
                 let (_, ffmpegOutput) = try await connection.executeCommand(ffmpegCmd)
                 let testCmd = "[ -f \(escapedThumbPath) ] && echo 'success' || echo 'failed'"
+                print("[DEBUG] Running test command for video: \(testCmd)")
                 let (_, testOutput) = try await connection.executeCommand(testCmd)
                 if testOutput.trimmingCharacters(in: .whitespacesAndNewlines) == "success" {
                     try await connection.downloadFile(remotePath: remoteTempThumbPath, localURL: localTempURL) { _ in }
-                    let _ = try? await connection.executeCommand("rm -f \(escapedThumbPath)")
+                    let rmCmd = "rm -f \(escapedThumbPath)"
+                    print("[DEBUG] Running rm command for video: \(rmCmd)")
+                    let _ = try? await connection.executeCommand(rmCmd)
                     #if os(macOS)
                     if let image = NSImage(contentsOf: localTempURL) {
                         return image
@@ -259,7 +269,9 @@ public class ThumbnailManagerRemote: NSObject {
                     }
                     #endif
                 } else {
-                    let _ = try? await connection.executeCommand("rm -f \(escapedThumbPath)")
+                    let rmCmd = "rm -f \(escapedThumbPath)"
+                    print("[DEBUG] Running rm command for video (fail): \(rmCmd)")
+                    let _ = try? await connection.executeCommand(rmCmd)
                 }
             }
         }
