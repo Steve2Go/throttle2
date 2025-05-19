@@ -137,42 +137,48 @@ struct TorrentRowView: View {
                             ProgressView(value: torrent.progress)
                                 .tint(.gray)
                         }
-             
+             // folder icon
             if (store.selection?.sftpBrowse == true || store.selection?.fsBrowse == true) && torrent.dynamicFields["downloadDir"] != nil {
                         if ((store.selection?.sftpBrowse) != nil){
-                            Button {
-                                if var torrentU = torrent.dynamicFields["downloadDir"]?.value as? String {
-                                    
+                            if Int(torrent.percentDone ?? 0) > 0 {
+                                Button {
+                                    if var torrentU = torrent.dynamicFields["downloadDir"]?.value as? String {
+                                        
 #if os(iOS)
-                                    store.fileURL = torrentU
-                                    store.fileBrowserName = torrent.name!
-                                    if isiPad{
-                                        store.FileBrowse = true
-                                    } else{
-                                        store.FileBrowseCover = true
-                                    }
-#else
-                                    //macos, mounted via fuse
-                                    if store.selection?.sftpBrowse == true {
-                                        let pathName = get_fuse_path(torrent: torrent, downloadDir: torrentU)
-                                        openInFinder(url: pathName)
-                                    }
-                                    else if store.selection?.pathServer != nil && store.selection?.pathFilesystem != nil {
-                                        let pathName = URL(string :"file://" + torrentU.replacingOccurrences(of: (store.selection?.pathServer!)!, with: store.selection?.pathFilesystem! ?? "/") + "/" + torrent.name!)
-                                        if pathName != nil{
-                                            print(pathName!.absoluteString)
-                                            openInFinder(url: pathName!)
+                                        store.fileURL = torrentU
+                                        store.fileBrowserName = torrent.name!
+                                        if isiPad{
+                                            store.FileBrowse = true
+                                        } else{
+                                            store.FileBrowseCover = true
                                         }
+#else
+                                        //macos, mounted via fuse
+                                        if store.selection?.sftpBrowse == true {
+                                            let pathName = get_fuse_path(torrent: torrent, downloadDir: torrentU)
+                                            openInFinder(url: pathName)
+                                        }
+                                        else if store.selection?.pathServer != nil && store.selection?.pathFilesystem != nil {
+                                            let pathName = URL(string :"file://" + torrentU.replacingOccurrences(of: (store.selection?.pathServer!)!, with: store.selection?.pathFilesystem! ?? "/") + "/" + torrent.name!)
+                                            if pathName != nil{
+                                                print(pathName!.absoluteString)
+                                                openInFinder(url: pathName!)
+                                            }
+                                        }
+                                        
+#endif
                                     }
                                     
-#endif
+                                    
+                                } label: {
+                                    Image(systemName: "folder")
+                                        .foregroundStyle(.gray)
                                 }
-                                
-                            } label: {
-                                Image(systemName: "folder")
+                                .buttonStyle(.plain)
+                            } else{
+                                Image(systemName: "folder.badge.minus")
                                     .foregroundStyle(.gray)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     Button {
