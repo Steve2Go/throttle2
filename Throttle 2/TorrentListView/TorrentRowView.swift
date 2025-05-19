@@ -24,6 +24,7 @@ struct TorrentRowView: View {
     var selecting: Bool
     @Binding var selected: [Int]
     @AppStorage("primaryFile") var primaryFiles: Bool = false
+    @AppStorage("thumbsLocal") var thumbsLocal = false
     #if os(iOS)
     var isiPad: Bool {
         return UIDevice.current.userInterfaceIdiom == .pad
@@ -58,12 +59,17 @@ struct TorrentRowView: View {
 #if os(iOS)
                         let mediaPath = get_media_path(file: mediaFile, torrent:torrent, server: store.selection!)
                         
-                        PathThumbnailView(path: mediaPath, server: store.selection!, fromRow: torrent.files.count > 1 ? true : nil)
+                        //PathThumbnailView(path: mediaPath, server: store.selection!, fromRow: torrent.files.count > 1 ? true : nil)
+                        RemotePathThumbnailView(path: mediaPath, server: store.selection!)
 #else
                         if store.selection?.sftpBrowse == true {
-                            let mediaPath = get_media_path(file: mediaFile, torrent:torrent, server: store.selection!)
-                            
-                            PathThumbnailViewMacOS(path: mediaPath)
+                            if thumbsLocal {
+                                let mediaPath = get_media_path_local(file: mediaFile, torrent:torrent, server: store.selection!)
+                                PathThumbnailViewMacOS(path: mediaPath)
+                            } else {
+                                let mediaPath = get_media_path(file: mediaFile, torrent:torrent, server: store.selection!)
+                                RemotePathThumbnailView(path: mediaPath, server: store.selection!)
+                            }
                         } else if store.selection?.fsBrowse == true {
                             if let downloadDir = torrent.dynamicFields["downloadDir"]?.value as? String,
                                let serverPath = store.selection?.pathServer,
@@ -305,7 +311,7 @@ struct TorrentRowView: View {
         })
     }
     
-    #if os(iOS)
+   // #if os(iOS)
     func get_media_path(file: TorrentFile, torrent: Torrent,  server: ServerEntity) -> String {
         let name = file.name
         if let path = torrent.dynamicFields["downloadDir"] {
@@ -316,7 +322,7 @@ struct TorrentRowView: View {
         }
         return ""
     }
-#endif
+//#/endif
     
     
     #if os(macOS)
@@ -340,7 +346,7 @@ struct TorrentRowView: View {
     }
     
     
-    func get_media_path(file: TorrentFile, torrent: Torrent,  server: ServerEntity) -> String {
+    func get_media_path_local(file: TorrentFile, torrent: Torrent,  server: ServerEntity) -> String {
         let name = file.name
         let baseDir = server.pathServer!
         if var path = torrent.dynamicFields["downloadDir"]?.value as? String {

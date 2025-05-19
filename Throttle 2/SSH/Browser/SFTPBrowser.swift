@@ -68,9 +68,9 @@ struct SFTPFileBrowserView: View {
                     viewModel.fetchItems()
                 }
                 .onChange(of : currentPath){
-                    Task {
-                        await ThumbnailManager.shared.cleanup()
-                    }
+//                    Task {
+//                        await ThumbnailManager.shared.cleanup()
+//                    }
                     searchQuery = ""
                 }
                 .onDisappear {
@@ -84,7 +84,7 @@ struct SFTPFileBrowserView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         HStack {
                             Button(action: {
-                             clearThumbnailOperations()
+//                             clearThumbnailOperations()
                                 dismiss()
                             }) {
                                 Text("Close")

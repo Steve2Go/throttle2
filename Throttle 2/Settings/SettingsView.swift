@@ -19,6 +19,7 @@ struct SettingsView: View {
     @AppStorage("qlVideo") var qlVideo: Bool = false
     @AppStorage("isAbout") var isAbout = false
     @AppStorage("mountOnLogin") var mountOnLogin = false
+    @AppStorage("thumbsLocal") var thumbsLocal = false
     @ObservedObject var presenting: Presenting
     @State var installerView = false
     @ObservedObject var manager: TorrentManager
@@ -104,14 +105,26 @@ struct SettingsView: View {
                         Stepper("", value: $refreshRate, in: 1...60)
                     }
                 )
-
-                #if os(iOS)
+                
+                #if os(macOS)
+                settingRow(
+                    title: "Local Thumbnail Generation",
+                    description: "Generate thumbnails from finder",
+                    control: Toggle("", isOn: $thumbsLocal)
+                ) .onChange(of: thumbsLocal){
+                    manager.reset()
+                }
+                #endif
+               
                     Button("Clear Cache"){
+                        #if os(macOS)
                         ThumbnailManager.shared.clearCache()
+                        #endif
+                        ThumbnailManagerRemote.shared.clearCache()
                         manager.reset()
                         manager.isLoading.toggle()
                     }
-                #endif
+            
               
                 
                 

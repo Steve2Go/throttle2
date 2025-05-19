@@ -146,8 +146,6 @@ struct InstallerView: View {
             do {
                 try process.run()
                 process.waitUntilExit()
-                // 4. Launch QuickLookVideo (no sudo needed)
-                installQuickLookVideo()
                 DispatchQueue.main.async {
                     installationOutput += "\nInstallation completed!"
                     installationComplete = true
@@ -159,23 +157,6 @@ struct InstallerView: View {
                     isInstalling = false
                 }
             }
-        }
-    }
-    
-    func installQuickLookVideo() {
-        appendOutput("\nInstalling QuickLookVideo...")
-        
-        guard let appURL = Bundle.main.url(forResource: "QuickLookVideo", withExtension: "app") else {
-            appendOutput("Error: QuickLookVideo.app not found in app bundle.")
-            return
-        }
-        
-        // Open the app using NSWorkspace
-        DispatchQueue.main.async {
-        
-                NSWorkspace.shared.open(appURL)
-                self.appendOutput("\nSuccessfully launched QuickLookVideo.")
-          
         }
     }
     
