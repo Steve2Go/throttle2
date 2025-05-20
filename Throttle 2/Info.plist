@@ -48,7 +48,7 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>vlc</string>
-        <string>shortcuts</string>
+		<string>shortcuts</string>
 	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
