@@ -89,30 +89,7 @@ struct SettingsView: View {
                     description: "Show thumbnails in Torrent List when available",
                     control: Toggle("", isOn: $showThumbs)
                 )
-#if os(macOS)
-                settingRow(
-                    title: "File Browser Mode",
-                    description: "Choose whether to use Finder or the internal browser for file browsing.",
-                    control: Picker("", selection: $finderBrowser) {
-                        Text("Internal Browser").tag(false)
-                        Text("Finder").tag(true)
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                )
-                if !finderBrowser {
-                    settingRow(
-                        title: "Preferred Video Player",
-                        description: "Choose which player to use for video files.",
-                        control: Picker("", selection: $preferredVideoPlayer) {
-                            Text("System Player").tag("system")
-                            Text("VLC").tag("vlc")
-                            Text("IINA").tag("iina")
-                            Text("Internal Player").tag("internal")
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
-                    )
-                }
-#endif
+
             } header: {
                 Text("General")
             } footer: {
@@ -133,7 +110,7 @@ struct SettingsView: View {
                 #if os(macOS)
                 settingRow(
                     title: "Local Thumbnail Generation",
-                    description: "Generate thumbnails from finder",
+                    description: "Generate thumbnails from finder, even when using SSH/SFTP",
                     control: Toggle("", isOn: $thumbsLocal)
                 ) .onChange(of: thumbsLocal){
                     manager.reset()

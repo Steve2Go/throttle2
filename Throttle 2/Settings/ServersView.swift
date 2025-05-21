@@ -341,16 +341,16 @@ struct ServerEditView: View {
                 // **SFTP Authentication & Path Mapping**
                 Section(header: Text("SSH Connection")) {
                     #if os(macOS)
-                    Toggle("SFTP Path Mapping", isOn: $sftpBrowse)
+                    Toggle("SSH Path Mapping", isOn: $sftpBrowse)
                         .disabled(!fusetIsInstalled || !sshfsIsInstalled)
                     #else
-                    Toggle("SFTP Path Mapping", isOn: $sftpBrowse)
+                    Toggle("SSH Path Mapping", isOn: $sftpBrowse)
                     #endif
                     
                     if sftpBrowse || sftpRpc {
                         #if os(iOS)
                         HStack {
-                            Text("SFTP Host")
+                            Text("SSH Host")
                             Spacer()
                             TextField("Host address", text: $sftpHost)
                                 .multilineTextAlignment(.trailing)
@@ -358,7 +358,7 @@ struct ServerEditView: View {
                                 .autocorrectionDisabled()
                         }
                         HStack {
-                            Text("SFTP Port")
+                            Text("SSH Port")
                             Spacer()
                             TextField("Port number", text: $sftpPort)
                                 .multilineTextAlignment(.trailing)
@@ -398,12 +398,6 @@ struct ServerEditView: View {
                                 SecureField("Key Passphrase", text: $sftpPhrase)
                                     .multilineTextAlignment(.trailing)
                             }
-//                            HStack {
-//                                Text("Password")
-//                                Spacer()
-//                                SecureField("User Password (Optional)", text: $sftpPassword)
-//                                    .multilineTextAlignment(.trailing)
-//                            }
 
                             //Text("Used for video operation. Only used over a tunnel secured by Key Authentication").font(.caption)
                            //Toggle("Do not connect to SFTP for video streaming using a local password", isOn: $videoDisabled)
@@ -423,14 +417,6 @@ struct ServerEditView: View {
                                 .multilineTextAlignment(.trailing)
                                 .keyboardType(.numberPad)
                         }
-//                        if !ffThumb {
-//                            //Text("Installing FFMpeg is required for video thumbnails on iOS").font(.caption)
-//                            Button("Install FFMpeg") {
-//                                installerView.toggle()
-//                            }
-//                        }
-                        //Toggle(ffThumb ? "Server Side FFmpeg is installed" : "Installing FFMpeg is required for video thumbnails on iOS. You can Install FFMpeg above then toggle this option on", isOn: $ffThumb)
-                        
                         
                         #else
                         

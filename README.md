@@ -28,8 +28,8 @@ Windows server should work fine using the built in openSSH. A manual install of 
 ## To Come
 - Local Daemon (Mac, with easy remote connection from iOS)
 
-## IN 1.5 Release
-A Huge update wiht greatly simplified & refactored code
+## In 1.5 Release
+A Huge update with greatly simplified & refactored code
 - Removal of redundant settings that were still being referenced, causing unexpected behaviour.
 - Better & more reliable mouning & ssh operations
 - Improved speed options for Mac Version
