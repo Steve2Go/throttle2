@@ -86,13 +86,18 @@ class SFTPFileBrowserViewModel: ObservableObject {
         connectToServer()
     }
     
+    deinit {
+        Task { [weak self] in
+            await self?.cleanup()
+        }
+    }
+    
     private func connectToServer() {
-        Task {
+        Task { [weak self] in
+            guard let self = self else { return }
             do {
-                try await sshConnection.connect()
-                
-                // Check if the initial path is a file
-                await checkIfInitialPathIsFile()
+                try await self.sshConnection.connect()
+                await self.checkIfInitialPathIsFile()
             } catch {
                 await MainActor.run {
                     self.isLoading = false
@@ -107,13 +112,12 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     func createFolder(name: String) {
         let newFolderPath = "\(currentPath)/\(name)".replacingOccurrences(of: "//", with: "/")
-        
-        Task {
+        Task { [weak self] in
+            guard let self = self else { return }
             do {
-                try await sshConnection.createDirectory(path: newFolderPath)
-                
+                try await self.sshConnection.createDirectory(path: newFolderPath)
                 await MainActor.run {
-                    self.fetchItems() // Refresh directory after creation
+                    self.fetchItems()
                 }
             } catch {
                 await MainActor.run {
@@ -126,52 +130,33 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     func fetchItems() {
         guard !isLoading else { return }
-        
-        Task { @MainActor in
-            self.isLoading = true
-            
+        Task { [weak self] in
+            guard let self = self else { return }
+            await MainActor.run { self.isLoading = true }
             do {
-                // Get directory contents using the SSH connection
-                let fileItems = try await listDirectoryContents(path: currentPath)
-                
-                // Calculate "up one" display text
+                let fileItems = try await self.listDirectoryContents(path: self.currentPath)
                 let upOneValue = NSString(string: NSString(string: self.currentPath).deletingLastPathComponent).lastPathComponent
-                self.upOne = upOneValue.count > 10 ? String(upOneValue.prefix(10)) + "..." : upOneValue
-                
-                // Sort items
-                var sortedItems = fileItems
-                
+                let sortedItems: [FileItem]
                 if self.sftpSortOrder == "date" {
-                    sortedItems = fileItems.sorted {
-                        return $0.modificationDate > $1.modificationDate
-                    }
+                    sortedItems = fileItems.sorted { $0.modificationDate > $1.modificationDate }
                 } else {
-                    sortedItems = fileItems.sorted {
-                        return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-                    }
+                    sortedItems = fileItems.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                 }
-                
-                if self.sftpFoldersFirst {
-                    sortedItems = sortedItems.sorted {
-                        return $0.isDirectory && !$1.isDirectory // Folders first
-                    }
+                let foldersFirst = self.sftpFoldersFirst
+                let filteredItems = !self.searchQuery.isEmpty ? sortedItems.filter { $0.name.localizedCaseInsensitiveContains(self.searchQuery) } : sortedItems
+                let foldersSorted = foldersFirst ? filteredItems.sorted { $0.isDirectory && !$1.isDirectory } : filteredItems
+                await MainActor.run {
+                    self.upOne = upOneValue.count > 10 ? String(upOneValue.prefix(10)) + "..." : upOneValue
+                    self.items = foldersSorted
+                    self.isLoading = false
+                    self.updateImageUrls()
+                    self.refreshTrigger = UUID()
                 }
-                
-                // Apply search filter if needed
-                if !self.searchQuery.isEmpty {
-                    sortedItems = sortedItems.filter { item in
-                        item.name.localizedCaseInsensitiveContains(self.searchQuery)
-                    }
-                }
-                
-                // Update the UI
-                self.items = sortedItems
-                self.isLoading = false
-                self.updateImageUrls()
-                self.refreshTrigger = UUID()
             } catch {
-                self.isLoading = false
-                ToastManager.shared.show(message: "SFTP Listing Error: \(error)", icon: "exclamationmark.triangle", color: Color.red)
+                await MainActor.run {
+                    self.isLoading = false
+                    ToastManager.shared.show(message: "SFTP Listing Error: \(error)", icon: "exclamationmark.triangle", color: Color.red)
+                }
                 print("SFTP Directory Listing Error: \(error)")
             }
         }
@@ -189,7 +174,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
     func navigateToFolder(_ folderName: String) {
         clearThumbnailOperations()
         let newPath = "\(currentPath)/\(folderName)".replacingOccurrences(of: "//", with: "/")
-        Task { @MainActor in
+        Task { [weak self] in
+            guard let self = self else { return }
             self.currentPath = newPath
             self.fetchItems()
         }
@@ -197,30 +183,26 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     func navigateUp() {
         clearThumbnailOperations()
-        // Special handling for initial file path
         if isInitialPathAFile {
-            // Get the parent directory path
             let url = URL(fileURLWithPath: initialPath)
             let parentPath = url.deletingLastPathComponent().path
-            Task { @MainActor in
+            Task { [weak self] in
+                guard let self = self else { return }
                 self.isInitialPathAFile = false
                 self.currentPath = parentPath
                 self.fetchItems()
             }
             return
         }
-        
-        guard currentPath != basePath else { return } // Prevent navigating beyond root
-        
-        // Trim the last directory from the path
+        guard currentPath != basePath else { return }
         let trimmedPath = currentPath
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             .components(separatedBy: "/")
             .dropLast()
             .joined(separator: "/")
         let newPath = trimmedPath.isEmpty ? basePath : "/" + trimmedPath
-        
-        Task { @MainActor in
+        Task { [weak self] in
+            guard let self = self else { return }
             self.currentPath = newPath
             self.fetchItems()
         }
@@ -292,22 +274,20 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     // Delete a file or directory
     func deleteItem(_ item: FileItem) {
-        Task { @MainActor in
+        Task { [weak self] in
+            guard let self = self else { return }
             self.isLoading = true
-            
             do {
                 if item.isDirectory {
-                    try await recursiveDelete(atPath: item.url.path)
+                    try await self.recursiveDelete(atPath: item.url.path)
                 } else {
-                    try await sshConnection.removeFile(path: item.url.path)
+                    try await self.sshConnection.removeFile(path: item.url.path)
                 }
-                
                 self.isLoading = false
-                self.fetchItems() // Refresh the directory after deletion
+                self.fetchItems()
                 ToastManager.shared.show(message: "Deleted", icon: "info.circle", color: Color.green)
             } catch {
                 self.isLoading = false
-                //ToastManager.shared.show(message: "Failed to Delete: \(error)", icon: "exclamationmark.triangle", color: Color.red)
             }
         }
     }
@@ -350,18 +330,15 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     // Rename a file or directory
     func renameItem(_ item: FileItem, to newName: String) {
-        Task { @MainActor in
+        Task { [weak self] in
+            guard let self = self else { return }
             self.isLoading = true
-            
-            // Get the parent directory path
             let parentPath = URL(fileURLWithPath: item.url.path).deletingLastPathComponent().path
             let newPath = "\(parentPath)/\(newName)".replacingOccurrences(of: "//", with: "/")
-            
             do {
-                try await sshConnection.rename(oldPath: item.url.path, newPath: newPath)
-                
+                try await self.sshConnection.rename(oldPath: item.url.path, newPath: newPath)
                 self.isLoading = false
-                self.fetchItems() // Refresh the directory after renaming
+                self.fetchItems()
                 ToastManager.shared.show(message: "Renamed", icon: "info.circle", color: Color.green)
             } catch {
                 self.isLoading = false
@@ -468,70 +445,48 @@ class SFTPFileBrowserViewModel: ObservableObject {
     // MARK: - File Download
     
     func downloadFile(_ item: FileItem) {
-        // Cancel any ongoing download
         cancelDownload()
-        
-        // Get Documents directory - this will be visible in Files app with proper Info.plist settings
         guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             print("❌ Could not access Documents directory")
             return
         }
-        
-        // Create a Downloads folder within Documents
         let downloadDirectory = documentsDirectory.appendingPathComponent("Downloads", isDirectory: true)
-        
         do {
-            // Create the directory if it doesn't exist
-            try FileManager.default.createDirectory(at: downloadDirectory,
-                                                   withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: downloadDirectory, withIntermediateDirectories: true)
         } catch {
             print("❌ Could not create Downloads directory: \(error)")
         }
-        
         let localURL = downloadDirectory.appendingPathComponent(item.name)
-        
-        // Update UI to show download is starting
-        Task { @MainActor in
+        Task { [weak self] in
+            guard let self = self else { return }
             self.activeDownload = item
             self.downloadDestination = localURL
             self.isDownloading = true
             self.downloadProgress = 0
         }
-        
-        downloadTask = Task {
+        downloadTask = Task { [weak self] in
+            guard let self = self else { return }
             do {
-                // Create a progress handler
                 let progressHandler: (Double) -> Bool = { progress in
                     Task { @MainActor in
                         self.downloadProgress = progress
                     }
-                    // Return false to cancel the download
                     return !Task.isCancelled
                 }
-                
-                // Remove existing file if needed
                 if FileManager.default.fileExists(atPath: localURL.path) {
                     try FileManager.default.removeItem(at: localURL)
                 }
-                
-                // Download the file using SSHConnection
-                try await sshConnection.downloadFile(remotePath: item.url.path, localURL: localURL, progress: { progress in
-                    // Call our handler and ignore its return value
+                try await self.sshConnection.downloadFile(remotePath: item.url.path, localURL: localURL, progress: { progress in
                     _ = progressHandler(progress)
                 })
-                
-                // Verify download succeeded
                 if FileManager.default.fileExists(atPath: localURL.path) {
                     await MainActor.run {
                         self.downloadProgress = 1.0
                         self.isDownloading = false
-                        
-                        // Share sheet still works, but user can also find file in Files app
                         self.showShareSheet(for: localURL)
                     }
                 } else {
-                    throw NSError(domain: "Download", code: -1,
-                                 userInfo: [NSLocalizedDescriptionKey: "File not found after download"])
+                    throw NSError(domain: "Download", code: -1, userInfo: [NSLocalizedDescriptionKey: "File not found after download"])
                 }
             } catch {
                 if error is CancellationError {

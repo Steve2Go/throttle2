@@ -22,6 +22,7 @@ struct DetailsView: View {
     @State var fileStat: TorrentResponse?
     @State private var sheetUnwantedFiles: Set<Int> = []
     @State private var sheetFileTree: [FileNode] = []
+    @State private var isBuildingFileTree: Bool = false
     
     private let toastOptions = SimpleToastOptions(
             hideAfter: 5
@@ -404,18 +405,34 @@ Spacer()
                                 let wanted = stat["wanted"] as? Bool ?? true
                                 return wanted ? nil : i
                             })
-                            // Convert TorrentFile array to FileNode tree
-                            let fileTreeCopy = torrentFiles.enumerated().map { (i, file) in (i, file) }.toFileTree()
                             let selectedCount = torrentFiles.count - unwantedFiles.count
                             let totalCount = torrentFiles.count
                             HStack {
-                                Button("\(selectedCount) of \(totalCount) files selected") {
+                                Image(systemName:"checklist")
+                                Button("\(selectedCount) of \(totalCount) files Active") {
+                                    isBuildingFileTree = true
                                     sheetUnwantedFiles = unwantedFiles
-                                    sheetFileTree = fileTreeCopy
-                                    showFiles = true
+                                    DispatchQueue.global(qos: .userInitiated).async {
+                                        let fileTreeCopy = torrentFiles.enumerated().map { (i, file) in (i, file) }.toFileTree()
+                                        DispatchQueue.main.async {
+                                            sheetFileTree = fileTreeCopy
+                                            isBuildingFileTree = false
+                                            showFiles = true
+                                        }
+                                    }
                                 }
+                                
                                 Spacer()
                             }
+                            .overlay(
+                                Group {
+                                    if isBuildingFileTree {
+                                        ProgressView("Building file list...")
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                            .background(Color.black.opacity(0.2))
+                                    }
+                                }
+                            )
                             .sheet(isPresented: $showFiles) {
                                 FileSelectionView(
                                     fileTree: sheetFileTree,
@@ -605,6 +622,11 @@ Spacer()
                     if store.selectedTorrentId != nil{
                         try await detailedTorrent = manager.fetchTorrentDetails(id: store.selectedTorrentId!)
                         magnet = detailedTorrent?.dynamicFields["magnetLink"]?.value as? String ?? ""
+                        if let torrentFiles = detailedTorrent?.files {
+                            // fileTree = torrentFiles.enumerated().map { (i, file) in (i, file) }.toFileTree()
+                        } else {
+                            // fileTree = []
+                        }
                     }
                 }
             }
@@ -612,6 +634,11 @@ Spacer()
                 Task {
                     try await detailedTorrent = manager.fetchTorrentDetails(id: store.selectedTorrentId ?? 0)
                     magnet = detailedTorrent?.dynamicFields["magnetLink"]?.value as? String ?? ""
+                    if let torrentFiles = detailedTorrent?.files {
+                        // fileTree = torrentFiles.enumerated().map { (i, file) in (i, file) }.toFileTree()
+                    } else {
+                        // fileTree = []
+                    }
                 }
             })
         #if os(iOS)

@@ -155,10 +155,10 @@ class SSHConnection {
             // Update last active time
             lastActiveTime = Date()
             
-            await withCheckedContinuation { continuation in
-                connectionLock.lock()
-                isConnecting = false
-                connectionLock.unlock()
+            await withCheckedContinuation { [weak self] continuation in
+                self?.connectionLock.lock()
+                self?.isConnecting = false
+                self?.connectionLock.unlock()
                 continuation.resume()
             }
         } catch let error as NIOSSHError {
@@ -199,12 +199,12 @@ class SSHConnection {
     
     // Helper to reset connection state on failure
     private func resetConnectionState() async {
-        await withCheckedContinuation { continuation in
-            connectionLock.lock()
-            client = nil
-            sftpClient = nil
-            isConnecting = false
-            connectionLock.unlock()
+        await withCheckedContinuation { [weak self] continuation in
+            self?.connectionLock.lock()
+            self?.client = nil
+            self?.sftpClient = nil
+            self?.isConnecting = false
+            self?.connectionLock.unlock()
             continuation.resume()
         }
     }
@@ -229,10 +229,10 @@ class SSHConnection {
         }
         
         // Update last active time
-        await withCheckedContinuation { continuation in
-            connectionLock.lock()
-            lastActiveTime = Date()
-            connectionLock.unlock()
+        await withCheckedContinuation { [weak self] continuation in
+            self?.connectionLock.lock()
+            self?.lastActiveTime = Date()
+            self?.connectionLock.unlock()
             continuation.resume()
         }
     }
@@ -599,12 +599,11 @@ class SSHConnection {
     }
     
     func disconnect() async {
-        let (currentClient, currentSFTP): (SSHClient?, SFTPClient?) = await withCheckedContinuation { continuation in
-            connectionLock.lock()
-            let currentClient = client
-            let currentSFTP = sftpClient
-            // Important: Don't set these to nil before closing
-            connectionLock.unlock()
+        let (currentClient, currentSFTP): (SSHClient?, SFTPClient?) = await withCheckedContinuation { [weak self] continuation in
+            self?.connectionLock.lock()
+            let currentClient = self?.client
+            let currentSFTP = self?.sftpClient
+            self?.connectionLock.unlock()
             continuation.resume(returning: (currentClient, currentSFTP))
         }
         
@@ -625,11 +624,11 @@ class SSHConnection {
         }
         
         // Now that everything is closed, clear the references
-        await withCheckedContinuation { continuation in
-            connectionLock.lock()
-            client = nil
-            sftpClient = nil
-            connectionLock.unlock()
+        await withCheckedContinuation { [weak self] continuation in
+            self?.connectionLock.lock()
+            self?.client = nil
+            self?.sftpClient = nil
+            self?.connectionLock.unlock()
             continuation.resume()
         }
     }
@@ -637,12 +636,12 @@ class SSHConnection {
     // Reset the connection state without actually trying to
     // close anything - useful for known broken connections
     func resetState() async {
-        await withCheckedContinuation { continuation in
-            connectionLock.lock()
-            client = nil
-            sftpClient = nil
-            isConnecting = false
-            connectionLock.unlock()
+        await withCheckedContinuation { [weak self] continuation in
+            self?.connectionLock.lock()
+            self?.client = nil
+            self?.sftpClient = nil
+            self?.isConnecting = false
+            self?.connectionLock.unlock()
             continuation.resume()
         }
     }

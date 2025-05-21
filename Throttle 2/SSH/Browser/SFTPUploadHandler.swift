@@ -29,30 +29,34 @@ class SFTPUploadManager: ObservableObject {
         self.uploadHandler = uploadHandler
     }
     
+    deinit {
+        cancelUpload()
+    }
+    
     func uploadFile(from localURL: URL) {
         guard localURL.startAccessingSecurityScopedResource() else {
             error = "Failed to access file"
             return
         }
-        
         isUploading = true
         currentUploadFileName = localURL.lastPathComponent
         uploadProgress = 0
-        
-        // Create a new SSH connection using the server from the handler
         if let server = uploadHandler.getServer() {
             uploadWithSSH(localURL: localURL, server: server)
         } else {
-            Task { @MainActor in
-                self.error = "Server configuration not found"
-                self.isUploading = false
+            Task { [weak self] in
+                await MainActor.run {
+                    self?.error = "Server configuration not found"
+                    self?.isUploading = false
+                }
                 localURL.stopAccessingSecurityScopedResource()
             }
         }
     }
     
     private func uploadWithSSH(localURL: URL, server: ServerEntity) {
-        uploadTask = Task {
+        uploadTask = Task { [weak self] in
+            guard let self = self else { return }
             do {
                 defer { localURL.stopAccessingSecurityScopedResource() }
                 let destinationPath = "\(self.uploadHandler.currentPath)/\(localURL.lastPathComponent)"
@@ -126,9 +130,11 @@ class SFTPUploadManager: ObservableObject {
         if let server = uploadHandler.getServer() {
             uploadFolderWithSSH(localURL: localURL, server: server, enumeratedURLs: enumeratedURLs)
         } else {
-            Task { @MainActor in
-                self.error = "Server configuration not found"
-                self.isUploading = false
+            Task { [weak self] in
+                await MainActor.run {
+                    self?.error = "Server configuration not found"
+                    self?.isUploading = false
+                }
                 localURL.stopAccessingSecurityScopedResource()
             }
         }
@@ -136,7 +142,8 @@ class SFTPUploadManager: ObservableObject {
     
     // Add enumeratedURLs as a parameter
     private func uploadFolderWithSSH(localURL: URL, server: ServerEntity, enumeratedURLs: [URL]) {
-        uploadTask = Task {
+        uploadTask = Task { [weak self] in
+            guard let self = self else { return }
             do {
                 defer {
                     localURL.stopAccessingSecurityScopedResource()
@@ -207,16 +214,18 @@ class SFTPUploadManager: ObservableObject {
         
         // Also disconnect the SSH connection if one exists
         if let connection = sshConnection {
-            Task {
+            Task { [weak self] in
                 await connection.disconnect()
-                self.sshConnection = nil
+                self?.sshConnection = nil
             }
         }
         
         // Update the UI
-        Task { @MainActor in
-            self.isUploading = false
-            self.error = "Upload cancelled"
+        Task { [weak self] in
+            await MainActor.run {
+                self?.isUploading = false
+                self?.error = "Upload cancelled"
+            }
         }
     }
 }

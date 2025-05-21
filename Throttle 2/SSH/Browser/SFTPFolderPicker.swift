@@ -28,18 +28,14 @@ class FileBrowserViewModel: ObservableObject {
     }
     
     private func connectToServer() {
-        Task {
+        Task { [weak self] in
+            guard let self = self else { return }
             do {
-                // Create and connect a new SSH connection
-                if let server = server {
+                if let server = self.server {
                     let connection = SSHConnection(server: server)
                     try await connection.connect()
-                    
-                    // Store the connection for future use
                     self.sshConnection = connection
-                    
-                    // Fetch initial directory listing
-                    await fetchItems()
+                    await self.fetchItems()
                 } else {
                     throw NSError(domain: "FileBrowser", code: -1,
                                  userInfo: [NSLocalizedDescriptionKey: "Server configuration missing"])
@@ -55,17 +51,12 @@ class FileBrowserViewModel: ObservableObject {
     
     func createFolder(name: String) {
         let newFolderPath = "\(currentPath)/\(name)".replacingOccurrences(of: "//", with: "/")
-        
-        Task {
+        Task { [weak self] in
+            guard let self = self else { return }
             do {
-                // Use the existing connection or create a new one if needed
-                let connection = try await getOrCreateConnection()
-                
-                // Create the directory using SSH
+                let connection = try await self.getOrCreateConnection()
                 try await connection.createDirectory(path: newFolderPath)
-                
-                // Refresh directory listing
-                await fetchItems()
+                await self.fetchItems()
             } catch {
                 await MainActor.run {
                     print("❌ Failed to create folder: \(error)")
@@ -171,10 +162,12 @@ class FileBrowserViewModel: ObservableObject {
     /// ✅ Navigate into a folder and refresh UI
     func navigateToFolder(_ folderName: String) {
         let newPath = "\(currentPath)/\(folderName)".replacingOccurrences(of: "//", with: "/")
-        
-        Task { @MainActor in
-            self.currentPath = newPath
-            await fetchItems()
+        Task { [weak self] in
+            guard let self = self else { return }
+            await MainActor.run {
+                self.currentPath = newPath
+            }
+            await self.fetchItems()
         }
     }
     
@@ -190,9 +183,12 @@ class FileBrowserViewModel: ObservableObject {
             .joined(separator: "/")
         let newPath = trimmedPath.isEmpty ? basePath : "/" + trimmedPath
         
-        Task { @MainActor in
-            self.currentPath = newPath
-            await fetchItems()
+        Task { [weak self] in
+            guard let self = self else { return }
+            await MainActor.run {
+                self.currentPath = newPath
+            }
+            await self.fetchItems()
         }
     }
     

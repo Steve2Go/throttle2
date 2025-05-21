@@ -489,7 +489,8 @@ class VideoPlayerViewController: UIViewController {
         mediaPlayer.stop()
 
         // Wait for FTP server to be ready, then reload player and resume at saved position
-        Task {
+        Task { [weak self] in
+            guard let self = self else { return }
             // Wait until SimpleFTPServerManager.shared.activeServersCount() > 0
             while await SimpleFTPServerManager.shared.activeServersCount() == 0 {
                 try? await Task.sleep(nanoseconds: 200_000_000) // 200ms

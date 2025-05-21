@@ -148,14 +148,14 @@ class SimpleFTPServer: ObservableObject {
             )
             
             // Store the handler
-            Task {
-                await self.connections.add(clientHandler, for: connectionId)
-                let count = await self.connections.count()
+            Task { [weak self] in
+                await self?.connections.add(clientHandler, for: connectionId)
+                let count = await self?.connections.count() ?? 0
                 await MainActor.run {
-                    self.connectionCount = count
-                    self.status = "Active: \(count) connection(s)"
+                    self?.connectionCount = count
+                    self?.status = "Active: \(count) connection(s)"
                     // Start idle timer if not running
-                    self.startIdleTimer()
+                    self?.startIdleTimer()
                 }
             }
             
@@ -170,28 +170,28 @@ class SimpleFTPServer: ObservableObject {
             switch state {
             case .ready:
                 print("FTP server ready on port \(self.localPort)")
-                Task { @MainActor in
-                    self.isRunning = true
-                    self.status = "Running on localhost:\(self.localPort)"
+                Task { @MainActor [weak self] in
+                    self?.isRunning = true
+                    self?.status = "Running on localhost:\(self?.localPort ?? 0)"
                     
                     // Start idle timer
-                    self.startIdleTimer()
+                    self?.startIdleTimer()
                 }
                 
             case .failed(let error):
                 print("FTP server failed: \(error)")
-                Task { @MainActor in
-                    self.isRunning = false
-                    self.status = "Failed: \(error.localizedDescription)"
-                    self.stopIdleTimer()
+                Task { @MainActor [weak self] in
+                    self?.isRunning = false
+                    self?.status = "Failed: \(error.localizedDescription)"
+                    self?.stopIdleTimer()
                 }
                 
             case .cancelled:
                 print("FTP server cancelled")
-                Task { @MainActor in
-                    self.isRunning = false
-                    self.status = "Stopped"
-                    self.stopIdleTimer()
+                Task { @MainActor [weak self] in
+                    self?.isRunning = false
+                    self?.status = "Stopped"
+                    self?.stopIdleTimer()
                 }
                 
             default:
@@ -250,25 +250,27 @@ class SimpleFTPServer: ObservableObject {
     private func closeAllExistingConnections() {
         print("Closing all existing connections for new request")
         
-        Task {
-            let handlers = await connections.removeAll()
+        Task { [weak self] in
+            guard let self = self else { return }
+            let handlers = await self.connections.removeAll()
             for handler in handlers {
                 handler.forceCloseForNewRequest()
             }
             await MainActor.run {
                 self.connectionCount = 0
-                self.status = "Running on localhost:\(localPort) - New connection incoming"
+                self.status = "Running on localhost:\(self.localPort) - New connection incoming"
             }
         }
     }
     
     private func handleClientDisconnect(id: UUID) {
-        Task {
-            await connections.remove(id: id)
-            let count = await connections.count()
+        Task { [weak self] in
+            guard let self = self else { return }
+            await self.connections.remove(id: id)
+            let count = await self.connections.count()
             await MainActor.run {
-                connectionCount = count
-                status = count > 0 ? "Active: \(count) connection(s)" : "Running on localhost:\(localPort)"
+                self.connectionCount = count
+                self.status = count > 0 ? "Active: \(count) connection(s)" : "Running on localhost:\(self.localPort)"
             }
         }
     }
@@ -283,15 +285,16 @@ class SimpleFTPServer: ObservableObject {
         listener?.cancel()
         listener = nil
         
-        Task {
-            let handlers = await connections.removeAll()
+        Task { [weak self] in
+            guard let self = self else { return }
+            let handlers = await self.connections.removeAll()
             for handler in handlers {
                 handler.stop()
             }
             await MainActor.run {
-                isRunning = false
-                connectionCount = 0
-                status = "Stopped"
+                self.isRunning = false
+                self.connectionCount = 0
+                self.status = "Stopped"
             }
         }
         
@@ -394,7 +397,8 @@ class FTPSimpleHandler : @unchecked Sendable {
             let conn = connection
             activeSSHConnection = nil
             
-            Task {
+            Task { [weak self] in
+                guard self != nil else { return }
                 await conn.disconnect()
             }
         }
@@ -423,7 +427,8 @@ class FTPSimpleHandler : @unchecked Sendable {
             let conn = connection
             activeSSHConnection = nil
             
-            Task {
+            Task { [weak self] in
+                guard self != nil else { return }
                 await conn.disconnect()
             }
         }
@@ -1484,5 +1489,9 @@ class FTPSimpleHandler : @unchecked Sendable {
             sendResponse(550, "Error renaming: \(error.localizedDescription)")
         }
         renameFromPath = nil
+    }
+    
+    deinit {
+        print("FTPSimpleHandler deinit called for id: \(id)")
     }
 }

@@ -232,10 +232,10 @@ class VLCMusicPlayerViewModel: NSObject, ObservableObject, VLCMediaPlayerDelegat
     }
     
     func start() {
-        Task {
-            
-            playCurrent()
-            await loadAllTrackTitles()
+        Task { [weak self] in
+            guard let self = self else { return }
+            self.playCurrent()
+            await self.loadAllTrackTitles()
         }
     }
     func stop() {
@@ -278,9 +278,10 @@ class VLCMusicPlayerViewModel: NSObject, ObservableObject, VLCMediaPlayerDelegat
             queue = originalQueue
         }
         currentIndex = 0
-        Task {
-            await loadAllTrackTitles()
-            playCurrent()
+        Task { [weak self] in
+            guard let self = self else { return }
+            await self.loadAllTrackTitles()
+            self.playCurrent()
         }
     }
     private func playCurrent() {
@@ -292,9 +293,9 @@ class VLCMusicPlayerViewModel: NSObject, ObservableObject, VLCMediaPlayerDelegat
         DispatchQueue.main.async {
             self.isPlaying = true
         }
-        
-        Task {
-            await updateTitleAndArtwork(for: url)
+        Task { [weak self] in
+            guard let self = self else { return }
+            await self.updateTitleAndArtwork(for: url)
         }
     }
     @MainActor
