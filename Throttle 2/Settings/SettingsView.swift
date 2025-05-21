@@ -20,6 +20,8 @@ struct SettingsView: View {
     @AppStorage("isAbout") var isAbout = false
     @AppStorage("mountOnLogin") var mountOnLogin = false
     @AppStorage("thumbsLocal") var thumbsLocal = false
+    @AppStorage("finderBrowser") var finderBrowser: Bool = false
+    @AppStorage("preferredVideoPlayer") var preferredVideoPlayer: String = "system"
     @ObservedObject var presenting: Presenting
     @State var installerView = false
     @ObservedObject var manager: TorrentManager
@@ -87,8 +89,30 @@ struct SettingsView: View {
                     description: "Show thumbnails in Torrent List when available",
                     control: Toggle("", isOn: $showThumbs)
                 )
-     
-
+#if os(macOS)
+                settingRow(
+                    title: "File Browser Mode",
+                    description: "Choose whether to use Finder or the internal browser for file browsing.",
+                    control: Picker("", selection: $finderBrowser) {
+                        Text("Internal Browser").tag(false)
+                        Text("Finder").tag(true)
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                )
+                if !finderBrowser {
+                    settingRow(
+                        title: "Preferred Video Player",
+                        description: "Choose which player to use for video files.",
+                        control: Picker("", selection: $preferredVideoPlayer) {
+                            Text("System Player").tag("system")
+                            Text("VLC").tag("vlc")
+                            Text("IINA").tag("iina")
+                            Text("Internal Player").tag("internal")
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                    )
+                }
+#endif
             } header: {
                 Text("General")
             } footer: {
