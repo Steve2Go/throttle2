@@ -176,8 +176,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
         let newPath = "\(currentPath)/\(folderName)".replacingOccurrences(of: "//", with: "/")
         Task { [weak self] in
             guard let self = self else { return }
-            self.currentPath = newPath
-            self.fetchItems()
+            DispatchQueue.main.async {
+                self.currentPath = newPath
+                self.fetchItems()
+            }
         }
     }
     

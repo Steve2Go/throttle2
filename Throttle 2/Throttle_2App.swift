@@ -15,8 +15,18 @@ let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "jfif", "bmp"]
 let videoExtensions: Set<String> = ["mp4", "mov", "avi", "mkv", "flv", "mpeg", "m4v", "wmv"]
 let videoExtensionsPlayable: Set<String> = ["mp4", "mov", "mpeg", "m4v"]
 
+// Add this actor at file scope (outside Throttle_2App struct):
+actor FTPStartupActor {
+    private var isStarting = false
+    func run<T>(_ operation: @Sendable () async throws -> T) async rethrows -> T {
+        while isStarting { await Task.yield() }
+        isStarting = true
+        defer { isStarting = false }
+        return try await operation()
+    }
+}
 
-
+private let ftpStartupActor = FTPStartupActor()
 
 @main
 struct Throttle_2App: App {
@@ -253,8 +263,9 @@ struct Throttle_2App: App {
             
 //            }
             if server.sftpBrowse && networkMonitor.isConnected && ftp {
-                await connectFTP(store: store)
-                // are we all done?
+                Task {
+                    await connectFTP(store: store)
+                }
             }
         }
         
@@ -273,19 +284,21 @@ struct Throttle_2App: App {
     }
     
     func connectFTP(store: Store , tries:Int = 0) async {
-        await SimpleFTPServerManager.shared.removeAllServers()
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        if store.selection != nil {
-            do {
-                let ftpServer = SimpleFTPServer(server: store.selection!)
-                try await ftpServer.start()
-                await SimpleFTPServerManager.shared.storeServer(ftpServer, withIdentifier: "sftp-ftp")
-            } catch{
-                if tries < 4 {
-                    await SimpleFTPServerManager.shared.removeAllServers()
-                    await connectFTP(store:store ,tries: tries + 1)
-                } else {
-                    ToastManager.shared.show(message: "FTP Proxy failed after \(tries) Attempts")
+        await ftpStartupActor.run {
+            await SimpleFTPServerManager.shared.removeAllServers()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            if store.selection != nil {
+                do {
+                    let ftpServer = SimpleFTPServer(server: store.selection!)
+                    try await ftpServer.start()
+                    await SimpleFTPServerManager.shared.storeServer(ftpServer, withIdentifier: "sftp-ftp")
+                } catch{
+                    if tries < 4 {
+                        await SimpleFTPServerManager.shared.removeAllServers()
+                        await connectFTP(store:store ,tries: tries + 1)
+                    } else {
+                        ToastManager.shared.show(message: "FTP Proxy failed after \(tries) Attempts")
+                    }
                 }
             }
         }
