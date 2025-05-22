@@ -401,32 +401,53 @@ public class ThumbnailManagerRemote: NSObject {
 public struct RemotePathThumbnailView: View {
     let path: String
     let server: ServerEntity
+    let overlay: Bool?
     @State private var thumbnail: PlatformImage?
     @State private var isLoading = false
     @State private var loadingTask: Task<Void, Never>?
     @State private var isVisible = false
+    let filetype: FileType
     
-    public init(path: String, server: ServerEntity) {
+    public init(path: String, server: ServerEntity, overlay: Bool? = nil) {
         self.path = path
         self.server = server
+        self.overlay = overlay ?? true
+        self.filetype = FileType.determine(from: URL(string: path)!)
     }
     
     public var body: some View {
         Group {
             if let thumbnail = thumbnail {
-                #if os(macOS)
-                Image(nsImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-                #elseif os(iOS)
-                Image(uiImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-                #endif
+                ZStack {
+#if os(macOS)
+                    Image(nsImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                        .cornerRadius(8)
+#elseif os(iOS)
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                        .cornerRadius(8)
+#endif
+                    if server.sftpBrowse && overlay == false {
+                        if filetype == .video {
+                            Image(systemName: "play.fill")
+                                .resizable()
+                                .frame(width: 15, height: 15)
+                                .padding([.top,.leading],30)
+                                .foregroundColor(.white)
+                        } else if filetype == .image {
+                            Image(systemName: "photo.fill")
+                                .resizable()
+                                .frame(width: 17, height: 14)
+                                .padding([.top,.leading],30)
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
             } else {
                 let fileType = FileType.determine(from: URL(fileURLWithPath: path))
                 switch fileType {
@@ -494,13 +515,14 @@ public struct RemotePathThumbnailView: View {
 public struct FileRowThumbnail: View {
     let item: FileItem
     let server: ServerEntity
-    
     init(item: FileItem, server: ServerEntity) {
         self.item = item
         self.server = server
     }
     
     public var body: some View {
-        RemotePathThumbnailView(path: item.url.path, server: server)
+        
+        RemotePathThumbnailView(path: item.url.path, server: server , overlay: false)
+       
     }
 }

@@ -440,7 +440,9 @@ class VideoPlayerViewController: UIViewController {
     }
     
     @objc private func closeButtonTapped() {
+        print("closeButtonTapped: Stopping mediaPlayer and dismissing view controller")
         mediaPlayer.stop()
+        mediaPlayer.media = nil
         dismiss(animated: true)
     }
     
@@ -477,6 +479,7 @@ class VideoPlayerViewController: UIViewController {
                                                   object: nil)
         controlsTimer?.invalidate()
         mediaPlayer.stop()
+        mediaPlayer.media = nil
         externalWindow?.isHidden = true
         externalWindow = nil
     }

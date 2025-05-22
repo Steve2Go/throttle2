@@ -483,7 +483,7 @@
 					"$(PROJECT_DIR)/Resources/lib",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.5.1;
 				OTHER_LDFLAGS = "";
 				"OTHER_LDFLAGS[sdk=iphone*]" = (
 					"$(inherited)",
@@ -601,7 +601,7 @@
 					"$(PROJECT_DIR)/Resources/lib",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.5.1;
 				OTHER_LDFLAGS = "";
 				"OTHER_LDFLAGS[sdk=iphone*]" = (
 					"$(inherited)",

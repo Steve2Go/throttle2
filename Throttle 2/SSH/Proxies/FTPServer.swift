@@ -387,27 +387,27 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     // Stop handling the connection
     func stop() {
+        print("Stopping FTP handler \(id)...")
         // Cancel any active tasks
         activeTask?.cancel()
         activeTask = nil
-        
         // Close any active SSH connection
         if let connection = activeSSHConnection {
             print("Closing active SSH connection for FTP handler \(id)")
             let conn = connection
             activeSSHConnection = nil
-            
             Task { [weak self] in
                 guard self != nil else { return }
                 await conn.disconnect()
             }
         }
-        
         passiveListener?.cancel()
         passiveListener = nil
         dataConnection?.cancel()
         dataConnection = nil
+        connection.stateUpdateHandler = nil
         connection.cancel()
+        print("FTP handler \(id) stopped.")
     }
     
     // Request closing - to be called when a new request arrives
@@ -446,12 +446,13 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     // Clean up resources
     private func cleanup() {
+        print("Cleaning up FTP handler \(id)...")
         // Prevent multiple cleanups
         if isCleaningUp { return }
         isCleaningUp = true
-        
         stop()
         onDisconnect(id)
+        print("Cleanup complete for FTP handler \(id)")
     }
     
     // Create a new SSH connection
@@ -1493,5 +1494,22 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     deinit {
         print("FTPSimpleHandler deinit called for id: \(id)")
+        // Defensive: ensure all async work is cancelled
+        activeTask?.cancel()
+        activeTask = nil
+        passiveListener?.cancel()
+        passiveListener = nil
+        dataConnection?.cancel()
+        dataConnection = nil
+        connection.stateUpdateHandler = nil
+        connection.cancel()
+        // Defensive: nil out SSH connection
+        if let connection = activeSSHConnection {
+            print("[deinit] Disconnecting SSH connection for handler \(id)")
+            Task {
+                await connection.disconnect()
+            }
+            activeSSHConnection = nil
+        }
     }
 }
