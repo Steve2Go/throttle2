@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import SwiftUI
+//import Helpers.FilenameMapper
 
 enum DataConnectionMode {
     case active
@@ -747,7 +748,8 @@ class FTPSimpleHandler : @unchecked Sendable {
             }
         case "RNFR":
             // Store the rename-from path for the next RNTO
-            renameFromPath = argument
+            let realName = FilenameMapper.decodePath(argument) ?? argument
+            renameFromPath = realName
             sendResponse(350, "File or directory exists, ready for destination name")
         case "RNTO":
             // Create a new task for this command
@@ -785,59 +787,20 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     // Handle directory change - now with async/await pattern
     private func handleChangeDirectory(_ path: String) async {
-        if path.isEmpty {
-            currentDirectory = normalizePath(currentDirectory)
-            sendResponse(250, "Directory unchanged")
-            return
-        }
-        // Handle special cases
-        if path == "/" {
-            currentDirectory = "/"
-            sendResponse(250, "Directory changed to /")
-            return
-        }
-        if path == ".." {
-            // Move up one level
-            if currentDirectory == "/" {
-                currentDirectory = "/"
-                sendResponse(250, "Already at root directory")
-                return
-            }
-            let components = currentDirectory.split(separator: "/")
-            if components.isEmpty {
-                currentDirectory = "/"
-            } else {
-                currentDirectory = "/" + components.dropLast().joined(separator: "/")
-                if currentDirectory == "" {
-                    currentDirectory = "/"
-                }
-            }
-            currentDirectory = normalizePath(currentDirectory)
-            sendResponse(250, "Directory changed to \(currentDirectory)")
-            return
-        }
-        // Combine paths for relative navigation
-        var targetPath: String
-        if path.hasPrefix("/") {
-            // Absolute path
-            targetPath = path
+        let realName = (FilenameMapper.decodePath(path) ?? path).precomposedStringWithCanonicalMapping
+        let targetPath: String
+        if realName.hasPrefix("/") {
+            targetPath = realName
         } else {
-            // Relative path
-            if currentDirectory.hasSuffix("/") {
-                targetPath = currentDirectory + path
-            } else {
-                targetPath = currentDirectory + "/" + path
-            }
+            targetPath = currentDirectory + (currentDirectory.hasSuffix("/") ? "" : "/") + realName
         }
-        // Normalize path (handle double slashes, etc)
-        targetPath = normalizePath(targetPath)
-        // Verify the directory exists using SFTP
+        let normalizedTarget = normalizePath(targetPath)
         do {
             let sshConnection = try await getSSHConnection()
             let sftp = try await sshConnection.connectSFTP()
-            let attrs = try await sftp.getAttributes(at: targetPath)
+            let attrs = try await sftp.getAttributes(at: normalizedTarget)
             if SSHConnection.isDirectory(attributes: attrs) {
-                currentDirectory = normalizePath(targetPath)
+                currentDirectory = normalizedTarget
                 sendResponse(250, "Directory changed to \(currentDirectory)")
             } else {
                 sendResponse(550, "Not a directory")
@@ -869,20 +832,15 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     // Handle SIZE command with reliable shell commands
     private func handleSize(path: String) async {
-        // Combine current directory with path if not absolute
-        let fullPath = path.hasPrefix("/") ? path : "\(currentDirectory)/\(path)"
+        let realName = (FilenameMapper.decodePath(path) ?? path).precomposedStringWithCanonicalMapping
+        let fullPath = realName.hasPrefix("/") ? realName : "\(currentDirectory)/\(realName)"
         let normalizedPath = normalizePath(fullPath)
-        
         do {
-            // Get a fresh SSH connection
             let sshConnection = try await getSSHConnection()
-            
-            // Get file size using a reliable shell command that works on most systems
+            let sftp = try await sshConnection.connectSFTP()
             let command = "stat -c %s \"\(normalizedPath)\" 2>/dev/null || stat -f %z \"\(normalizedPath)\" 2>/dev/null || echo 'notfound'"
             let (_, output) = try await sshConnection.executeCommand(command)
-            
             let sizeStr = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            
             if sizeStr == "notfound" {
                 sendResponse(550, "File not found")
             } else if let size = Int(sizeStr) {
@@ -1136,26 +1094,20 @@ class FTPSimpleHandler : @unchecked Sendable {
                     // Use SFTP to get directory contents as [FileItem]
                     let items: [FileItem] = try await sshConnection.listDirectory(path: targetPath)
 
-                    // Format as Unix-style LIST output
+                    // Format as Unix-style LIST output, but use simplified names
                     let formatter = DateFormatter()
                     formatter.locale = Locale(identifier: "en_US_POSIX")
                     formatter.dateFormat = "MMM dd HH:mm"
 
                     let lines = items.map { item -> String in
-                        // Permissions string (just fake typical values for now)
                         let perms = item.isDirectory ? "drwxr-xr-x" : "-rw-r--r--"
-                        // Hard link count (fake as 1)
                         let nlink = "1"
-                        // Owner/group (fake as user group)
                         let owner = "user"
                         let group = "group"
-                        // Size
                         let size = String(item.size ?? 0)
-                        // Date
                         let dateStr = formatter.string(from: item.modificationDate)
-                        // Name
-                        let name = item.name
-                        return "\(perms) \(nlink) \(owner) \(group) \(size) \(dateStr) \(name)"
+                        let simpleName = FilenameMapper.encodePath(item.name)
+                        return "\(perms) \(nlink) \(owner) \(group) \(size) \(dateStr) \(simpleName)"
                     }
                     let output = lines.joined(separator: "\r\n") + "\r\n"
                     let data = Data(output.utf8)
@@ -1164,18 +1116,14 @@ class FTPSimpleHandler : @unchecked Sendable {
                         if let error = error {
                             print("Error sending directory listing: \(error)")
                         }
-                        // Close the data connection
                         connection.cancel()
-                        // Send completion status
                         self.sendResponse(226, "Directory send OK")
-                        // Release SSH connection
                         self.releaseSSHConnection()
                     })
                 } catch {
                     print("Error listing directory: \(error)")
                     connection.cancel()
                     self.sendResponse(550, "Failed to list directory")
-                    // Release SSH connection
                     self.releaseSSHConnection()
                 }
             }
@@ -1184,15 +1132,13 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     // Handle RETR command with direct streaming using SFTP
     private func handleRetrieve(_ path: String) async {
-        // Determine the full path
+        let realName = (FilenameMapper.decodePath(path) ?? path).precomposedStringWithCanonicalMapping
         let fullPath: String
-        if path.hasPrefix("/") {
-            fullPath = path
+        if realName.hasPrefix("/") {
+            fullPath = realName
         } else {
-            fullPath = currentDirectory + (currentDirectory.hasSuffix("/") ? "" : "/") + path
+            fullPath = currentDirectory + (currentDirectory.hasSuffix("/") ? "" : "/") + realName
         }
-        
-        // Normalize the path
         let normalizedPath = normalizePath(fullPath)
         
         // Check if REST is enabled
@@ -1291,15 +1237,13 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     // Handle STOR command using SFTP file upload
     private func handleStore(_ path: String) async {
-        // Determine the full path
+        let realName = (FilenameMapper.decodePath(path) ?? path).precomposedStringWithCanonicalMapping
         let fullPath: String
-        if path.hasPrefix("/") {
-            fullPath = path
+        if realName.hasPrefix("/") {
+            fullPath = realName
         } else {
-            fullPath = currentDirectory + (currentDirectory.hasSuffix("/") ? "" : "/") + path
+            fullPath = currentDirectory + (currentDirectory.hasSuffix("/") ? "" : "/") + realName
         }
-        
-        // Normalize the path
         let normalizedPath = normalizePath(fullPath)
         
         // Send status
@@ -1363,8 +1307,8 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     // Handle DELE command using SFTP
     private func handleDelete(_ path: String) async {
-        // Combine current directory with path if not absolute
-        let fullPath = path.hasPrefix("/") ? path : "\(currentDirectory)/\(path)"
+        let realName = (FilenameMapper.decodePath(path) ?? path).precomposedStringWithCanonicalMapping
+        let fullPath = realName.hasPrefix("/") ? realName : "\(currentDirectory)/\(realName)"
         let normalizedPath = normalizePath(fullPath)
         do {
             let sshConnection = try await getSSHConnection()
@@ -1379,8 +1323,8 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     // Handle RMD command using SFTP
     private func handleRemoveDirectory(_ path: String) async {
-        // Combine current directory with path if not absolute
-        let fullPath = path.hasPrefix("/") ? path : "\(currentDirectory)/\(path)"
+        let realName = (FilenameMapper.decodePath(path) ?? path).precomposedStringWithCanonicalMapping
+        let fullPath = realName.hasPrefix("/") ? realName : "\(currentDirectory)/\(realName)"
         let normalizedPath = normalizePath(fullPath)
         do {
             let sshConnection = try await getSSHConnection()
@@ -1457,7 +1401,8 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     // Handle MKD command using SFTP
     private func handleMakeDirectory(_ path: String) async {
-        let fullPath = path.hasPrefix("/") ? path : "\(currentDirectory)/\(path)"
+        let realName = (FilenameMapper.decodePath(path) ?? path).precomposedStringWithCanonicalMapping
+        let fullPath = realName.hasPrefix("/") ? realName : "\(currentDirectory)/\(realName)"
         let normalizedPath = normalizePath(fullPath)
         do {
             let sshConnection = try await getSSHConnection()
@@ -1476,8 +1421,10 @@ class FTPSimpleHandler : @unchecked Sendable {
             sendResponse(503, "Bad sequence of commands")
             return
         }
-        let fromPath = from.hasPrefix("/") ? from : "\(currentDirectory)/\(from)"
-        let toPath = path.hasPrefix("/") ? path : "\(currentDirectory)/\(path)"
+        let realFrom = (FilenameMapper.decodePath(from) ?? from).precomposedStringWithCanonicalMapping
+        let realTo = (FilenameMapper.decodePath(path) ?? path).precomposedStringWithCanonicalMapping
+        let fromPath = realFrom.hasPrefix("/") ? realFrom : "\(currentDirectory)/\(realFrom)"
+        let toPath = realTo.hasPrefix("/") ? realTo : "\(currentDirectory)/\(realTo)"
         let normalizedFrom = normalizePath(fromPath)
         let normalizedTo = normalizePath(toPath)
         do {
@@ -1513,3 +1460,12 @@ class FTPSimpleHandler : @unchecked Sendable {
         }
     }
 }
+
+// Helper to resolve a simplified filename to the real/original filename in the current directory
+//private func resolveRealName(for requestedName: String, in directory: String, sftp: SFTPClient) async throws -> String {
+//    let entries = try await sftp.listDirectory(path: directory)
+//    if let match = entries.first(where: { FilenameMapper.simplify($0) == requestedName }) {
+//        return match
+//    }
+//    return requestedName // fallback if not found
+//}

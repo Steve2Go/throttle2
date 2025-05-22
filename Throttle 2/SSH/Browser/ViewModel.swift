@@ -4,6 +4,7 @@ import KeychainAccess
 import Citadel
 import SimpleToast
 import NIO
+//import Helpers.FilenameMapper
 
 // MARK: - ViewModel
 class SFTPFileBrowserViewModel: ObservableObject {
@@ -135,6 +136,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
             await MainActor.run { self.isLoading = true }
             do {
                 let fileItems = try await self.listDirectoryContents(path: self.currentPath)
+                // Build filename mapping for this directory
                 let upOneValue = NSString(string: NSString(string: self.currentPath).deletingLastPathComponent).lastPathComponent
                 let sortedItems: [FileItem]
                 if self.sftpSortOrder == "date" {
@@ -398,37 +400,25 @@ class SFTPFileBrowserViewModel: ObservableObject {
         let encodedPassword = password.addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? ""
         
         if videoItems.count == 1 {
-            let path = item.url.path
-            print("Found Video \(path)")
+            let encodedPath = item.url.path
             var videoUrl: URL!
-            //videoUrl = URL(string: "http://127.0.0.1:9090\(path)")!
-            let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(.init(charactersIn: "#"))) ?? path
             if server.sftpUsesKey == true {
-                //videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@localhost:2222\(path)")!
-                videoUrl = URL(string: "ftp://localhost:2121\(encodedPath)")!
+                videoUrl = URL(string: "ftp://localhost:2121/\(encodedPath)")!
             } else {
-                videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!
+                videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)/\(encodedPath)")!
             }
-            
-            // Create and set the configuration
             self.videoPlayerConfiguration = VideoPlayerConfiguration(singleItem: videoUrl)
             self.showingVideoPlayer = true
         } else {
             var playlist: [URL] = []
             for item in videoItems {
-                let path = item.url.path
-                print("Found Video \(path)")
-                let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(.init(charactersIn: "#"))) ?? path
-                //playlist.append(URL(string: "http://127.0.0.1:9090\(path)")!)
+                let encodedPath = item.url.path
                 if server.sftpUsesKey == true {
-                    playlist.append(URL(string: "ftp://localhost:2121\(encodedPath)")!)
-                    //playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@localhost:2222\(path)")!)
+                    playlist.append(URL(string: "ftp://localhost:2121/\(encodedPath)")!)
                 } else {
-                    playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)\(path)")!)
+                    playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)/\(encodedPath)")!)
                 }
             }
-            
-            // Create and set the configuration
             self.videoPlayerConfiguration = VideoPlayerConfiguration(playlist: playlist, startIndex: selectedIndex)
             self.showingVideoPlayer = true
         }
@@ -578,7 +568,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
             let path = item.url.path
             print("Found Audio \(path)")
             var audioUrl: URL!
-            let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(.init(charactersIn: "#"))) ?? path
+            let encodedPath = item.url.path
             if server.sftpUsesKey == true {
                 audioUrl = URL(string: "ftp://localhost:2121\(encodedPath)")!
             } else {
@@ -594,7 +584,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
             for item in audioItems {
                 let path = item.url.path
                 print("Found Audio \(path)")
-                let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(.init(charactersIn: "#"))) ?? path
+                let encodedPath = item.url.path
                 if server.sftpUsesKey == true {
                     playlist.append(URL(string: "ftp://localhost:2121\(encodedPath)")!)
                 } else {

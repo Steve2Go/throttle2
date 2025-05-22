@@ -3,6 +3,8 @@ import SwiftUI
 import MobileVLCKit
 import UIKit
 import AVFoundation
+import Foundation
+//import Helpers.FilenameMapper
 
 struct VLCMusicPlayer: View {
     @StateObject private var viewModel: VLCMusicPlayerViewModel
@@ -34,7 +36,7 @@ struct VLCMusicPlayer: View {
                 }
                 // Track title
                 VStack(spacing: 2) {
-                    Text(viewModel.currentTitle)
+                    Text(viewModel.currentTitleDecoded)
                         .font(.title2)
                         .fontWeight(.semibold)
                         .lineLimit(2)
@@ -91,7 +93,7 @@ struct VLCMusicPlayer: View {
                 List {
                     ForEach(viewModel.queue.indices, id: \..self) { idx in
                         let url = viewModel.queue[idx]
-                        let title = viewModel.trackTitles[url] ?? url.lastPathComponent
+                        let title = viewModel.trackTitles[url] ?? (FilenameMapper.decodePath(url.path) ?? url.lastPathComponent)
                         let artist = viewModel.trackArtists[url] ?? ""
                         HStack(alignment: .center, spacing: 8) {
                             if idx == viewModel.currentIndex {
@@ -231,6 +233,13 @@ class VLCMusicPlayerViewModel: NSObject, ObservableObject, VLCMediaPlayerDelegat
         self.mediaPlayer.delegate = self
     }
     
+    var currentTitleDecoded: String {
+        if let decoded = FilenameMapper.decodePath(currentTitle), !decoded.isEmpty {
+            return decoded
+        }
+        return currentTitle
+    }
+    
     func start() {
         Task { [weak self] in
             guard let self = self else { return }
@@ -301,7 +310,8 @@ class VLCMusicPlayerViewModel: NSObject, ObservableObject, VLCMediaPlayerDelegat
     @MainActor
     private func updateTitleAndArtwork(for url: URL) async {
         // Default fallback
-        self.currentTitle = url.lastPathComponent
+        let decoded = FilenameMapper.decodePath(url.path) ?? url.lastPathComponent
+        self.currentTitle = decoded
         self.currentArtwork = nil
         let asset = AVURLAsset(url: url)
         do {
