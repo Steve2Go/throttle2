@@ -402,22 +402,22 @@ class SFTPFileBrowserViewModel: ObservableObject {
         if videoItems.count == 1 {
             let encodedPath = item.url.path
             var videoUrl: URL!
-            if server.sftpUsesKey == true {
+           // if server.sftpUsesKey == true {
                 videoUrl = URL(string: "ftp://localhost:2121/\(encodedPath)")!
-            } else {
-                videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)/\(encodedPath)")!
-            }
+//            } else {
+//                videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)/\(encodedPath)")!
+//            }
             self.videoPlayerConfiguration = VideoPlayerConfiguration(singleItem: videoUrl)
             self.showingVideoPlayer = true
         } else {
             var playlist: [URL] = []
             for item in videoItems {
                 let encodedPath = item.url.path
-                if server.sftpUsesKey == true {
+//                if server.sftpUsesKey == true {
                     playlist.append(URL(string: "ftp://localhost:2121/\(encodedPath)")!)
-                } else {
-                    playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)/\(encodedPath)")!)
-                }
+//                } else {
+//                    playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)/\(encodedPath)")!)
+//                }
             }
             self.videoPlayerConfiguration = VideoPlayerConfiguration(playlist: playlist, startIndex: selectedIndex)
             self.showingVideoPlayer = true
