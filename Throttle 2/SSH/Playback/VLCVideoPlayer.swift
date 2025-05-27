@@ -498,13 +498,16 @@ class VideoPlayerViewController: UIViewController {
             while await SimpleFTPServerManager.shared.activeServersCount() == 0 {
                 try? await Task.sleep(nanoseconds: 200_000_000) // 200ms
             }
-            // Wait a little extra for stability
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            
             DispatchQueue.main.async {
                 self.currentIndex = savedIndex
                 self.playCurrentVideo()
                 self.mediaPlayer.time = VLCTime(int: savedTime)
+                
             }
+            // Wait a little extra for stability
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            self.mediaPlayer.play()
         }
     }
     

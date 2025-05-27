@@ -202,6 +202,7 @@ struct Throttle_2App: App {
                         print("active")
                         Task {
                             connection(ftp: true, fullRefresh: false)
+                            isBackground = false
                         }
                     case .inactive:
                         // App going inactive (transitioning state)

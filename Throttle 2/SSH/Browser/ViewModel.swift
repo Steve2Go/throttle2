@@ -403,7 +403,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
             let encodedPath = item.url.path
             var videoUrl: URL!
            // if server.sftpUsesKey == true {
-                videoUrl = URL(string: "ftp://localhost:2121/\(encodedPath)")!
+            videoUrl = URL(string: "ftp://localhost:2121/\(FilenameMapper.encodePath(encodedPath))")!
 //            } else {
 //                videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)/\(encodedPath)")!
 //            }
@@ -414,7 +414,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
             for item in videoItems {
                 let encodedPath = item.url.path
 //                if server.sftpUsesKey == true {
-                    playlist.append(URL(string: "ftp://localhost:2121/\(encodedPath)")!)
+                    playlist.append(URL(string: "ftp://localhost:2121/\(FilenameMapper.encodePath(encodedPath))")!)
 //                } else {
 //                    playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)/\(encodedPath)")!)
 //                }
