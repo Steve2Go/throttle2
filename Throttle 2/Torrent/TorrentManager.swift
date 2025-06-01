@@ -469,12 +469,19 @@ class TorrentManager: ObservableObject {
         
         
         //how many downloads?
-        let thisDownloadingCount = torrentsToUpdate.filter({$0.percentComplete != 1}).count
+        let thisDownloadingCount = torrentsToUpdate.filter({$0.percentDone != 1}).count
         //print("Download Count: \(thisDownloadingCount)")
         
-        if thisDownloadingCount < downloadingCount && !fullFetch {
-            //fileCache = [:]
+//        if thisDownloadingCount < downloadingCount && !fullFetch {
+//            //fileCache = [:]
+//            try await fetchUpdates( fullFetch: true)
+//        }
+        
+        if thisDownloadingCount > 0 && nextFull == 0 {
+            nextFull = 10
             try await fetchUpdates( fullFetch: true)
+        } else if thisDownloadingCount > 0 {
+            nextFull = nextFull - 1
         }
         
         downloadingCount = thisDownloadingCount

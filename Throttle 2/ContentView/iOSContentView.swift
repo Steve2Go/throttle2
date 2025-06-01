@@ -71,7 +71,7 @@ struct iOSContentView: View {
                                 store.FileBrowseCover = true
                             }
                         } label: {
-                            Image(systemName: "folder")
+                            Image(systemName: "internaldrive")
                         }
                     }
                 }

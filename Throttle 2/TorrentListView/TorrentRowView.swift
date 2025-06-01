@@ -171,7 +171,7 @@ struct TorrentRowView: View {
                                     
                                     
                                 } label: {
-                                    Image(systemName: "externaldrive")
+                                    Image(systemName: "internaldrive")
                                         .foregroundStyle(.gray)
                                 }
                                 .buttonStyle(.plain)

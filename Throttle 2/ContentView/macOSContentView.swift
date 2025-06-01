@@ -82,7 +82,7 @@ struct MacOSContentView: View {
                                 
                             } label:{
                                 
-                                Image(systemName: "folder")
+                                Image(systemName: "internaldrive")
                             }
                         }
                     }

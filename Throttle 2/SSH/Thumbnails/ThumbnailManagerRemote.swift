@@ -38,7 +38,8 @@ public class ThumbnailManagerRemote: NSObject {
         fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
             .first?.appendingPathComponent("remoteThumbnailCache")
     }
-    // Track which servers have had their ffmpegPath checked this session
+    // Track ffmpeg paths in UserDefaults
+    private let ffmpegPathPrefix = "com.throttle.ffmpeg.path."
     private var ffmpegCheckedServers = Set<String>()
     
     override init() {
@@ -281,10 +282,24 @@ public class ThumbnailManagerRemote: NSObject {
     }
     
     // MARK: - FFmpeg Availability (iOS logic)
+    private func getFFmpegPath(for server: ServerEntity) -> String? {
+        let key = ffmpegPathPrefix + (server.id?.uuidString ?? server.name ?? server.sftpHost ?? "default")
+        return UserDefaults.standard.string(forKey: key)
+    }
+    
+    private func setFFmpegPath(_ path: String?, for server: ServerEntity) {
+        let key = ffmpegPathPrefix + (server.id?.uuidString ?? server.name ?? server.sftpHost ?? "default")
+        if let path = path {
+            UserDefaults.standard.set(path, forKey: key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+    
     private func ensureFFmpegAvailable(for server: ServerEntity, connection: SSHConnection) async -> String? {
         let serverKey = server.name ?? server.sftpHost ?? "default"
         // Use the persistent ffmpegPath if available, but check it once per session
-        if let path = server.ffmpegPath, !path.isEmpty {
+        if let path = getFFmpegPath(for: server), !path.isEmpty {
             if !ffmpegCheckedServers.contains(serverKey) {
                 // Check the path is valid
                 if let (_, testOutput) = try? await connection.executeCommand("\(path) -version || echo 'notfound'") {
@@ -294,10 +309,7 @@ public class ThumbnailManagerRemote: NSObject {
                         return path
                     } else {
                         print("[ThumbnailManagerRemote] Cached ffmpegPath invalid for server: \(serverKey), clearing and re-detecting.")
-                        await MainActor.run {
-                            server.ffmpegPath = nil
-                            try? server.managedObjectContext?.save()
-                        }
+                        setFFmpegPath(nil, for: server)
                     }
                 }
             } else {
@@ -336,10 +348,7 @@ public class ThumbnailManagerRemote: NSObject {
             }
         }
         if let foundPath = foundPath {
-            await MainActor.run {
-                server.ffmpegPath = foundPath
-                try? server.managedObjectContext?.save()
-            }
+            setFFmpegPath(foundPath, for: server)
             ffmpegCheckedServers.insert(serverKey)
             print("[ThumbnailManagerRemote] Persisted ffmpegPath for server: \(server.name ?? server.sftpHost ?? "default"): \(foundPath)")
             return foundPath
@@ -464,20 +473,18 @@ public struct RemotePathThumbnailView: View {
                         .frame(width: 60, height: 60)
                         .cornerRadius(8)
                         .overlay {
-                            if server.sftpBrowse && overlay == false {
-                                if filetype == .video {
-                                    Image(systemName: "play.fill")
-                                        .resizable()
-                                        .frame(width: 15, height: 15)
-                                        .padding([.top,.leading],30)
-                                        .foregroundColor(.white)
-                                } else if filetype == .image {
-                                    Image(systemName: "photo.fill")
-                                        .resizable()
-                                        .frame(width: 17, height: 14)
-                                        .padding([.top,.leading],30)
-                                        .foregroundColor(.white)
-                                }
+                            if filetype == .video {
+                                Image(systemName: "play.fill")
+                                    .resizable()
+                                    .frame(width: 15, height: 15)
+                                    .padding([.top,.leading],30)
+                                    .foregroundColor(.white)
+                            } else if filetype == .image {
+                                Image(systemName: "photo.fill")
+                                    .resizable()
+                                    .frame(width: 17, height: 14)
+                                    .padding([.top,.leading],30)
+                                    .foregroundColor(.white)
                             }
                         }
                 case .audio:

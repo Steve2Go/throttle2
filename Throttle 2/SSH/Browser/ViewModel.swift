@@ -207,8 +207,11 @@ class SFTPFileBrowserViewModel: ObservableObject {
         let newPath = trimmedPath.isEmpty ? basePath : "/" + trimmedPath
         Task { [weak self] in
             guard let self = self else { return }
-            self.currentPath = newPath
-            self.fetchItems()
+            DispatchQueue.main.async {
+                self.currentPath = newPath
+                self.fetchItems()
+            }
+           
         }
     }
     
