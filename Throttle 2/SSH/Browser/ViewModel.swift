@@ -363,7 +363,9 @@ class SFTPFileBrowserViewModel: ObservableObject {
             openAudio(item: item, server: server)
         case .image:
             openImageBrowser(item)
-        case .other:
+        case .part:
+            return
+        case .other, .archive:
             downloadFile(item)
         }
     }

@@ -12,6 +12,8 @@ enum FileType {
     case video
     case audio
     case image
+    case archive
+    case part
     case other
     
     static func determine(from url: URL) -> FileType {
@@ -22,6 +24,7 @@ enum FileType {
         let videoExtensions = ["mp4", "mov", "m4v", "avi", "mkv", "wmv", "flv", "webm", "3gp", "mpg", "mpeg","vob"]
         let audioExtensions = ["mp3", "aac", "m4a", "wav", "flac", "ogg", "opus", "wma", "alac", "aiff", "aif", "caf"]
         let imageExtensions = ["jpg", "jpeg", "png", "gif", "heic", "heif", "bmp", "tiff", "webp","jfif"]
+        let archiveExtensions = ["7z", "tar", "gz", "iso", "dmg", "zip", "rar", "bin"]
         
         if videoExtensions.contains(ext) {
             return .video
@@ -29,7 +32,11 @@ enum FileType {
             return .audio
         } else if imageExtensions.contains(ext) {
             return .image
-        } else {
+        } else if archiveExtensions.contains(ext) {
+                return .archive
+        } else if ext == "part" {
+            return .part
+    }else {
             return .other
         }
     }

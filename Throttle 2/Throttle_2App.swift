@@ -202,7 +202,6 @@ struct Throttle_2App: App {
                         print("active")
                         Task {
                             connection(ftp: true, fullRefresh: false)
-                            isBackground = false
                         }
                     case .inactive:
                         // App going inactive (transitioning state)
@@ -260,7 +259,7 @@ struct Throttle_2App: App {
         // FTP
         Task {
 //            if await SimpleFTPServerManager.shared.activeServers.count > 0 && ftp {
-//                await SimpleFTPServerManager.shared.removeAllServers()
+               await SimpleFTPServerManager.shared.removeAllServers()
             
 //            }
             if server.sftpBrowse && networkMonitor.isConnected && ftp {

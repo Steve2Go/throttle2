@@ -997,11 +997,8 @@ struct ImageWebView: UIViewRepresentable {
         @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
             if let webView = gesture.view as? WKWebView {
                 let scrollView = webView.scrollView
-                
-                if scrollView.zoomScale > scrollView.minimumZoomScale {
-                    // If zoomed in, zoom out
-                    scrollView.setZoomScale(scrollView.minimumZoomScale, animated: true)
-                } else {
+                //print(scrollView.zoomScale)
+                if scrollView.zoomScale == scrollView.minimumZoomScale  {
                     // If zoomed out, zoom in to the tap location
                     let location = gesture.location(in: webView)
                     let zoomRect = CGRect(
@@ -1012,6 +1009,12 @@ struct ImageWebView: UIViewRepresentable {
                     )
                     scrollView.zoom(to: zoomRect, animated: true)
                 }
+                //if scrollView.zoomScale > scrollView.minimumZoomScale {
+                else{
+                    // If zoomed in, zoom out
+                    scrollView.setZoomScale(scrollView.minimumZoomScale, animated: true)
+                }
+            
             }
         }
     }

@@ -974,7 +974,7 @@ class FTPSimpleHandler : @unchecked Sendable {
             var port: UInt16 = 0
             
             // Try specific ports first - choose a range less likely to have conflicts
-            for tryPort in 60000...60100 {
+            for tryPort in 60101...60200 {
                 do {
                     let endpoint = NWEndpoint.Port(rawValue: UInt16(tryPort))
                     listener = try NWListener(using: parameters, on: endpoint!)

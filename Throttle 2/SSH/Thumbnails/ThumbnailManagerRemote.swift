@@ -274,8 +274,10 @@ public class ThumbnailManagerRemote: NSObject {
                     let _ = try? await connection.executeCommand(rmCmd)
                 }
             }
+            
         }
-        throw NSError(domain: "ThumbnailManagerRemote", code: -5, userInfo: [NSLocalizedDescriptionKey: "FFmpeg did not create a thumbnail"])
+        
+        throw NSError(domain: "ThumbnailManagerRemote", code: -5, userInfo: [NSLocalizedDescriptionKey: "Could not create thumbnail"])
     }
     
     // MARK: - FFmpeg Availability (iOS logic)
@@ -292,8 +294,10 @@ public class ThumbnailManagerRemote: NSObject {
                         return path
                     } else {
                         print("[ThumbnailManagerRemote] Cached ffmpegPath invalid for server: \(serverKey), clearing and re-detecting.")
-                        server.ffmpegPath = nil
-                        _ = try? server.managedObjectContext?.save()
+                        await MainActor.run {
+                            server.ffmpegPath = nil
+                            try? server.managedObjectContext?.save()
+                        }
                     }
                 }
             } else {
@@ -332,8 +336,10 @@ public class ThumbnailManagerRemote: NSObject {
             }
         }
         if let foundPath = foundPath {
-            server.ffmpegPath = foundPath
-            _ = try? server.managedObjectContext?.save()
+            await MainActor.run {
+                server.ffmpegPath = foundPath
+                try? server.managedObjectContext?.save()
+            }
             ffmpegCheckedServers.insert(serverKey)
             print("[ThumbnailManagerRemote] Persisted ffmpegPath for server: \(server.name ?? server.sftpHost ?? "default"): \(foundPath)")
             return foundPath
@@ -406,6 +412,7 @@ public struct RemotePathThumbnailView: View {
     @State private var isLoading = false
     @State private var loadingTask: Task<Void, Never>?
     @State private var isVisible = false
+    @State private var hasError = false
     let filetype: FileType
     
     public init(path: String, server: ServerEntity, overlay: Bool? = nil) {
@@ -451,18 +458,40 @@ public struct RemotePathThumbnailView: View {
             } else {
                 let fileType = FileType.determine(from: URL(fileURLWithPath: path))
                 switch fileType {
-                case .video:
-                    Image("video")
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
+                case .video, .image:
+                    Rectangle()
+                        .fill(Color.black)
                         .frame(width: 60, height: 60)
-                case .image:
-                    Image("image")
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 60, height: 60)
+                        .cornerRadius(8)
+                        .overlay {
+                            if server.sftpBrowse && overlay == false {
+                                if filetype == .video {
+                                    Image(systemName: "play.fill")
+                                        .resizable()
+                                        .frame(width: 15, height: 15)
+                                        .padding([.top,.leading],30)
+                                        .foregroundColor(.white)
+                                } else if filetype == .image {
+                                    Image(systemName: "photo.fill")
+                                        .resizable()
+                                        .frame(width: 17, height: 14)
+                                        .padding([.top,.leading],30)
+                                        .foregroundColor(.white)
+                                }
+                            }
+                        }
                 case .audio:
                     Image("audio")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                case .archive:
+                    Image("archive")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                case .part:
+                    Image("part")
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 60, height: 60)

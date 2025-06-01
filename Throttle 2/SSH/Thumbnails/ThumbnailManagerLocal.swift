@@ -240,6 +240,7 @@ struct PathThumbnailViewMacOS: View {
             case .video: return "video"
             case .audio: return "audio"
             case .image: return "image"
+            case .archive return "archive"
             case .other: return "document"
             }
         }()
