@@ -400,13 +400,19 @@ class TorrentManager: ObservableObject {
     
     func fetchUpdates(selectedId: Int? = nil, fullFetch: Bool = false) async throws {
         guard let baseURL = baseURL else { return }
+        @AppStorage("overideFullFetch") var fullFetchAnyway = false
         
         defer { isLoading = false }
        // await TunnelManagerHolder.shared.ensureAllTunnelsHealth()
         var fieldsToFetch: [String] = []
         
-        let firstFetch = fullFetch == true ? true : fileCache.isEmpty
-    
+        var firstFetch = fullFetch == true ? true : fileCache.isEmpty
+        
+        
+        if fullFetchAnyway {
+            firstFetch = true
+            fullFetchAnyway = false
+        }
         
             
             fieldsToFetch = firstFetch ? standardFields + ["files"] : standardFields
@@ -442,9 +448,9 @@ class TorrentManager: ObservableObject {
         
         // Handle file caching
         if firstFetch && selectedId == nil {
-            if fullFetch {
-                fileCache = [:]
-            }
+//            if fullFetch {
+//                fileCache = [:]
+//            }
             print("First fetch - caching files")
             print("Number of torrents: \(decodedResponse.arguments.torrents.count)")
             for torrent in decodedResponse.arguments.torrents {
@@ -467,23 +473,22 @@ class TorrentManager: ObservableObject {
         
         let torrentsToUpdate = decodedResponse.arguments.torrents
         
-        
-        //how many downloads?
+        //any with no file info?
+        let thisNoFiles = torrentsToUpdate.filter({$0.files.count == 0}).count
         let thisDownloadingCount = torrentsToUpdate.filter({$0.percentDone != 1}).count
-        //print("Download Count: \(thisDownloadingCount)")
         
-//        if thisDownloadingCount < downloadingCount && !fullFetch {
-//            //fileCache = [:]
-//            try await fetchUpdates( fullFetch: true)
-//        }
+    
         
-        if thisDownloadingCount > 0 && nextFull == 0 {
-            nextFull = 10
-            try await fetchUpdates( fullFetch: true)
-        } else if thisDownloadingCount > 0 {
-            nextFull = nextFull - 1
+//        //how many downloads?
+//        let thisDownloadingCount = torrentsToUpdate.filter({$0.percentDone != 1}).count
+//        //print("Download Count: \(thisDownloadingCount)")
+//        
+        if (thisDownloadingCount != downloadingCount || thisNoFiles > 0) && !fullFetch {
+            //fileCache = [:]
+            //try await fetchUpdates( fullFetch: true)
+            fullFetchAnyway = true
         }
-        
+//        
         downloadingCount = thisDownloadingCount
         
         torrents = torrentsToUpdate

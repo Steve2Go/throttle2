@@ -6,6 +6,7 @@ struct ServerStatusBar: View {
     @Binding var showServerSettings: Bool
     @AppStorage("filterdCount") var filterdCount: Int = 0
     @AppStorage("downloadDir") var downloadDir: String = ""
+    @AppStorage("isBackground") var isBackground = false
     
     // Stats state
     @State private var downloadSpeed: Int64 = 0
@@ -204,6 +205,14 @@ var isiPad: Bool {
                 }
             }
         }
+        //return from background
+        .onChange(of: isBackground){
+            if isBackground{
+                stopRefreshCycle()
+            } else {
+                startRefreshCycle()
+            }
+        }
         // Restart refresh cycle when manager's refresh rate changes
         .onChange(of: manager.refreshRate) {
             startRefreshCycle()
@@ -254,8 +263,8 @@ var isiPad: Bool {
     
     private func updateStats() {
         // Cancel any ongoing task
-        guard ftpServerCount > 0 else {return}
         refreshTask?.cancel()
+        guard !isBackground else {return}
         
         // Check if we have a server selected
         guard store.selection != nil, manager.baseURL != nil else {

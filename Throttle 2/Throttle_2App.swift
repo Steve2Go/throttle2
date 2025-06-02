@@ -43,7 +43,7 @@ struct Throttle_2App: App {
     @ObservedObject var store = Store()
     @StateObject var networkMonitor = NetworkMonitor()
     @State var tunnelClosed = false
-    @State var isBackground = false
+    @AppStorage("isBackground") var isBackground = false
     @AppStorage("mountOnLogin") var mountOnLogin = false
     @AppStorage("sftpCompression") var sftpCompression: Bool = false
     @AppStorage("sftpCipher") var sftpCipher: Bool = true
@@ -191,6 +191,7 @@ struct Throttle_2App: App {
             
                 .onAppear {
                     presenting.didStart = true
+                    isBackground = false
                 }
                 .onChange(of: scenePhase) { oldPhase, newPhase in
                     switch newPhase {
