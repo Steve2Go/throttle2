@@ -140,7 +140,9 @@ struct TorrentRowView: View {
              // folder icon
             if (store.selection?.sftpBrowse == true || store.selection?.fsBrowse == true) && torrent.dynamicFields["downloadDir"] != nil {
                         if ((store.selection?.sftpBrowse) != nil){
-                            if torrent.files.count > 1 || torrent.percentDone == 1 {
+                            // is it a single file?
+                            let filetype = FileType.determine(from: URL(string: torrent.name ?? "")!)
+                            if (filetype == .other && torrent.downloadedEver ?? 0 > 1 ) || torrent.percentDone == 1 {
                                 Button {
                                     if var torrentU = torrent.dynamicFields["downloadDir"]?.value as? String {
                                         

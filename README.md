@@ -3,12 +3,12 @@
 ## Transmission download & File Managment for iOS & Mac
 
 Tested on Debian Server, with Mac server supported.
-Windows server should work fine using the built in openSSH. A manual install of ffmpeg https://ffmpeg.org may be required if you use the iOS version
+Windows server should work fine using the built in openSSH. A manual install of ffmpeg https://ffmpeg.org may be required on windows.
 
 ### Featuring
 - Tunnel RPC over SSH
 - Add & Monitor downloads
-- OPens .torrents and magnet links
+- Opens .torrents and magnet links
 - File Managment
 - SFTP & Traditional (Usually Samba) File Managment
 - File Thumnails
