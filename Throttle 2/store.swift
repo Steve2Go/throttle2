@@ -107,7 +107,7 @@ class Store: NSObject, ObservableObject {
 // Helper function to get key information
 func getKeyAndPassphrase(for server: ServerEntity) -> (keyPath: String, passphrase: String?)? {
     @AppStorage("useCloudKit") var useCloudKit: Bool = true
-    let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+    let keychain = useCloudKit ? Keychain(service: "srgim.throttle2").synchronizable(true) : Keychain(service: "srgim.throttle2").synchronizable(false)
     guard let storedPath = server.sshKeyFullPath,
           let filename = server.sshKeyFilename else { return nil }
     
@@ -143,7 +143,7 @@ func getKeyAndPassphrase(for server: ServerEntity) -> (keyPath: String, passphra
         
         #if os(macOS)
         @AppStorage("useCloudKit") var useCloudKit: Bool = true
-        let sshKeychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+        let sshKeychain = useCloudKit ? Keychain(service: "srgim.throttle2").synchronizable(true) : Keychain(service: "srgim.throttle2").synchronizable(false)
         let passphrase = try? sshKeychain.get(alternatePath)
         #else
         let passphrase = try? keychain.get("passphrase-$filename)")

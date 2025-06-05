@@ -395,7 +395,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
         
         // Get credentials
         @AppStorage("useCloudKit") var useCloudKit: Bool = true
-        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2").synchronizable(true) : Keychain(service: "srgim.throttle2").synchronizable(false)
 
         let username = server.sftpUser ?? ""
         let password = keychain["sftpPassword" + (server.name ?? "")] ?? ""
@@ -556,7 +556,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
         }
         // Get credentials
         @AppStorage("useCloudKit") var useCloudKit: Bool = true
-        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+        let keychain = useCloudKit ? Keychain(service: "srgim.throttle2").synchronizable(true) : Keychain(service: "srgim.throttle2").synchronizable(false)
          guard let username = server.sftpUser,
                let hostname = server.sftpHost
                 else {

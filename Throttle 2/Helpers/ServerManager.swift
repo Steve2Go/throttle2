@@ -65,7 +65,7 @@ func serverPath_to_url(_ path: String) -> String {
     }
     print("commence pass revial for server " + (server?.name ?? "Missing server name"))
     @AppStorage("useCloudKit") var useCloudKit: Bool = true
-    let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+    let keychain = useCloudKit ? Keychain(service: "srgim.throttle2").synchronizable(true) : Keychain(service: "srgim.throttle2").synchronizable(false)
     let password = keychain["httpPassword" + (server!.name ?? "")]
     print("pass retreived for server " + (server?.name ?? "Missing"))
     //handle password construction
@@ -101,7 +101,7 @@ func url_to_url(_ path: String) -> String {
         return "" // fallback URL if server info missing
     }
     @AppStorage("useCloudKit") var useCloudKit: Bool = true
-    let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+    let keychain = useCloudKit ? Keychain(service: "srgim.throttle2").synchronizable(true) : Keychain(service: "srgim.throttle2").synchronizable(false)
     let password = keychain["httpPassword" + (server.name ?? "")]
     
     //handle password construction

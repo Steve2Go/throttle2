@@ -22,7 +22,7 @@ class ServerMountManager: ObservableObject {
     // MARK: - Properties
     private let dataManager = DataManager.shared
     private var cancellables = Set<AnyCancellable>()
-    private let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+    private let keychain = Keychain(service: "srgim.throttle2")
     
     // Store mount info: server name → mount path
     private var mountedServers: [String: String] = [:]

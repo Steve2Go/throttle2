@@ -27,7 +27,7 @@ struct MacOSContentView: View {
   @State private var isAnimating = false
 
 
-    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true)
+    let keychain = Keychain(service: "srgim.throttle2").synchronizable(true)
     
     var body: some View {
         NavigationSplitView(columnVisibility: $splitViewVisibility) {

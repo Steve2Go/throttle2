@@ -117,7 +117,7 @@ class SSHConnection {
                 authMethod = try SSHKeyManager.shared.getAuthenticationMethod(for: server)
             } else {
                 print("Using password authentication for \(server.sftpHost ?? "")")
-                let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+                let keychain = Keychain(service: "srgim.throttle2")
                     .synchronizable(true)
                 
                 guard let password = keychain["sftpPassword" + (server.name ?? "")] else {

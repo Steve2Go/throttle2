@@ -36,7 +36,7 @@ struct ContentView: View {
     @State var currentSFTPViewModel: SFTPFileBrowserViewModel?
 #endif
     
-    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+    let keychain = Keychain(service: "srgim.throttle2")
         .synchronizable(true)
     
     

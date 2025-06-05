@@ -115,7 +115,7 @@ struct ServersListView: View {
     
     private func deleteServer(_ server: ServerEntity) {
         withAnimation {
-            let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+            let keychain = useCloudKit ? Keychain(service: "srgim.throttle2").synchronizable(true) : Keychain(service: "srgim.throttle2").synchronizable(false)
             keychain["password" + (server.name ?? "")] = nil
             keychain["httpPassword" + (server.name ?? "")] = nil
             keychain["sftpPassword" + (server.name ?? "")] = nil
@@ -200,7 +200,7 @@ struct ServerEditView: View {
     @State private var installerSheetPresented = false
     #endif
 
-    let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+    let keychain = Keychain(service: "srgim.throttle2")
         .synchronizable(true)
     
     init(server: ServerEntity?, store: Store = .init(), onSave: ((ServerEntity) -> Void)? = nil, onDelete: ((ServerEntity) -> Void)? = nil) {
@@ -212,7 +212,7 @@ struct ServerEditView: View {
         _name = State(initialValue: server?.name ?? "")
         _isDefault = State(initialValue: server?.isDefault ?? false)
         _url = State(initialValue: server?.url ?? "")
-        _port = State(initialValue: String(server?.port ?? 443))
+        _port = State(initialValue: String(server?.port ?? 9091))
         _rpc = State(initialValue: server?.rpc ?? "/transmission/rpc")
         _user = State(initialValue: server?.user ?? "")
         _password = State(initialValue: keychain["password" + (server?.name ?? "")] ?? "")
@@ -715,7 +715,7 @@ struct ServerEditView: View {
     
     private func deleteServer(_ server: ServerEntity) {
         withAnimation {
-            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+            let keychain = Keychain(service: "srgim.throttle2")
                 .synchronizable(useCloudKit)
             
             // Clear standard credentials

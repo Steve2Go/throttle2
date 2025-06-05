@@ -50,7 +50,7 @@ struct KeychainStorage: DynamicProperty {
     init(wrappedValue: String = "", _ key: String) {
         self.key = key
         // Initialize the Keychain with the shared access group.
-        keychainManager = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        keychainManager = Keychain(service: "srgim.throttle2")
             .synchronizable(true)
         let initialValue = keychainManager[key] ?? wrappedValue
         self.wrappedValue = initialValue

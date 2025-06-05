@@ -23,7 +23,7 @@ extension Throttle_2App {
                 
                 // load the keychain
                 @AppStorage("useCloudKit") var useCloudKit: Bool = true
-                let keychain = useCloudKit ? Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(true) : Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2").synchronizable(false)
+                let keychain = useCloudKit ? Keychain(service: "srgim.throttle2").synchronizable(true) : Keychain(service: "srgim.throttle2").synchronizable(false)
                 let server = store.selection
                 
                 // trying to keep it as clear as possible, building url

@@ -27,7 +27,7 @@ class SSHFSKeyHandler {
         }
         
         // Get key content from SSHKeyManager's keychain
-        let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+        let keychain = Keychain(service: "srgim.throttle2")
             .synchronizable(UserDefaults.standard.bool(forKey: "useCloudKit"))
         
         guard let keyContent = keychain["sftpKey" + (server.name ?? "")] else {
@@ -110,7 +110,7 @@ class SSHFSKeyHandler {
             modifiedCommand += " -o IdentityAgent=\(ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] ?? "")"
         } else {
             // For password authentication, use sshpass
-            let keychain = Keychain(service: "srgim.throttle2", accessGroup: "group.com.srgim.Throttle-2")
+            let keychain = Keychain(service: "srgim.throttle2")
                 .synchronizable(UserDefaults.standard.bool(forKey: "useCloudKit"))
             
             if let password = keychain["sftpPassword" + (server.name ?? "")] {

@@ -11,7 +11,7 @@ class SSHKeyManager {
 
     // Keychain service constants
     private let keychainService = "srgim.throttle2"
-    private let keychainAccessGroup = "group.com.srgim.Throttle-2"
+    //private let keychainAccessGroup = "group.com.srgim.Throttle-2"
     
     private init() {}
     
@@ -86,7 +86,7 @@ class SSHKeyManager {
     private func getKeychain() -> Keychain {
         // Check if CloudKit is enabled
         let useCloudKit = UserDefaults.standard.bool(forKey: "useCloudKit")
-        return Keychain(service: keychainService, accessGroup: keychainAccessGroup)
+        return Keychain(service: keychainService)
             .synchronizable(useCloudKit)
     }
     
