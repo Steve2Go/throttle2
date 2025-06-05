@@ -8,10 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		752C71E982B1CD29F8F8DE8A /* Pods_Throttle_2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E706AFEF2D9993D6005825F4 /* Pods_Throttle_2.framework */; platformFilter = ios; };
-		E70D09CA2D9CC9DD00C9CB48 /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */; platformFilter = ios; };
 		E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = E70D0AD42D9E84DD00C9CB48 /* Citadel */; };
 		E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = E7150E522D631F8B009C4217 /* KeychainAccess */; };
 		E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */ = {isa = PBXBuildFile; productRef = E76AA8B52D8423E00009CA6F /* SimpleToast */; };
+		E77791BD2DF16BAD0004A54D /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */; platformFilter = ios; };
 		E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */ = {isa = PBXBuildFile; productRef = E7F5F3EF2D718B2700079054 /* FilePicker */; };
 		E7F968E82D89307700A19857 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = E7F968E72D89307700A19857 /* README.md */; };
 /* End PBXBuildFile section */
@@ -42,16 +42,6 @@
 			files = (
 			);
 			name = "Copy Files";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E7BEDF6F2D6EF03300E72E6F /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 12;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-			);
-			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E7F96D9C2D8F611800A19857 /* Embed Foundation Extensions */ = {
@@ -87,12 +77,6 @@
 			membershipExceptions = (
 				Info.plist,
 				"Preview Content/Preview Assets.xcassets",
-				"transmission-mac/transmission-cli",
-				"transmission-mac/transmission-create",
-				"transmission-mac/transmission-daemon",
-				"transmission-mac/transmission-edit",
-				"transmission-mac/transmission-remote",
-				"transmission-mac/transmission-show",
 			);
 			platformFiltersByRelativePath = {
 				SSH/Mounting/MountManager.swift = (macos, );
@@ -139,9 +123,9 @@
 			files = (
 				E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */,
 				E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */,
-				E70D09CA2D9CC9DD00C9CB48 /* MobileVLCKit.xcframework in Frameworks */,
 				E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */,
 				E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */,
+				E77791BD2DF16BAD0004A54D /* MobileVLCKit.xcframework in Frameworks */,
 				752C71E982B1CD29F8F8DE8A /* Pods_Throttle_2.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -218,7 +202,6 @@
 				E7150E132D631D08009C4217 /* Sources */,
 				E7150E142D631D08009C4217 /* Frameworks */,
 				E7150E152D631D08009C4217 /* Resources */,
-				E7BEDF6F2D6EF03300E72E6F /* Embed Foundation Extensions */,
 				742215A652E9693CCC6C8667 /* [CP] Embed Pods Frameworks */,
 				E7F96D9C2D8F611800A19857 /* Embed Foundation Extensions */,
 				E73ED5362DD184A000933671 /* Copy Files */,
@@ -483,7 +466,7 @@
 					"$(PROJECT_DIR)/Resources/lib",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.5.2;
+				MARKETING_VERSION = 1.5.3;
 				OTHER_LDFLAGS = "";
 				"OTHER_LDFLAGS[sdk=iphone*]" = (
 					"$(inherited)",
@@ -601,7 +584,7 @@
 					"$(PROJECT_DIR)/Resources/lib",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.5.2;
+				MARKETING_VERSION = 1.5.3;
 				OTHER_LDFLAGS = "";
 				"OTHER_LDFLAGS[sdk=iphone*]" = (
 					"$(inherited)",
