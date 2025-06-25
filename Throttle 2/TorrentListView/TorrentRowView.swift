@@ -50,7 +50,7 @@ struct TorrentRowView: View {
                 .labelsHidden()
                 .padding(.trailing)
             }
-            if showThumbs && !selecting && torrent.hashString != nil && torrent.progress == 1 {
+            if showThumbs != false  && !selecting && torrent.hashString != nil && torrent.progress == 1 {
                 let torrentFiles = manager.getTorrentFiles(forHash: torrent.hashString!)
        
                 if let mediaFile = findFirstMediaFile(from: torrentFiles) {
