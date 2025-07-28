@@ -103,8 +103,11 @@ class ExternalDisplayManager: ObservableObject {
     }
     
     private func tearDownExternalWindow() {
-        externalWindow?.isHidden = true
-        externalWindow = nil
+        if externalWindow != nil {
+            externalWindow?.isHidden = true
+            externalWindow = nil
+        }
+        
     }
     
     // SwiftUI/iOS 16+ method to update external display status

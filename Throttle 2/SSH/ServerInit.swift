@@ -86,11 +86,13 @@ extension Throttle_2App {
                                 }
                                 
                             }
-                            if TunnelManagerHolder.shared.activeTunnels.count > 0 {
-                                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                                try await torrentManager.fetchUpdates(fullFetch: true)
-                                torrentManager.startPeriodicUpdates()
-                            }
+                            do {
+                                if TunnelManagerHolder.shared.activeTunnels.count > 0 {
+                                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                                    try await torrentManager.fetchUpdates(fullFetch: true)
+                                    torrentManager.startPeriodicUpdates()
+                                }
+                            } catch {}
                         }
                     }
                     

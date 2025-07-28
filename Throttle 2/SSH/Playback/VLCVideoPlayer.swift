@@ -478,10 +478,16 @@ class VideoPlayerViewController: UIViewController {
                                                   name: .gatewayChanged,
                                                   object: nil)
         controlsTimer?.invalidate()
-        mediaPlayer.stop()
-        mediaPlayer.media = nil
-        externalWindow?.isHidden = true
-        externalWindow = nil
+        if mediaPlayer.isPlaying {
+            mediaPlayer.stop()
+            mediaPlayer.media = nil
+        }
+        
+        if externalWindow != nil {
+            externalWindow?.isHidden = true
+            externalWindow = nil
+        }
+        
     }
     @objc private func handleGatewayChange() {
         // Save current playback state

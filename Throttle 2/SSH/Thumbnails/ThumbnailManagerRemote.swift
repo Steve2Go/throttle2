@@ -256,19 +256,23 @@ public class ThumbnailManagerRemote: NSObject {
                 print("[DEBUG] Running test command for video: \(testCmd)")
                 let (_, testOutput) = try await connection.executeCommand(testCmd)
                 if testOutput.trimmingCharacters(in: .whitespacesAndNewlines) == "success" {
-                    try await connection.downloadFile(remotePath: remoteTempThumbPath, localURL: localTempURL) { _ in }
-                    let rmCmd = "rm -f \(escapedThumbPath)"
-                    print("[DEBUG] Running rm command for video: \(rmCmd)")
-                    let _ = try? await connection.executeCommand(rmCmd)
-                    #if os(macOS)
-                    if let image = NSImage(contentsOf: localTempURL) {
-                        return image
+                    do {
+                        try await connection.downloadFile(remotePath: remoteTempThumbPath, localURL: localTempURL) { _ in }
+                        let rmCmd = "rm -f \(escapedThumbPath)"
+                        print("[DEBUG] Running rm command for video: \(rmCmd)")
+                        let _ = try? await connection.executeCommand(rmCmd)
+#if os(macOS)
+                        if let image = NSImage(contentsOf: localTempURL) {
+                            return image
+                        }
+#elseif os(iOS)
+                        if let data = try? Data(contentsOf: localTempURL), let image = UIImage(data: data) {
+                            return image
+                        }
+#endif
+                    } catch{
+                        
                     }
-                    #elseif os(iOS)
-                    if let data = try? Data(contentsOf: localTempURL), let image = UIImage(data: data) {
-                        return image
-                    }
-                    #endif
                 } else {
                     let rmCmd = "rm -f \(escapedThumbPath)"
                     print("[DEBUG] Running rm command for video (fail): \(rmCmd)")
