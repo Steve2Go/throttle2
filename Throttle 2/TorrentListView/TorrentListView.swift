@@ -87,7 +87,7 @@ struct TorrentListView: View {
     }
     
     var body: some View {
-        VStack{
+    VStack{
             ScrollView {
                 LazyVStack {
 #if os(iOS)
@@ -122,7 +122,11 @@ struct TorrentListView: View {
 //                    }
 //                    #endif
 //                }
-        }
+    }
+#if os(macOS)
+    // Enforce minimum practical width for torrent list panel
+    .frame(minWidth: 420)
+#endif
         
        
         .onChange(of: sortOption) {

@@ -57,6 +57,10 @@ struct Throttle_2App: App {
                 .environmentObject(networkMonitor)
                 //.environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .background(colorScheme == .dark ? Color.black : Color.white)
+                // Least disruptive window restore helper (macOS only)
+#if os(macOS)
+                .background(WindowFrameRestorer())
+#endif
                 
                 .onAppear {
                     presenting.didStart = true
@@ -75,6 +79,14 @@ struct Throttle_2App: App {
                     if store.launching == false && mountOnLogin == false {
                         ServerMountManager.shared.unmountAllServers()
                     }
+#if os(macOS)
+                    // Persist final frame explicitly (in addition to autosave) as a safety net
+                    if let win = NSApplication.shared.windows.first(where: { $0.identifier?.rawValue == "main-window" || $0.title == "Throttle 2" }) {
+                        let r = win.frame
+                        let str = "\(Int(r.origin.x)) \(Int(r.origin.y)) \(Int(r.size.width)) \(Int(r.size.height))"
+                        UserDefaults.standard.set(str, forKey: "ThrottleMainWindowFrame")
+                    }
+#endif
                                 }
                 .onChange(of: networkMonitor.gateways){
                     if store.selection?.sftpRpc == true {
