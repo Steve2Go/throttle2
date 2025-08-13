@@ -45,7 +45,7 @@ struct SettingsView: View {
                 HStack {
                     MacCloseButton {
                         presenting.activeSheet = nil
-                    }.padding([.top, .leading], 9).padding(.bottom, 0)
+                    }.padding([.top, .leading], 12).padding(.bottom, 0)
                     Spacer()
                 }
             })
@@ -136,14 +136,14 @@ struct SettingsView: View {
             //Spacer()
             Section {
                 #if os(macOS)
-//                Text("QLVideo is used for thumbnails not normally supported on Mac.").font(.caption)
-//                Button("Thumbnail Settings"){
-//                    
-//                    
-//                    let appURL = Bundle.main.url(forResource: "QuickLookVideo", withExtension: "app")
-//                    // Open the app using NSWorkspace
-//                    NSWorkspace.shared.open(appURL!)
-//                }
+                Text("QLVideo is used for thumbnails not normally supported on Mac.").font(.caption)
+                Button("Thumbnail Settings"){
+                    
+                    
+                    let appURL = Bundle.main.url(forResource: "QuickLookVideo", withExtension: "app")
+                    // Open the app using NSWorkspace
+                    NSWorkspace.shared.open(appURL!)
+                }
                 Text("Fuse-t and sshfs are bundled to mount your files locally in Finder.").font(.caption)
 //                Button("Install Fuse File System") {
 //                    installerView.toggle()
@@ -164,8 +164,8 @@ struct SettingsView: View {
 //                    control: Toggle("", isOn: $mountOnOpen)
 //                )
                 Text("About").font(.headline)
-                Text("Mac version installs fuse-t with sshfs").font(.caption)
-                Text("Recomendeded for Video Thumbnails: https://github.com/Marginal/QLVideo").font(.caption)
+                Text("Mac version installs fuse-t with sshfs: https://www.fuse-t.org").font(.caption)
+                Text("Video Thumbnails using: https://github.com/Marginal/QLVideo").font(.caption)
                 #else
                 
                 Text("About").font(.headline)

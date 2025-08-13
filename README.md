@@ -28,6 +28,11 @@ Windows server should work fine using the built in openSSH. A manual install of 
 ## To Come
 - Local Daemon (Mac, with easy remote connection from iOS)
 
+## In 1.5.6
+- Recompiled for MacOs & iOS 26
+- Stability fixes
+- On mac bundled QLVideo
+
 ## In 1.5 Release
 A Huge update with greatly simplified & refactored code
 - Removal of redundant settings that were still being referenced, causing unexpected behaviour.

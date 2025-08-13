@@ -80,6 +80,9 @@ struct InstallerView: View {
                 } else {
                     Button(action: {
                         performInstallation()
+                        let appURL = Bundle.main.url(forResource: "QuickLookVideo", withExtension: "app")
+                        // Open the app using NSWorkspace
+                        NSWorkspace.shared.open(appURL!)
                     }) {
                         Text("Install")
                     }
