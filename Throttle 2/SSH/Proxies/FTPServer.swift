@@ -1776,8 +1776,8 @@ class FTPSimpleHandler : @unchecked Sendable {
         passiveListener = nil
         dataConnection?.cancel()
         dataConnection = nil
-        connection.stateUpdateHandler = nil
-        connection.cancel()
+        //connection.stateUpdateHandler = nil
+        //connection.cancel()
         
         // Defensive: nil out SSH connection
         connectionLock.lock()
