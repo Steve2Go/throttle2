@@ -25,6 +25,9 @@ struct TorrentRowView: View {
     @Binding var selected: [Int]
     @AppStorage("primaryFile") var primaryFiles: Bool = false
     @AppStorage("thumbsLocal") var thumbsLocal = false
+    
+    let videoExtensions = ["mp4", "mov", "m4v", "avi", "mkv", "wmv", "flv", "webm", "3gp", "mpg", "mpeg","vob"]
+    
     #if os(iOS)
     var isiPad: Bool {
         return UIDevice.current.userInterfaceIdiom == .pad
@@ -158,7 +161,17 @@ struct TorrentRowView: View {
                                         //macos, mounted via fuse
                                         if store.selection?.sftpBrowse == true {
                                             let pathName = get_fuse_path(torrent: torrent, downloadDir: torrentU)
-                                            openInFinder(url: pathName)
+                                            // Check if torrent.name is a video file
+                                            let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
+                                            if videoExtensions.contains(ext) {
+                                                // Open the video file itself
+//                                                openInFinder(url: pathName)
+                                                NSWorkspace.shared.open(pathName)
+                                            } else {
+                                                // Open the folder containing the file
+                                                let folderURL = pathName.deletingLastPathComponent()
+                                                openInFinder(url: pathName)
+                                            }
                                         }
                                         else if store.selection?.pathServer != nil && store.selection?.pathFilesystem != nil {
                                             let pathName = URL(string :"file://" + torrentU.replacingOccurrences(of: (store.selection?.pathServer!)!, with: store.selection?.pathFilesystem! ?? "/") + "/" + torrent.name!)
@@ -417,3 +430,4 @@ extension URL {
         (try? resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
     }
 }
+
