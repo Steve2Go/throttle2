@@ -80,8 +80,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
         // Save server for later use
         self.server = server ?? ServerEntity() // Fallback to avoid force unwrap
         
-        // Initialize the SSH connection
-        self.sshConnection = SSHConnection(server: self.server)
+        // Initialize the SSH connection - fail silently if invalid config
+        self.sshConnection = try! SSHConnection(server: self.server)
         
         // Connect to the server
         connectToServer()

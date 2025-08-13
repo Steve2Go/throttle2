@@ -23,7 +23,7 @@ class ServerManager: ObservableObject {
     
     func connectSSH(_ server: ServerEntity) async throws -> SSHClient {
         // Get or create connection for this server
-        let connection = connections[server.id!] ?? SSHConnection(server: server)
+        let connection = try! connections[server.id!] ?? SSHConnection(server: server)
         connections[server.id!] = connection
         
         // Connect and return the client
