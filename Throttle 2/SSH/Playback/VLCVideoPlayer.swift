@@ -258,15 +258,19 @@ class VideoPlayerViewController: UIViewController {
             controlsView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             controlsView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             controlsView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -15),
-            controlsView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            controlsView.heightAnchor.constraint(equalToConstant: 100),
+            controlsView.heightAnchor.constraint(equalToConstant: 110),
             
             closeButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
             closeButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             closeButton.widthAnchor.constraint(equalToConstant: 44),
             closeButton.heightAnchor.constraint(equalToConstant: 44),
             
-            playPauseButton.centerYAnchor.constraint(equalTo: controlsView.centerYAnchor),
+            timeSlider.topAnchor.constraint(equalTo: controlsView.topAnchor, constant: 8),
+            timeSlider.leadingAnchor.constraint(equalTo: controlsView.leadingAnchor, constant: 20),
+            timeSlider.trailingAnchor.constraint(equalTo: controlsView.trailingAnchor, constant: -20),
+            timeSlider.heightAnchor.constraint(equalToConstant: 24),
+            
+            playPauseButton.topAnchor.constraint(equalTo: timeSlider.bottomAnchor, constant: 10),
             playPauseButton.leadingAnchor.constraint(equalTo: controlsView.leadingAnchor, constant: 20),
             playPauseButton.widthAnchor.constraint(equalToConstant: 44),
             playPauseButton.heightAnchor.constraint(equalToConstant: 44),
@@ -281,12 +285,9 @@ class VideoPlayerViewController: UIViewController {
             nextButton.widthAnchor.constraint(equalToConstant: 44),
             nextButton.heightAnchor.constraint(equalToConstant: 44),
             
-            timeSlider.centerYAnchor.constraint(equalTo: playPauseButton.centerYAnchor),
-            timeSlider.leadingAnchor.constraint(equalTo: nextButton.trailingAnchor, constant: 20),
-            timeSlider.trailingAnchor.constraint(equalTo: controlsView.trailingAnchor, constant: -20),
-            
-            timeLabel.topAnchor.constraint(equalTo: timeSlider.bottomAnchor, constant: 8),
-            timeLabel.centerXAnchor.constraint(equalTo: timeSlider.centerXAnchor),
+            timeLabel.centerYAnchor.constraint(equalTo: playPauseButton.centerYAnchor),
+            timeLabel.leadingAnchor.constraint(greaterThanOrEqualTo: nextButton.trailingAnchor, constant: 16),
+            timeLabel.trailingAnchor.constraint(equalTo: controlsView.trailingAnchor, constant: -20),
             
             // Seek indicator constraints
             seekIndicatorView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -633,5 +634,6 @@ extension Notification.Name {
 }
 
 #endif
+
 
 
