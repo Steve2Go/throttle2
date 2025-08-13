@@ -1769,25 +1769,28 @@ class FTPSimpleHandler : @unchecked Sendable {
     
     deinit {
         print("FTPSimpleHandler deinit called for id: \(id)")
+        defer{
+            activeTask = nil
+            passiveListener?.cancel()
+            passiveListener = nil
+            dataConnection?.cancel()
+            dataConnection = nil
+            //connection.stateUpdateHandler = nil
+            connection.cancel()
+        }
         // Defensive: ensure all async work is cancelled
         activeTask?.cancel()
-        activeTask = nil
-        passiveListener?.cancel()
-        passiveListener = nil
-        dataConnection?.cancel()
-        dataConnection = nil
-        //connection.stateUpdateHandler = nil
-        //connection.cancel()
         
-        // Defensive: nil out SSH connection
-        connectionLock.lock()
-        if let connection = activeSSHConnection {
-            print("[deinit] Disconnecting SSH connection for handler \(id)")
-            Task {
-                await connection.disconnect()
-            }
-            activeSSHConnection = nil
-        }
-        connectionLock.unlock()
+        
+//        // Defensive: nil out SSH connection
+//        connectionLock.lock()
+//        if let connection = activeSSHConnection {
+//            print("[deinit] Disconnecting SSH connection for handler \(id)")
+//            Task {
+//                await connection.disconnect()
+//            }
+//            activeSSHConnection = nil
+//        }
+//        connectionLock.unlock()
     }
 }

@@ -672,7 +672,10 @@ class SSHConnection {
     
      deinit {
          // Unregister from the connection manager
-         SSHConnectionManager.shared.unregister(connection: self)
+         do{
+             SSHConnectionManager.shared.unregister(connection: self)
+         }
+         
          // Do not launch a Task here; let the connection be cleaned up elsewhere
      }
     

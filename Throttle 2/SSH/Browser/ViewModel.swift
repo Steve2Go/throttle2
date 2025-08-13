@@ -94,8 +94,8 @@ class SFTPFileBrowserViewModel: ObservableObject {
     }
     
     private func connectToServer() {
-        Task { [weak self] in
-            guard let self = self else { return }
+        Task { [self] in
+            //guard let self = self else { return }
             do {
                 try await self.sshConnection.connect()
                 await self.checkIfInitialPathIsFile()
@@ -607,12 +607,16 @@ class SFTPFileBrowserViewModel: ObservableObject {
     /// Call this before releasing the view model to ensure proper async cleanup.
     @MainActor
     func cleanup() async {
+        defer{
+            nextVideoTimer = nil
+            downloadTask = nil
+        }
         // Invalidate timer
         nextVideoTimer?.invalidate()
-        nextVideoTimer = nil
+        
         // Cancel download task
         downloadTask?.cancel()
-        downloadTask = nil
+        
         // Clear thumbnail operations
         clearThumbnailOperations()
         // Disconnect SSH connection
