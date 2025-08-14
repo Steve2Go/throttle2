@@ -138,6 +138,13 @@ struct Torrent: Codable, Identifiable, Observable {
         return nil
     }
     
+    var uploadedEver: Int64? {
+        if let value = dynamicFields["uploadedEver"]?.value {
+            return (value as? Int64) ?? (value as? Int).map(Int64.init)
+        }
+        return nil
+    }
+    
     var totalSize: Int64? {
         if let value = dynamicFields["totalSize"]?.value {
             return (value as? Int64) ?? (value as? Int).map(Int64.init)
@@ -149,6 +156,10 @@ struct Torrent: Codable, Identifiable, Observable {
     var status: Int? { dynamicFields["status"]?.value as? Int }
     var error: Int? { dynamicFields["error"]?.value as? Int }
     var errorString: String? { dynamicFields["errorString"]?.value as? String }
+    
+    // Directory and file management
+    var downloadDir: String? { dynamicFields["downloadDir"]?.value as? String }
+    var wanted: [Bool]? { dynamicFields["wanted"]?.value as? [Bool] }
     
     // Tracker related fields
     var trackers: [[String: Any]]? { dynamicFields["trackers"]?.value as? [[String: Any]] }
@@ -306,29 +317,42 @@ class TorrentManager: ObservableObject {
     
 
     
-    func addTorrent(fileURL: URL? = nil, magnetLink: String? = nil, downloadDir: String? = nil) async throws -> (result: String, id: Int?) {
+    func addTorrent(fileURL: URL? = nil, magnetLink: String? = nil, metainfo: String? = nil, downloadDir: String? = nil) async throws -> (result: String, id: Int?) {
            var arguments: [String: Any] = [:]
            
            if let downloadDir = downloadDir {
                arguments["download-dir"] = downloadDir
            }
            
+           // For seeding: don't pause the torrent, let it start immediately
+           arguments["paused"] = false
+           
            if let magnetLink = magnetLink {
                arguments["filename"] = magnetLink
-           }
-           
-           if let fileURL = fileURL {
+           } else if let fileURL = fileURL {
                arguments["metainfo"] = try Data(contentsOf: fileURL).base64EncodedString()
+           } else if let metainfo = metainfo {
+               arguments["metainfo"] = metainfo
            }
            
            let (success, responseArgs) = try await makeRequest("torrent-add", arguments: arguments)
+           
+           print("Debug - torrent-add request:")
+           print("  - arguments: \(arguments)")
+           print("  - success: \(success)")
+           print("  - responseArgs: \(responseArgs ?? [:])")
            
            if success {
                let addedTorrent = (responseArgs?["torrent-added"] as? [String: Any]) ??
                                  (responseArgs?["torrent-duplicate"] as? [String: Any])
                
+               print("  - addedTorrent: \(addedTorrent ?? [:])")
+               
                if let id = addedTorrent?["id"] as? Int {
                    return ("success", id)
+               } else {
+                   print("  - Warning: No torrent ID found in response")
+                   return ("success", nil)
                }
            }
            
@@ -367,6 +391,46 @@ class TorrentManager: ObservableObject {
         }
         
         return nil
+    }
+    
+    // Simplified method to get basic torrent info for status checking
+    func getTorrentInfo(id: Int) async throws -> [Torrent] {
+        let statusFields = [
+            "id",
+            "name", 
+            "status",
+            "percentDone",
+            "totalSize",
+            "downloadedEver",
+            "uploadedEver",
+            "downloadDir",
+            "errorString",
+            "wanted"
+        ]
+        
+        let (success, responseArgs) = try await makeRequest(
+            "torrent-get",
+            arguments: [
+                "fields": statusFields,
+                "ids": [id]
+            ]
+        )
+        
+        if success,
+           let torrentsData = responseArgs?["torrents"] as? [[String: Any]] {
+            let decoder = JSONDecoder()
+            var torrents: [Torrent] = []
+            
+            for torrentData in torrentsData {
+                let data = try JSONSerialization.data(withJSONObject: torrentData)
+                let torrent = try decoder.decode(Torrent.self, from: data)
+                torrents.append(torrent)
+            }
+            
+            return torrents
+        }
+        
+        return []
     }
     
     func makeRequest(_ method: String, arguments: [String: Any]) async throws -> (Bool, [String: Any]?) {
@@ -451,14 +515,14 @@ class TorrentManager: ObservableObject {
 //            if fullFetch {
 //                fileCache = [:]
 //            }
-            print("First fetch - caching files")
-            print("Number of torrents: \(decodedResponse.arguments.torrents.count)")
+       //     print("First fetch - caching files")
+         //   print("Number of torrents: \(decodedResponse.arguments.torrents.count)")
             for torrent in decodedResponse.arguments.torrents {
                 if let hash = torrent.hashString {
                    // print("Got hash: \(hash)")
-                    print("Files data type: \(type(of: torrent.dynamicFields["files"]?.value ?? "none"))")
+                   // print("Files data type: \(type(of: torrent.dynamicFields["files"]?.value ?? "none"))")
                     if let filesData = torrent.dynamicFields["files"]?.value as? [[String: Any]] {
-                        print("Cast succeeded: \(filesData.count) files")
+                      //  print("Cast succeeded: \(filesData.count) files")
                         fileCache[hash] = filesData
                     } else {
                         print("Cast failed")

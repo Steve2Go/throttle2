@@ -194,7 +194,7 @@ struct iOSContentView: View {
         }
         .navigationBarBackButtonHidden(true)
         .sheet( isPresented: $presenting.isCreating) {
-            CreateTorrent(store: store, presenting: presenting)
+            CreateTorrent(store: store, presenting: presenting, manager: manager)
         }
         
         // Sheet handling - place outside the NavigationView/Stack for proper presentation

@@ -43,7 +43,7 @@ struct MacOSContentView: View {
             //.padding(.top, 10)
                 .withToast()
                      .sheet( isPresented: $presenting.isCreating) {
-                    CreateTorrent(store: store, presenting: presenting)
+                    CreateTorrent(store: store, presenting: presenting, manager: manager)
                         .frame(width: 400, height: 500)
                         .padding(20)
                 }

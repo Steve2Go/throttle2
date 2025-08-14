@@ -7,6 +7,7 @@ import NIOCore
 struct CreateTorrent: View {
     @ObservedObject var store: Store
     @ObservedObject var presenting: Presenting
+    @StateObject var manager: TorrentManager
     @Environment(\.managedObjectContext) var viewContext
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \ServerEntity.name, ascending: true)],
@@ -33,6 +34,10 @@ struct CreateTorrent: View {
     @State private var isPrivate = false
     @State private var comment = ""
     @State var progressPercentage: Double = 0.0
+    @State private var showSuccess = false
+    @State private var showError = false
+    @State private var successMessage = ""
+    @State private var errorMessage = ""
     
     // Using @State for the connection property since we're in a struct
     @State private var sshConnection: SSHConnection?
@@ -77,6 +82,7 @@ struct CreateTorrent: View {
                         
                         TextField("Comment (optional)", text: $comment)
                             .textFieldStyle(.automatic)
+                        Text("Utilises Intermodal https://imdl.io").font(.caption)
                     }
                 }
                 
@@ -165,11 +171,12 @@ struct CreateTorrent: View {
                         .disabled(filePath.isEmpty || isProcessing || tracker.isEmpty)
                     } else {
                         Button {
+                            // Seeding starts automatically, but this button can open the torrent client
                             store.addPath = (filePath as NSString).deletingLastPathComponent
                             openFile(path: localPath)
                             
                         } label: {
-                            Text("Start Seeding")
+                            Text("Open in Client")
                         }
                         .disabled(localPath.isEmpty)
                     }
@@ -192,461 +199,465 @@ struct CreateTorrent: View {
                 }
             }
         }
+        .alert("Success", isPresented: $showSuccess) {
+            Button("OK") {
+                showSuccess = false
+                // Optionally dismiss the view after success
+                dismiss()
+            }
+        } message: {
+            Text(successMessage)
+        }
+        .alert("Error", isPresented: $showError) {
+            Button("OK") {
+                showError = false
+            }
+        } message: {
+            Text(errorMessage)
+        }
     }
     
     func openFile(path: String) {
-        store.addPath = (filePath as NSString).deletingLastPathComponent
-        if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
-           let filename = URL(string: path)?.lastPathComponent {
-            let fileURL = documentsURL.appendingPathComponent(filename)
-            
-            // First dismiss this view
-            dismiss()
-            
-            // Then trigger the URL handling after a short delay
-            Task {
-                try await Task.sleep(for: .milliseconds(500))
-                store.selectedFile = fileURL
-                presenting.activeSheet = "adding"
+        let sourceDirectory = (filePath as NSString).deletingLastPathComponent
+        store.addPath = sourceDirectory
+        
+        // Use the full path directly since localPath contains the complete file path
+        let fileURL = URL(fileURLWithPath: path)
+        
+        // Verify the file exists before proceeding
+        guard FileManager.default.fileExists(atPath: path) else {
+            Swift.print("Error: Torrent file not found at path: \(path)")
+            return
+        }
+        
+        // Debug output
+        Swift.print("Debug - CreateTorrent openFile:")
+        Swift.print("  - Local torrent file path: \(path)")
+        Swift.print("  - Original source filePath: \(filePath)")
+        Swift.print("  - Setting store.addPath to: \(sourceDirectory)")
+        Swift.print("  - File exists: \(FileManager.default.fileExists(atPath: path))")
+        
+        // First dismiss this view
+        dismiss()
+        
+        // Then trigger the URL handling after a short delay
+        Task {
+            try await Task.sleep(for: .milliseconds(500))
+            store.selectedFile = fileURL
+            presenting.activeSheet = "adding"
+        }
+    }
+    
+    private func validateTrackerURLs(_ trackers: String) -> (isValid: Bool, errorMessage: String?) {
+        let trackerList = trackers.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        
+        for tracker in trackerList {
+            // Check if URL has valid scheme
+            guard let url = URL(string: tracker) else {
+                return (false, "Invalid URL format: \(tracker)")
             }
+            
+            // Check for valid tracker schemes
+            let validSchemes = ["http", "https", "udp"]
+            guard let scheme = url.scheme?.lowercased(), validSchemes.contains(scheme) else {
+                return (false, "Invalid tracker scheme in: \(tracker)\nSupported schemes: http, https, udp")
+            }
+            
+            // Check if host exists
+            guard url.host != nil else {
+                return (false, "Missing host in tracker URL: \(tracker)")
+            }
+        }
+        
+        return (true, nil)
+    }
+    
+    private func getTorrentCreateCommand(parentDirectory: String, torrentFileName: String, fileName: String, tracker: String) async -> String {
+        // Use imdl to create the torrent
+        do {
+            guard let connection = sshConnection else { return "" }
+            let (exitCode, output) = try await connection.executeCommand("which imdl || echo '/tmp/imdl-install/imdl'")
+            if exitCode == 0 || output.contains("/tmp/imdl-install/imdl") {
+                let imdlPath = output.contains("/tmp/imdl-install/imdl") ? "/tmp/imdl-install/imdl" : "imdl"
+                return "cd '\(parentDirectory)' && \(imdlPath) torrent create --announce '\(tracker)' --output '\(torrentFileName)' '\(fileName)'"
+            }
+        } catch {}
+        
+        return ""
+    }
+    
+    private func monitorFileSize(connection: SSHConnection, filePath: String) async -> Int64? {
+        do {
+            let (_, output) = try await connection.executeCommand("du -sb '\(filePath)' | cut -f1")
+            return Int64(output.trimmingCharacters(in: .whitespacesAndNewlines))
+        } catch {
+            return nil
+        }
+    }
+    
+    private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                return try await operation()
+            }
+            
+            group.addTask {
+                try await Task.sleep(for: .seconds(seconds))
+                throw NSError(domain: "Timeout", code: 1, userInfo: [NSLocalizedDescriptionKey: "Operation timed out"])
+            }
+            
+            guard let result = try await group.next() else {
+                throw NSError(domain: "Timeout", code: 2, userInfo: [NSLocalizedDescriptionKey: "Task group failed"])
+            }
+            
+            group.cancelAll()
+            return result
+        }
+    }
+    
+    private func ensureTorrentCreatorInstalled(connection: SSHConnection) async throws {
+        await MainActor.run {
+            progressPercentage = 0.02
+            commandOutput += "\nChecking for imdl (intermodal)..."
+        }
+        
+        // Check if imdl is available in PATH
+        do {
+            let (exitCode, _) = try await connection.executeCommand("which imdl")
+            if exitCode == 0 {
+                await MainActor.run {
+                    commandOutput += "\nimdl found in PATH"
+                }
+                return // imdl is available in PATH
+            }
+        } catch {
+            // Continue checking other locations
+        }
+        
+        // Check if imdl is available in our install location
+        do {
+            let (exitCode, _) = try await connection.executeCommand("test -f /tmp/imdl-install/imdl && /tmp/imdl-install/imdl --version")
+            if exitCode == 0 {
+                await MainActor.run {
+                    commandOutput += "\nimdl found in /tmp/imdl-install/"
+                }
+                return // imdl is available in install location
+            }
+        } catch {
+            // Continue to installation
+        }
+        
+        await MainActor.run {
+            commandOutput += "\nimdl not found. Installing imdl (intermodal torrent creator)..."
+            progressPercentage = 0.03
+        }
+        
+        // Install imdl using the official installer
+        let installCommand = """
+        cd /tmp && \
+        curl --proto '=https' --tlsv1.2 -sSf https://imdl.io/install.sh | bash -s -- --to /tmp/imdl-install && \
+        cp /tmp/imdl-install/imdl ~/.local/bin/ 2>/dev/null || cp /tmp/imdl-install/imdl /usr/local/bin/ 2>/dev/null || cp /tmp/imdl-install/imdl ~/bin/ 2>/dev/null || echo "imdl downloaded to /tmp/imdl-install/imdl" && \
+        which imdl || echo "imdl installed to /tmp/imdl-install/imdl"
+        """
+        
+        do {
+            let (_, output) = try await connection.executeCommand(installCommand)
+            await MainActor.run {
+                commandOutput += "\nInstallation completed"
+                commandOutput += "\nimdl ready for use"
+                progressPercentage = 0.05
+            }
+        } catch {
+            throw NSError(domain: "TorrentCreation", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "Failed to install imdl. Please check network connection and try again."
+            ])
         }
     }
     
     func createTorrent() async throws {
-        isProcessing = true
-        isError = false
-        commandOutput = "Connecting to server..."
+        await MainActor.run {
+            isProcessing = true
+            progressPercentage = 0.01
+            commandOutput = "Starting torrent creation..."
+            isError = false
+            isCreated = false
+        }
         
-        // Get script from bundle
-        guard let scriptURL = Bundle.main.url(forResource: "torrent_creator", withExtension: "sh"),
-              let scriptContent = try? String(contentsOf: scriptURL, encoding: .utf8) else {
-            isError = true
-            commandOutput += "\nError: Could not load torrent creator script from app bundle"
+        // Validate tracker URLs first
+        let validationResult = validateTrackerURLs(tracker)
+        if !validationResult.isValid {
+            await MainActor.run {
+                isProcessing = false
+                errorMessage = validationResult.errorMessage ?? "Invalid tracker URL"
+                showError = true
+                isError = true
+            }
             return
         }
         
+        await MainActor.run {
+            commandOutput += "\nTracker URLs validated"
+            progressPercentage = 0.05
+        }
+        
+        // Ensure we have a server selected
         guard let serverEntity = store.selection else {
-            isError = true
-            commandOutput += "\nError: No server selected"
+            await MainActor.run {
+                isProcessing = false
+                errorMessage = "No server selected"
+                showError = true
+                isError = true
+            }
             return
         }
         
-        // Create a reusable SSH connection
-        let connection = SSHConnection(server: serverEntity)
-        self.sshConnection = connection
+        await MainActor.run {
+            commandOutput += "\nConnecting to server..."
+        }
+        
+        // Create and connect SSH connection if needed
+        if sshConnection == nil {
+            sshConnection = SSHConnection(server: serverEntity)
+        }
+        
+        guard let connection = sshConnection else {
+            await MainActor.run {
+                isProcessing = false
+                errorMessage = "Failed to create SSH connection"
+                showError = true
+                isError = true
+            }
+            return
+        }
         
         // Connect to the server
         try await connection.connect()
         
-        // Set initial progress
         await MainActor.run {
-            progressPercentage = 0.05 // Start with a small initial progress
+            progressPercentage = 0.1
+            commandOutput += "\nConnected to server"
         }
         
-        // Get just the filename from the path
-        let filename = filePath.components(separatedBy: "/").last ?? "output"
-        // Create torrent in the system's temporary directory
-        let outputFile = NSTemporaryDirectory() + "\(filename).torrent"
-        let escapedOutputFile = outputFile.replacingOccurrences(of: "'", with: "'\\''")
-        let escapedPath = filePath.replacingOccurrences(of: "'", with: "'\\''")
-        
-        // Upload the shell script to the server
-        let scriptPath = NSTemporaryDirectory() + "torrent_creator.sh"
-        
-        // Write the script to the server
-        commandOutput += "\nPreparing the server..."
+        // Ensure torrent creation tools are installed
+        try await ensureTorrentCreatorInstalled(connection: connection)
         
         await MainActor.run {
-            progressPercentage = 0.1 // Script upload starting
+            progressPercentage = 0.15
+            commandOutput += "\nPreparing torrent creation..."
         }
         
-        // Use cat and shell redirection to create the file
-        let createScriptCmd = "cat > '\(scriptPath)' << 'EOFSCRIPT'\n\(scriptContent)\nEOFSCRIPT"
-        let (_, _) = try await connection.executeCommand(createScriptCmd)
+        // Simple approach: Create torrent in the parent directory of the files
+        let parentDirectory = (filePath as NSString).deletingLastPathComponent
+        let fileName = (filePath as NSString).lastPathComponent
+        let torrentFileName = "\(fileName).torrent"
+        let torrentPath = "\(parentDirectory)/\(torrentFileName)"
+        
+        // Check file size for progress estimation
+        let fileSize = await monitorFileSize(connection: connection, filePath: filePath)
+        let isLargeFile = (fileSize ?? 0) > 100_000_000 // 100MB threshold
         
         await MainActor.run {
-            progressPercentage = 0.15 // Script uploaded
-        }
-        
-        // Make the script executable
-        let (_, _) = try await connection.executeCommand("chmod +x '\(scriptPath)'")
-        
-        await MainActor.run {
-            progressPercentage = 0.2 // Script ready
-        }
-        
-        // Build tracker arguments
-        let trackersList = tracker.components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        
-        guard let mainTracker = trackersList.first else {
-            isError = true
-            commandOutput += "\nError: At least one tracker URL is required"
-            return
-        }
-        
-        // Build the shell script command
-        var shellCmd = [scriptPath]
-        
-        // Add options
-        if isPrivate {
-            shellCmd.append("-p")
-        }
-        
-        if !comment.isEmpty {
-            shellCmd.append("-c")
-            shellCmd.append("'\(comment.replacingOccurrences(of: "'", with: "'\\''"))'")
-        }
-        
-        // Add output file
-        shellCmd.append("-o")
-        shellCmd.append("'\(escapedOutputFile)'")
-        
-        // Add source path and tracker
-        shellCmd.append("'\(escapedPath)'")
-        shellCmd.append("'\(mainTracker)'")
-        
-        // Add additional trackers if any
-        for additionalTracker in trackersList.dropFirst() {
-            shellCmd.append("-t")
-            shellCmd.append("'\(additionalTracker.replacingOccurrences(of: "'", with: "'\\''"))'")
-        }
-        
-        // Create a unique ID for this job
-        let jobId = UUID().uuidString.prefix(8)
-        let logFile = NSTemporaryDirectory() + "torrent_creation_\(jobId).log"
-        
-        // Run in background with output redirected to log file
-        let backgroundCmd = """
-        nohup bash -c "\(shellCmd.joined(separator: " "))" > \(logFile) 2>&1 &
-        echo $! > \(NSTemporaryDirectory())/torrent_pid_\(jobId)
-        """
-        
-        commandOutput += "\nStarting torrent creation in background..."
-        
-        await MainActor.run {
-            progressPercentage = 0.25 // Starting torrent creation
-        }
-        
-        // Execute the background command - this should return quickly
-        let _ = try await connection.executeCommand(backgroundCmd)
-        
-        // Start monitoring for the output file
-        commandOutput += "\nMonitoring for torrent file creation..."
-        
-        // Add a status line that we'll update
-        commandOutput += "\nProgress: Initializing..."
-        
-        var fileExists = false
-        var attempts = 0
-        let maxAttempts = 120 // 10 minutes at 5-second intervals
-        var lastLogSize = 0
-        var currentProgressLine = "Progress: Initializing..."
-        let lastProgressLineIndex = commandOutput.components(separatedBy: "\n").count - 1
-        
-        // Track pieces progress for the progress bar
-        var totalPieces: Int? = nil
-        var processedPieces: Int = 0
-        
-        // Size-based progress tracking
-        var totalSize: Int64? = nil
-        var pieceSize: Int64? = nil
-        var expectedPieces: Int? = nil
-        
-        while !fileExists && attempts < maxAttempts {
-            attempts += 1
-            
-            // 1. Check the log file for new output
-            let (_, logSizeStr) = try await connection.executeCommand("stat -c%s \(logFile) 2>/dev/null || echo '0'")
-            let currentLogSize = Int(logSizeStr.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-            
-            var updatedProgressLine = false
-            
-            if currentLogSize > lastLogSize {
-                // Get only the new content since last check
-                let (_, newContent) = try await connection.executeCommand("tail -c +\(lastLogSize + 1) \(logFile)")
-                
-                if !newContent.isEmpty {
-                    // Look for total size information
-                    if totalSize == nil {
-                        // Match pattern like "Total size: 21391999 bytes"
-                        if let sizeMatch = newContent.range(of: "[Tt]otal size:?\\s*(\\d+)\\s*bytes", options: .regularExpression) {
-                            let sizeString = newContent[sizeMatch]
-                            if let numberMatch = sizeString.range(of: "\\d+", options: .regularExpression) {
-                                totalSize = Int64(newContent[numberMatch])
-                            }
-                        }
-                    }
-                    
-                    // Look for piece size information
-                    if pieceSize == nil {
-                        // Match pattern like "Using piece size: 16 KB"
-                        if let pieceSizeMatch = newContent.range(of: "[Uu]sing piece size:?\\s*(\\d+)\\s*KB", options: .regularExpression) {
-                            let pieceSizeString = newContent[pieceSizeMatch]
-                            if let numberMatch = pieceSizeString.range(of: "\\d+", options: .regularExpression) {
-                                if let kbSize = Int64(newContent[numberMatch]) {
-                                    pieceSize = kbSize * 1024 // Convert KB to bytes
-                                    
-                                    // Calculate expected pieces
-                                    if let totalBytes = totalSize, pieceSize! > 0 {
-                                        expectedPieces = Int((totalBytes + pieceSize! - 1) / pieceSize!) // Ceiling division
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Extract total pieces information if we don't have it yet
-                    if totalPieces == nil && expectedPieces == nil {
-                        // Look for patterns like "Total pieces: 123" or similar
-                        if let totalMatch = newContent.range(of: "([Tt]otal|[Nn]umber of) pieces:?\\s*(\\d+)", options: .regularExpression) {
-                            let totalString = newContent[totalMatch]
-                            if let numberMatch = totalString.range(of: "\\d+", options: .regularExpression) {
-                                totalPieces = Int(newContent[numberMatch]) ?? 100
-                            }
-                        }
-                    }
-                    
-                    // Check for piece processing pattern (assuming format like "Processed X pieces")
-                    if let piecesMatch = newContent.range(of: "Processed\\s+(\\d+)\\s+pieces", options: .regularExpression) {
-                        let piecesInfo = newContent[piecesMatch]
-                        currentProgressLine = "Progress: \(piecesInfo)"
-                        updatedProgressLine = true
-                        
-                        // Extract the number of processed pieces for progress bar
-                        if let numberMatch = piecesInfo.range(of: "\\d+", options: .regularExpression) {
-                            if let pieces = Int(newContent[numberMatch]) {
-                                processedPieces = pieces
-                                
-                                // Update progress percentage
-                                if let expected = expectedPieces, expected > 0 {
-                                    // Calculate progress but keep it between 25-90%
-                                    // We started at 25% and want to leave room for download
-                                    let calculatedProgress = Double(processedPieces) / Double(expected)
-                                    let adjustedProgress = 0.25 + (calculatedProgress * 0.65)
-                                    
-                                    await MainActor.run {
-                                        progressPercentage = min(0.9, adjustedProgress)
-                                    }
-                                } else if let total = totalPieces, total > 0 {
-                                    // Fall back to total pieces if available
-                                    let calculatedProgress = Double(processedPieces) / Double(total)
-                                    let adjustedProgress = 0.25 + (calculatedProgress * 0.65)
-                                    
-                                    await MainActor.run {
-                                        progressPercentage = min(0.9, adjustedProgress)
-                                    }
-                                } else {
-                                    // If we don't know total, make progress "bounce"
-                                    await MainActor.run {
-                                        // Calculate a percentage that oscillates between 30% and 80%
-                                        let time = Double(attempts % 10) / 10.0
-                                        let oscillating = 0.5 + 0.25 * sin(Double.pi * 2 * time)
-                                        progressPercentage = oscillating
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // Also look for other important messages we want to show (like errors or completion)
-                    else if newContent.contains("error") || newContent.contains("Error") ||
-                            newContent.contains("complete") || newContent.contains("finished") {
-                        // For important messages, add a new line
-                        commandOutput += "\n\(newContent)"
-                    }
-                    else if !updatedProgressLine {
-                        // For other log content that's not about piece processing
-                        // Check if it contains any other useful progress information
-                        let lines = newContent.components(separatedBy: "\n")
-                        for line in lines where !line.isEmpty {
-                            if line.contains("piece") || line.contains("hash") || line.contains("size") ||
-                               line.contains("progress") || line.contains("file") {
-                                currentProgressLine = "Progress: \(line)"
-                                updatedProgressLine = true
-                                break
-                            }
-                        }
-                    }
+            progressPercentage = 0.2
+            commandOutput += "\nCreating torrent: \(torrentFileName)"
+            commandOutput += "\nSource: \(fileName)"
+            commandOutput += "\nLocation: \(parentDirectory)"
+            if let size = fileSize {
+                let sizeString = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+                commandOutput += "\nFile size: \(sizeString)"
+                if isLargeFile {
+                    commandOutput += "\nLarge file detected - creation may take time"
                 }
-                
-                lastLogSize = currentLogSize
-            }
-            
-            // 2. Check if the output file exists
-            let (_, checkOutput) = try await connection.executeCommand("[ -f '\(escapedOutputFile)' ] && echo 'success' || echo 'failed'")
-            
-            if checkOutput.contains("success") {
-                fileExists = true
-                commandOutput += "\nTorrent file created successfully!"
-                isCreated = true
-                outputPath = outputFile
-                
-                await MainActor.run {
-                    progressPercentage = 0.9 // Creation complete, ready to download
-                }
-                break
-            } else {
-                // 3. Check if process is still running
-                let (_, pidFileExists) = try await connection.executeCommand("[ -f \(NSTemporaryDirectory())/torrent_pid_\(jobId) ] && echo 'yes' || echo 'no'")
-                
-                if pidFileExists.contains("yes") {
-                    let (_, pidContent) = try await connection.executeCommand("cat \(NSTemporaryDirectory())/torrent_pid_\(jobId)")
-                    let pid = pidContent.trimmingCharacters(in: .whitespacesAndNewlines)
-                    
-                    let (_, processCheck) = try await connection.executeCommand("ps -p \(pid) -o pid= || echo 'NOT_RUNNING'")
-                    if processCheck.contains("NOT_RUNNING") {
-                        // Process ended but no file found - check log for errors
-                        let (_, finalLog) = try await connection.executeCommand("cat \(logFile)")
-                        if !finalLog.contains("success") && !finalLog.contains("pieces") {
-                            isError = true
-                            commandOutput += "\nProcess completed but no torrent file was created."
-                            commandOutput += "\nError details from log:\n\(finalLog)"
-                            
-                            await MainActor.run {
-                                progressPercentage = 0 // Error state
-                            }
-                            return
-                        }
-                        
-                        // Re-check for file one last time
-                        let (_, finalCheck) = try await connection.executeCommand("[ -f '\(escapedOutputFile)' ] && echo 'success' || echo 'failed'")
-                        if finalCheck.contains("success") {
-                            fileExists = true
-                            commandOutput += "\nTorrent file created successfully!"
-                            isCreated = true
-                            outputPath = outputFile
-                            
-                            await MainActor.run {
-                                progressPercentage = 0.9 // Creation complete, ready to download
-                            }
-                            break
-                        } else {
-                            isError = true
-                            commandOutput += "\nError: Process completed but no torrent file was found"
-                            
-                            await MainActor.run {
-                                progressPercentage = 0 // Error state
-                            }
-                            return
-                        }
-                    }
-                }
-                
-                // Only update the progress indication every check
-                if !updatedProgressLine {
-                    // If no new log content for progress, update with time elapsed
-                    currentProgressLine = "Progress: Working... (\(attempts * 5) seconds elapsed)"
-                    
-                    // If we don't have specific progress info, make the progress bar oscillate
-                    if totalPieces == nil && expectedPieces == nil {
-                        await MainActor.run {
-                            // Calculate a percentage that oscillates between 30% and 80%
-                            let time = Double(attempts % 10) / 10.0
-                            let oscillating = 0.5 + 0.25 * sin(Double.pi * 2 * time)
-                            progressPercentage = oscillating
-                        }
-                    }
-                }
-                
-                // Update the progress line in-place
-                var lines = commandOutput.components(separatedBy: "\n")
-                if lastProgressLineIndex < lines.count {
-                    lines[lastProgressLineIndex] = currentProgressLine
-                    commandOutput = lines.joined(separator: "\n")
-                }
-                
-                // Wait 5 seconds before checking again
-                try await Task.sleep(for: .seconds(5))
             }
         }
         
-        if !fileExists {
-            isError = true
-            commandOutput += "\nError: Torrent creation timed out after \(attempts * 5) seconds"
-            
+        // Get the appropriate torrent creation command
+        let createCommand = await getTorrentCreateCommand(
+            parentDirectory: parentDirectory,
+            torrentFileName: torrentFileName,
+            fileName: fileName,
+            tracker: tracker
+        )
+        
+        guard !createCommand.isEmpty else {
             await MainActor.run {
-                progressPercentage = 0 // Error state
+                isProcessing = false
+                errorMessage = "No torrent creation tool available"
+                showError = true
+                isError = true
             }
             return
         }
-        
-        // Download the torrent file
-        isDownloading = true
-    #if os(macOS)
-        commandOutput += "\nDownloading torrent file to your default download location..."
-    #else
-        commandOutput += "\nDownloading torrent file to the Throttle Folder on your device..."
-    #endif
-        
-        // Add a download progress line that we'll update
-        commandOutput += "\nDownload: Starting..."
-        let downloadLineIndex = commandOutput.components(separatedBy: "\n").count - 1
         
         do {
-            let fileManager = FileManager.default
-            let outputURL: URL
-    #if os(macOS)
-            outputURL = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first!.appendingPathComponent("\(filename).torrent")
-    #else
-            outputURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("\(filename).torrent")
-    #endif
-            if fileManager.fileExists(atPath: outputURL.path) {
-                try fileManager.removeItem(at: outputURL)
+            await MainActor.run {
+                progressPercentage = 0.3
+                commandOutput += "\nExecuting imdl torrent creator..."
+                if isLargeFile {
+                    commandOutput += "\nPlease wait, processing large file..."
+                }
             }
             
-            // Download using our single SSH connection
-            // Create a modified progress handler that matches the expected signature
-            let progressHandler: (Double) -> Void = { progress in
-                let current = UInt64(progress * 100000) // Estimate of bytes for progress display
-                let total = UInt64(100000)
-                let percentage = Int(progress * 100)
-                let downloadProgressLine = "Download: \(formatBytes(current))/\(formatBytes(total)) (\(percentage)%)"
-                
-                // Update progress bar for download (90-100%)
-                let adjustedProgress = 0.9 + (progress * 0.1) // 90-100% range
-                
-                Task { @MainActor in
-                    progressPercentage = min(1.0, adjustedProgress)
+            // For large files, monitor progress
+            if isLargeFile {
+                // Start the command in background and monitor
+                let backgroundTask = Task {
+                    return try await connection.executeCommand(createCommand)
                 }
                 
-                // Update the download line in-place
-                Task { @MainActor in
-                    var lines = commandOutput.components(separatedBy: "\n")
-                    if downloadLineIndex < lines.count {
-                        lines[downloadLineIndex] = downloadProgressLine
-                        commandOutput = lines.joined(separator: "\n")
+                // Monitor progress for large files
+                var progressMonitor = 0.3
+                while !backgroundTask.isCancelled {
+                    do {
+                        let result = try await withTimeout(seconds: 2) {
+                            try await backgroundTask.value
+                        }
+                        // Command completed
+                        let (_, output) = result
+                        await MainActor.run {
+                            progressPercentage = 0.7
+                            commandOutput += "\nTorrent creation completed"
+                            commandOutput += "\nOutput: \(output)"
+                        }
+                        break
+                    } catch {
+                        // Still running, update progress
+                        progressMonitor = min(0.65, progressMonitor + 0.05)
+                        await MainActor.run {
+                            progressPercentage = progressMonitor
+                        }
+                        try await Task.sleep(for: .seconds(3))
+                    }
+                }
+            } else {
+                // Regular execution for smaller files
+                let (_, output) = try await connection.executeCommand(createCommand)
+                
+                await MainActor.run {
+                    progressPercentage = 0.7
+                    commandOutput += "\nTorrent creation completed"
+                    commandOutput += "\nOutput: \(output)"
+                }
+                
+                // Check for imdl validation errors in output
+                if output.lowercased().contains("error") || output.lowercased().contains("invalid") {
+                    await MainActor.run {
+                        isProcessing = false
+                        errorMessage = "imdl validation error: \(output)"
+                        showError = true
+                        isError = true
+                    }
+                    return
+                }
+            }
+            
+            // Verify the torrent file was created
+            let (_, fileCheck) = try await connection.executeCommand("ls -la '\(torrentPath)'")
+            if fileCheck.contains("No such file") {
+                await MainActor.run {
+                    isProcessing = false
+                    progressPercentage = 0
+                    errorMessage = "Torrent file was not created"
+                    showError = true
+                    isError = true
+                }
+                return
+            }
+            
+            await MainActor.run {
+                progressPercentage = 0.8
+                commandOutput += "\nTorrent file created successfully"
+                commandOutput += "\nReading torrent file and adding to daemon..."
+            }
+            
+            // Read the torrent file content from the remote server
+            let torrentData = try await connection.downloadFileToMemory(remotePath: torrentPath)
+            let base64Torrent = torrentData.base64EncodedString()
+            
+            // Add the torrent to transmission daemon using the metainfo (base64 encoded content)
+            let response = try await manager.addTorrent(
+                metainfo: base64Torrent,
+                downloadDir: parentDirectory
+            )
+            
+            if response.result == "success" {
+                await MainActor.run {
+                    progressPercentage = 1.0
+                    commandOutput += "\nTorrent added to daemon successfully!"
+                    commandOutput += "\nTorrent should start seeding immediately since files are already present."
+                    isProcessing = false
+                    isCreated = true
+                    successMessage = "Torrent created and seeding!"
+                    showSuccess = true
+                }
+                
+                // Clean up the torrent file
+                try? await connection.executeCommand("rm -f '\(torrentPath)'")
+                
+                // Optional: Monitor the torrent status briefly
+                if let torrentId = response.id {
+                    Task {
+                        try? await Task.sleep(for: .seconds(2))
+                        await checkTorrentStatus(torrentId: torrentId)
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    isProcessing = false
+                    progressPercentage = 0
+                    errorMessage = "Failed to add torrent to daemon"
+                    showError = true
+                    isError = true
+                }
+            }
+            
+        } catch {
+            await MainActor.run {
+                isProcessing = false
+                progressPercentage = 0
+                errorMessage = "Error creating torrent: \(error.localizedDescription)"
+                showError = true
+                isError = true
+            }
+        }
+    }
+    
+    func checkTorrentStatus(torrentId: Int) async {
+        do {
+            if let torrent = try await manager.fetchTorrentDetails(id: torrentId) {
+                let statusDescription = getStatusDescription(status: torrent.status ?? 0)
+                
+                Swift.print("Debug - Torrent Status Check:")
+                Swift.print("  - Name: \(torrent.name)")
+                Swift.print("  - Status: \(torrent.status) (\(statusDescription))")
+                Swift.print("  - Progress: \(String(format: "%.1f", (torrent.percentDone ?? 0.0) * 100))%")
+                
+                await MainActor.run {
+                    if torrent.status == 6 {
+                        commandOutput += "\nConfirmed: Torrent is seeding!"
+                    } else {
+                        commandOutput += "\nStatus: \(statusDescription)"
+                        if torrent.status == 2 {
+                            commandOutput += " (Transmission is verifying files)"
+                        }
                     }
                 }
             }
-            
-            // Use the same SSH connection for downloading
-            try await connection.downloadFile(
-                remotePath: outputFile,
-                localURL: outputURL,
-                progress: progressHandler
-            )
-            
-            localPath = outputURL.path
-            commandOutput += "\nDownloaded to: \(localPath)"
-            
-            await MainActor.run {
-                progressPercentage = 1.0 // Complete
-            }
-            
-            // Clean up temp files
-            let (_, _) = try await connection.executeCommand("rm -f '\(escapedOutputFile)' '\(scriptPath)' \(NSTemporaryDirectory())/torrent_pid_\(jobId) \(logFile)")
-            commandOutput += "\nCleaned up temporary files"
         } catch {
-            isError = true
-            commandOutput += "\nError downloading torrent: \(error.localizedDescription)"
-            
-            await MainActor.run {
-                progressPercentage = 0 // Error state
-            }
+            Swift.print("Error checking torrent status: \(error)")
         }
-        
-        isDownloading = false
+    }
+    
+    func getStatusDescription(status: Int) -> String {
+        switch status {
+        case 0: return "Stopped"
+        case 1: return "Check waiting"
+        case 2: return "Checking files"
+        case 3: return "Download waiting"
+        case 4: return "Downloading"
+        case 5: return "Seed waiting"
+        case 6: return "Seeding"
+        default: return "Unknown (\(status))"
+        }
     }
     
     // Helper function to format file sizes nicely
@@ -656,4 +667,182 @@ struct CreateTorrent: View {
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(bytes))
     }
+    
+    // Check torrent status after adding to see what transmission is doing
+    private func checkTorrentStatus(torrentId: Int, manager: TorrentManager) async {
+        do {
+            // Wait a moment for transmission to process the torrent
+            try await Task.sleep(for: .seconds(2))
+            
+            Swift.print("Debug - Checking torrent status for ID: \(torrentId)")
+            
+            // Get detailed torrent info from transmission
+            if let torrent = try await manager.fetchTorrentDetails(id: torrentId) {
+                Swift.print("Debug - Torrent Status:")
+                Swift.print("  - Name: \(torrent.name ?? "Unknown")")
+                Swift.print("  - Status: \(torrent.status ?? -1)")
+                Swift.print("  - Status Description: \(getStatusDescription(torrent.status ?? -1))")
+                Swift.print("  - Progress: \(String(format: "%.1f", (torrent.percentDone ?? 0) * 100))%")
+                Swift.print("  - Size: \(torrent.totalSize ?? 0) bytes")
+                Swift.print("  - Downloaded: \(torrent.downloadedEver ?? 0) bytes")
+                Swift.print("  - Uploaded: \(torrent.uploadedEver ?? 0) bytes")
+                Swift.print("  - Download Dir: \(torrent.downloadDir ?? "Unknown")")
+                Swift.print("  - Error: \(torrent.errorString ?? "None")")
+                Swift.print("  - Wanted files: \(torrent.wanted?.count ?? 0)")
+                
+                let status = torrent.status ?? -1
+                
+                // Update UI based on status
+                await MainActor.run {
+                    commandOutput += "\n\nTorrent Status Check:"
+                    commandOutput += "\n- Status: \(getStatusDescription(status))"
+                    commandOutput += "\n- Progress: \(String(format: "%.1f", (torrent.percentDone ?? 0) * 100))%"
+                    if let error = torrent.errorString, !error.isEmpty {
+                        commandOutput += "\n- Error: \(error)"
+                    }
+                }
+                
+                // Check if transmission is verifying the files
+                if status == 2 { // TR_STATUS_CHECK
+                    Swift.print("  - Transmission is currently verifying files...")
+                    await MainActor.run {
+                        commandOutput += "\n- Transmission is verifying files, please wait..."
+                    }
+                    
+                    // Continue monitoring until verification is complete
+                    try await Task.sleep(for: .seconds(5))
+                    await checkTorrentStatus(torrentId: torrentId, manager: manager)
+                    
+                } else if status == 4 { // TR_STATUS_DOWNLOAD
+                    Swift.print("  - Transmission thinks this needs to be downloaded (files not found or incomplete)")
+                    Swift.print("  - This suggests the daemon cannot locate or verify the existing files")
+                    
+                    // Check file accessibility from transmission's perspective
+                    let fileName = torrent.name ?? "Unknown"
+                    let downloadDir = torrent.downloadDir ?? ""
+                    let fullPath = "\(downloadDir)/\(fileName)"
+                    
+                    Swift.print("  - Checking file accessibility for transmission daemon...")
+                    
+                    // Enhanced debugging - check file permissions and transmission user access
+                    if let connection = sshConnection {
+                        // Get detailed file information
+                        let escapedPath = fullPath.replacingOccurrences(of: "'", with: "'\\''")
+                        let (_, lsOutput) = try await connection.executeCommand("ls -la '\(escapedPath)' 2>/dev/null || echo 'FILE_NOT_FOUND'")
+                        Swift.print("  - File details: \(lsOutput.trimmingCharacters(in: .whitespacesAndNewlines))")
+                        
+                        // Check what user transmission daemon is running as
+                        let (_, transmissionUser) = try await connection.executeCommand("ps aux | grep transmission-daemon | grep -v grep | awk '{print $1}' | head -1")
+                        let actualUser = transmissionUser.trimmingCharacters(in: .whitespacesAndNewlines)
+                        Swift.print("  - Transmission daemon running as user: \(actualUser)")
+                        
+                        // Check permissions for the actual transmission daemon user
+                        if !actualUser.isEmpty && actualUser != "grep" {
+                            let (_, actualUserPermCheck) = try await connection.executeCommand("sudo -u \(actualUser) test -r '\(escapedPath)' 2>/dev/null && echo 'READABLE_BY_\(actualUser.uppercased())' || echo 'NOT_READABLE_BY_\(actualUser.uppercased())'")
+                            Swift.print("  - \(actualUser) user access: \(actualUserPermCheck.trimmingCharacters(in: .whitespacesAndNewlines))")
+                        }
+                        
+                        // Check permissions for transmission user (common users: debian-transmission, transmission)
+                        let (_, permCheck1) = try await connection.executeCommand("sudo -u debian-transmission test -r '\(escapedPath)' 2>/dev/null && echo 'READABLE_BY_DEBIAN_TRANSMISSION' || echo 'NOT_READABLE_BY_DEBIAN_TRANSMISSION'")
+                        Swift.print("  - Debian-transmission user access: \(permCheck1.trimmingCharacters(in: .whitespacesAndNewlines))")
+                        
+                        let (_, permCheck2) = try await connection.executeCommand("sudo -u transmission test -r '\(escapedPath)' 2>/dev/null && echo 'READABLE_BY_TRANSMISSION' || echo 'NOT_READABLE_BY_TRANSMISSION'")
+                        Swift.print("  - Transmission user access: \(permCheck2.trimmingCharacters(in: .whitespacesAndNewlines))")
+                        
+                        // Get file hash for verification
+                        let (_, hashOutput) = try await connection.executeCommand("sha1sum '\(escapedPath)' 2>/dev/null | cut -d' ' -f1 || echo 'HASH_FAILED'")
+                        Swift.print("  - File SHA1: \(hashOutput.trimmingCharacters(in: .whitespacesAndNewlines))")
+                        
+                        // Check directory permissions
+                        let parentDir = (downloadDir as NSString).deletingLastPathComponent
+                        let (_, dirPermCheck) = try await connection.executeCommand("ls -ld '\(parentDir.replacingOccurrences(of: "'", with: "'\\''"))' 2>/dev/null || echo 'DIR_NOT_FOUND'")
+                        Swift.print("  - Parent directory permissions: \(dirPermCheck.trimmingCharacters(in: .whitespacesAndNewlines))")
+                        
+                        // Try to fix permissions if needed
+                        if !actualUser.isEmpty && actualUser != "grep" {
+                            let (_, actualUserPermCheck) = try await connection.executeCommand("sudo -u \(actualUser) test -r '\(escapedPath)' 2>/dev/null && echo 'READABLE' || echo 'NOT_READABLE'")
+                            if actualUserPermCheck.contains("NOT_READABLE") {
+                                Swift.print("  - WARNING: File not readable by transmission daemon user (\(actualUser))!")
+                                Swift.print("  - Attempting to fix permissions...")
+                                let (_, chmodResult) = try await connection.executeCommand("sudo chmod 644 '\(escapedPath)' && sudo chown \(actualUser):\(actualUser) '\(escapedPath)' 2>/dev/null; echo 'PERMISSION_FIX_ATTEMPTED'")
+                                Swift.print("  - Permission fix result: \(chmodResult.trimmingCharacters(in: .whitespacesAndNewlines))")
+                            } else {
+                                Swift.print("  - File IS readable by transmission daemon user (\(actualUser))")
+                                Swift.print("  - This suggests the issue may not be file permissions...")
+                            }
+                        }
+                    }
+                    
+                    await MainActor.run {
+                        showError = true
+                        errorMessage = """
+                        Torrent is downloading instead of seeding.
+                        
+                        This means transmission daemon cannot verify the existing files.
+                        
+                        Common solutions:
+                        1. Check file permissions (files need to be readable by transmission user)
+                        2. Verify exact file path: \(fullPath)
+                        3. Ensure transmission daemon has access to the directory
+                        4. Wait for transmission to complete file verification
+                        
+                        The monitoring will continue checking status automatically.
+                        """
+                    }
+                    
+                    // Continue monitoring - transmission might still be verifying
+                    Swift.print("  - Continuing to monitor - transmission may still be verifying files...")
+                    try await Task.sleep(for: .seconds(10))
+                    await checkTorrentStatus(torrentId: torrentId, manager: manager)
+                    
+                } else if status == 6 { // TR_STATUS_SEED
+                    Swift.print("  - Transmission is seeding successfully!")
+                    await MainActor.run {
+                        showSuccess = true
+                        successMessage = "Torrent successfully created and seeding!\n\nName: \(torrent.name ?? "Unknown")\nStatus: Seeding\nSize: \(formatBytes(UInt64(torrent.totalSize ?? 0)))"
+                        isCreated = true
+                        isProcessing = false
+                    }
+                    
+                } else if status == 0 && !(torrent.errorString?.isEmpty ?? true) {
+                    Swift.print("  - Torrent stopped with error: \(torrent.errorString ?? "")")
+                    await MainActor.run {
+                        showError = true
+                        errorMessage = "❌ Torrent creation failed.\n\nError: \(torrent.errorString ?? "Unknown error")"
+                    }
+                    
+                } else if status == 5 { // TR_STATUS_SEED_WAIT
+                    Swift.print("  - Torrent is queued for seeding...")
+                    await MainActor.run {
+                        commandOutput += "\n- Torrent is queued for seeding, waiting..."
+                    }
+                    
+                    // Continue monitoring
+                    try await Task.sleep(for: .seconds(3))
+                    await checkTorrentStatus(torrentId: torrentId, manager: manager)
+                }
+                
+            }
+        } catch {
+            Swift.print("Debug - Error checking torrent status: \(error)")
+            await MainActor.run {
+                showError = true
+                errorMessage = "❌ Error checking torrent status: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    private func getStatusDescription(_ status: Int) -> String {
+        switch status {
+        case 0: return "Stopped"
+        case 1: return "Check waiting"
+        case 2: return "Checking files"
+        case 3: return "Download waiting"
+        case 4: return "Downloading"
+        case 5: return "Seed waiting"
+        case 6: return "Seeding"
+        default: return "Unknown (\(status))"
+        }
+    }
 }
+

@@ -112,11 +112,11 @@ class SSHConnection {
             let authMethod: SSHAuthenticationMethod
             
             if server.sftpUsesKey {
-                print("Using key authentication for \(server.sftpHost ?? "")")
+               // print("Using key authentication for \(server.sftpHost ?? "")")
                 // Let the key manager handle authentication
                 authMethod = try SSHKeyManager.shared.getAuthenticationMethod(for: server)
             } else {
-                print("Using password authentication for \(server.sftpHost ?? "")")
+             //   print("Using password authentication for \(server.sftpHost ?? "")")
                 let keychain = Keychain(service: "srgim.throttle2")
                     .synchronizable(true)
                 
@@ -585,6 +585,43 @@ class SSHConnection {
     func rename(oldPath: String, newPath: String) async throws {
         let sftp = try await connectSFTP()
         try await sftp.rename(at: oldPath, to: newPath)
+    }
+    
+    /// Download a file content to memory as Data
+    func downloadFileToMemory(remotePath: String) async throws -> Data {
+        let sftp = try await connectSFTP()
+        
+        // Open the file for reading
+        let file = try await sftp.openFile(filePath: remotePath, flags: .read)
+        defer {
+            Task { try? await file.close() }
+        }
+        
+        // Get file size
+        let attributes = try await file.readAttributes()
+        let totalSize = attributes.size ?? 0
+        
+        // Read the entire file into memory
+        var fileData = Data()
+        var offset: UInt64 = 0
+        let chunkSize: UInt32 = 32768 // 32 KB chunks
+        
+        while true {
+            if Task.isCancelled {
+                throw CancellationError()
+            }
+            
+            let data = try await file.read(from: offset, length: chunkSize)
+            if data.readableBytes == 0 {
+                break // End of file
+            }
+            
+            // Append the chunk to our data
+            fileData.append(Data(buffer: data))
+            offset += UInt64(data.readableBytes)
+        }
+        
+        return fileData
     }
     
     /// Get the attributes of a file on the remote server

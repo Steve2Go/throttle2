@@ -164,7 +164,7 @@ struct SettingsView: View {
 //                    control: Toggle("", isOn: $mountOnOpen)
 //                )
                 Text("About").font(.headline)
-                Text("Mac version installs fuse-t with sshfs: https://www.fuse-t.org").font(.caption)
+                Text("Uses fuse-t with sshfs for file access: https://www.fuse-t.org").font(.caption)
                 Text("Video Thumbnails using: https://github.com/Marginal/QLVideo").font(.caption)
                 #else
                 
@@ -175,6 +175,7 @@ struct SettingsView: View {
                 Text("In app icons via SF Icons and https://icons8.com.").font(.caption)
                 Text("App icon based on icon from https://www.iconarchive.com/").font(.caption)
                 Text("Uses open source libraries VLCKit, Simpletoast and Citadel.").font(.caption)
+                Text("Intermodal is used for torrrent creation https://github.com/casey/intermodal").font(.caption)
                
                 
                 Text("Licenced under the GPL v2 or later").font(.caption)
