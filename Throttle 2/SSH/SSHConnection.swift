@@ -79,44 +79,61 @@ class SSHConnectionManager {
 }
 
 // Connection class for both SSH commands and SFTP operations
+// RECOMMENDED USAGE: Always use SSHConnection.withConnection() for safety
 class SSHConnection {
     /**
-     Usage:
+     SAFE Usage Pattern:
      try await SSHConnection.withConnection(server: server) { connection in
          // ... use connection ...
      }
      This ensures the connection is always disconnected at all exit points.
+     
+     AVOID: Creating persistent SSHConnection instances that are reused.
      */
     private var server: ServerEntity
     private var client: SSHClient?
     private var sftpClient: SFTPClient?
     private var isConnecting: Bool = false
     private var connectionLock = NSLock()
-    private var lastActiveTime: Date = Date()
     
-    // Connection timeout (1 minute of inactivity)
-    private let connectionTimeout: TimeInterval = 60
+    // Remove connection timeout and reuse logic - connections should be short-lived
     
     init(server: ServerEntity) {
         self.server = server
-        
-        // Register with the connection manager
-        SSHConnectionManager.shared.register(connection: self)
+        // Remove automatic registration with connection manager for short-lived connections
     }
     
     func connect() async throws {
-        // [Lock handling code remains the same...]
+        // Simplified connection logic without complex state management
+        connectionLock.lock()
+        if isConnecting {
+            connectionLock.unlock()
+            // Wait for connection to complete, but don't wait indefinitely
+            for _ in 0..<50 { // Wait up to 5 seconds
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                connectionLock.lock()
+                let stillConnecting = isConnecting
+                connectionLock.unlock()
+                if !stillConnecting { break }
+            }
+            return
+        }
+        
+        if client != nil {
+            connectionLock.unlock()
+            return // Already connected
+        }
+        
+        isConnecting = true
+        connectionLock.unlock()
         
         do {
             // Get authentication method
             let authMethod: SSHAuthenticationMethod
             
             if server.sftpUsesKey {
-               // print("Using key authentication for \(server.sftpHost ?? "")")
-                // Let the key manager handle authentication
                 authMethod = try SSHKeyManager.shared.getAuthenticationMethod(for: server)
             } else {
-             //   print("Using password authentication for \(server.sftpHost ?? "")")
                 let keychain = Keychain(service: "srgim.throttle2")
                     .synchronizable(true)
                 
@@ -138,7 +155,7 @@ class SSHConnection {
             ])
             
             // Connect to SSH server
-            client = try await SSHClient.connect(
+            let newClient = try await SSHClient.connect(
                 host: server.sftpHost ?? "",
                 port: Int(server.sftpPort),
                 authenticationMethod: authMethod,
@@ -150,17 +167,14 @@ class SSHConnection {
                 ]
             )
             
+            // Set the client only after successful connection
+            connectionLock.lock()
+            client = newClient
+            isConnecting = false
+            connectionLock.unlock()
+            
             print("SSH connection established successfully to \(server.sftpHost ?? "")")
             
-            // Update last active time
-            lastActiveTime = Date()
-            
-            await withCheckedContinuation { [weak self] continuation in
-                self?.connectionLock.lock()
-                self?.isConnecting = false
-                self?.connectionLock.unlock()
-                continuation.resume()
-            }
         } catch let error as NIOSSHError {
             await resetConnectionState()
             ToastManager.shared.show(message: "SSH connection failed with NIOSSHError: \(error)", icon: "exclamationmark.triangle", color: Color.red)
@@ -173,76 +187,23 @@ class SSHConnection {
         }
     }
 
-    
-    // Check if the connection is stale based on timeout
-    private func isConnectionStale() async -> Bool {
-        // If no client exists, it's not stale - it's non-existent
-        let hasClient: Bool = await withCheckedContinuation { continuation in
-            connectionLock.lock()
-            let result = client != nil
-            connectionLock.unlock()
-            continuation.resume(returning: result)
-        }
-        
-        guard hasClient else { return false }
-        
-        let currentTime = Date()
-        let currentLastActiveTime: Date = await withCheckedContinuation { continuation in
-            connectionLock.lock()
-            let result = lastActiveTime
-            connectionLock.unlock()
-            continuation.resume(returning: result)
-        }
-        
-        return currentTime.timeIntervalSince(currentLastActiveTime) > connectionTimeout
-    }
-    
     // Helper to reset connection state on failure
     private func resetConnectionState() async {
-        await withCheckedContinuation { [weak self] continuation in
-            self?.connectionLock.lock()
-            self?.client = nil
-            self?.sftpClient = nil
-            self?.isConnecting = false
-            self?.connectionLock.unlock()
-            continuation.resume()
-        }
+        connectionLock.lock()
+        client = nil
+        sftpClient = nil
+        isConnecting = false
+        connectionLock.unlock()
     }
     
-    // Method to verify and refresh connection if needed
-    private func ensureValidConnection() async throws {
-        // If connection is stale, disconnect and reconnect
-        if await isConnectionStale() {
-            await disconnect()
-            try await connect()
-        } else {
-            let hasClient: Bool = await withCheckedContinuation { continuation in
-                connectionLock.lock()
-                let result = client != nil
-                connectionLock.unlock()
-                continuation.resume(returning: result)
-            }
-            
-            if !hasClient {
-                try await connect()
-            }
-        }
-        
-        // Update last active time
-        await withCheckedContinuation { [weak self] continuation in
-            self?.connectionLock.lock()
-            self?.lastActiveTime = Date()
-            self?.connectionLock.unlock()
-            continuation.resume()
-        }
-    }
-    
-    // Simple method to get the client directly if needed
+    // Simplified method to get the client directly - no automatic reconnection
     func getSSHClient() async throws -> SSHClient {
-        try await ensureValidConnection()
+        connectionLock.lock()
+        let currentClient = client
+        connectionLock.unlock()
         
-        guard let client = client else {
-            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
+        guard let client = currentClient else {
+            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected - call connect() first"]))
         }
         
         return client
@@ -321,14 +282,7 @@ class SSHConnection {
     }
     
     func executeCommand(_ command: String, maxResponseSize: Int? = nil, mergeStreams: Bool = true) async throws -> (status: Int32, output: String) {
-        try await ensureValidConnection()
-        
-        guard let client = client else {
-            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
-        }
-        
-        // Update last active time
-        lastActiveTime = Date()
+        let client = try await getSSHClient()
         
         // For multi-line commands, always merge streams by default
         let buffer: ByteBuffer
@@ -347,29 +301,21 @@ class SSHConnection {
     }
     
     func executeInteractiveCommand(_ command: String) async throws -> ExecCommandStream {
-            try await ensureValidConnection()
-            
-            guard let client = client else {
-                throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
-            }
-            
-            // Update last active time
-            lastActiveTime = Date()
-            
-            // For interactive commands, we use executeCommandPair which gives us
-            // direct access to stdin/stdout streams
-            return try await client.executeCommandPair(command)
-        }
+        let client = try await getSSHClient()
         
-        /// Helper method to execute a command and get binary data directly
-        func executeCommandForData(_ command: String, maxSize: Int = 1024 * 1024 * 10) async throws -> Data {
-            // Ensure we have a valid SSH client
-            let sshClient = try await getSSHClient()
-            // Execute the command and retrieve raw bytes
-            let byteBuffer = try await sshClient.executeCommand(command, maxResponseSize: maxSize, mergeStreams: true)
-            return Data(buffer: byteBuffer)
-        }
+        // For interactive commands, we use executeCommandPair which gives us
+        // direct access to stdin/stdout streams
+        return try await client.executeCommandPair(command)
+    }
+        
+    /// Helper method to execute a command and get binary data directly
+    func executeCommandForData(_ command: String, maxSize: Int = 1024 * 1024 * 10) async throws -> Data {
+        // Ensure we have a valid SSH client
+        let sshClient = try await getSSHClient()
+        // Execute the command and retrieve raw bytes
+        let byteBuffer = try await sshClient.executeCommand(command, maxResponseSize: maxSize, mergeStreams: true)
+        return Data(buffer: byteBuffer)
+    }
     
     // Helper method for multi-line commands specifically
     func executeMultiLineCommand(_ commands: [String], maxResponseSize: Int? = nil) async throws -> (status: Int32, output: String) {
@@ -379,15 +325,7 @@ class SSHConnection {
     }
     
     func executeCommandWithStreams(_ command: String) async throws -> ExecCommandStream {
-        try await ensureValidConnection()
-        
-        guard let client = client else {
-            throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
-        }
-        
-        // Update last active time
-        lastActiveTime = Date()
-        
+        let client = try await getSSHClient()
         return try await client.executeCommandPair(command)
     }
     
@@ -397,56 +335,33 @@ class SSHConnection {
     
     /// Open an SFTP session with the server
     func connectSFTP() async throws -> SFTPClient {
-        // Make multiple attempts to connect
-        let maxAttempts = 3
-        var lastError: Error? = nil
+        let client = try await getSSHClient()
         
-        for attempt in 1...maxAttempts {
+        // If we already have an SFTP client, try to use it but verify it's still active
+        connectionLock.lock()
+        let currentSFTP = sftpClient
+        connectionLock.unlock()
+        
+        if let sftp = currentSFTP, sftp.isActive {
+            // Verify the SFTP connection is still valid with a simple operation
             do {
-                try await ensureValidConnection()
-                
-                guard let client = client else {
-                    throw SSHTunnelError.connectionFailed(NSError(domain: "SSHConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Not connected"]))
-                }
-                
-                // Update last active time
-                lastActiveTime = Date()
-                
-                // If we already have an SFTP client, try to use it but verify it's still active
-                if let sftp = sftpClient, sftp.isActive {
-                    // Verify the SFTP connection is still valid with a simple operation
-                    do {
-                        _ = try await sftp.listDirectory(atPath: ".")
-                        return sftp
-                    } catch {
-                        // SFTP connection is no longer valid, create a new one
-                        print("Existing SFTP connection is invalid, creating new one. Error: \(error)")
-                        sftpClient = nil
-                    }
-                }
-                
-                // Create a new SFTP client
-                let sftp = try await client.openSFTP()
-                sftpClient = sftp
+                _ = try await sftp.listDirectory(atPath: ".")
                 return sftp
             } catch {
-                lastError = error
-                print("SFTP connection attempt \(attempt) failed: \(error)")
-                
-                // Completely disconnect and reconnect the base SSH connection
-                await disconnect()
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds delay
-                
-                // Only try to reconnect if we have more attempts left
-                if attempt < maxAttempts {
-                    try? await connect()
-                }
+                // SFTP connection is no longer valid, create a new one
+                print("Existing SFTP connection is invalid, creating new one. Error: \(error)")
+                connectionLock.lock()
+                sftpClient = nil
+                connectionLock.unlock()
             }
         }
         
-        // If we've reached here, all attempts failed
-        throw SSHTunnelError.connectionFailed(lastError ?? NSError(domain: "SSHConnection", code: -2,
-                                  userInfo: [NSLocalizedDescriptionKey: "Failed to connect to SFTP server after multiple attempts"]))
+        // Create a new SFTP client
+        let sftp = try await client.openSFTP()
+        connectionLock.lock()
+        sftpClient = sftp
+        connectionLock.unlock()
+        return sftp
     }
     
     /// List files in the specified directory path
@@ -636,13 +551,12 @@ class SSHConnection {
     }
     
     func disconnect() async {
-        let (currentClient, currentSFTP): (SSHClient?, SFTPClient?) = await withCheckedContinuation { [weak self] continuation in
-            self?.connectionLock.lock()
-            let currentClient = self?.client
-            let currentSFTP = self?.sftpClient
-            self?.connectionLock.unlock()
-            continuation.resume(returning: (currentClient, currentSFTP))
-        }
+        connectionLock.lock()
+        let currentClient = client
+        let currentSFTP = sftpClient
+        client = nil
+        sftpClient = nil
+        connectionLock.unlock()
         
         if let sftp = currentSFTP {
             do {
@@ -659,35 +573,23 @@ class SSHConnection {
                 print("Error closing SSH: \(error)")
             }
         }
-        
-        // Now that everything is closed, clear the references
-        await withCheckedContinuation { [weak self] continuation in
-            self?.connectionLock.lock()
-            self?.client = nil
-            self?.sftpClient = nil
-            self?.connectionLock.unlock()
-            continuation.resume()
-        }
     }
     
     // Reset the connection state without actually trying to
     // close anything - useful for known broken connections
     func resetState() async {
-        await withCheckedContinuation { [weak self] continuation in
-            self?.connectionLock.lock()
-            self?.client = nil
-            self?.sftpClient = nil
-            self?.isConnecting = false
-            self?.connectionLock.unlock()
-            continuation.resume()
-        }
+        connectionLock.lock()
+        client = nil
+        sftpClient = nil
+        isConnecting = false
+        connectionLock.unlock()
     }
     
     // Force reconnect - useful after app comes back from background
     func forceReconnect() async throws {
         await disconnect()
         // Add delay to allow sockets to fully close
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         try await connect()
     }
     
@@ -708,12 +610,8 @@ class SSHConnection {
     }
     
      deinit {
-         // Unregister from the connection manager
-         do{
-             SSHConnectionManager.shared.unregister(connection: self)
-         }
-         
-         // Do not launch a Task here; let the connection be cleaned up elsewhere
+         // Simple cleanup without launching async tasks
+         // The connection manager will handle cleanup elsewhere
      }
     
     // Helper to check if SFTP attributes indicate a directory

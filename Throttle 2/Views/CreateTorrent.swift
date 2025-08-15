@@ -39,8 +39,8 @@ struct CreateTorrent: View {
     @State private var successMessage = ""
     @State private var errorMessage = ""
     
-    // Using @State for the connection property since we're in a struct
-    @State private var sshConnection: SSHConnection?
+    // Remove persistent SSH connection - use create-and-destroy pattern instead
+    // @State private var sshConnection: SSHConnection?
     
     var body: some View {
         NavigationStack {
@@ -191,13 +191,7 @@ struct CreateTorrent: View {
             #endif
         }
         .onDisappear {
-            // Clean up connection if view disappears
-            Task {
-                if let conn = sshConnection {
-                    await conn.disconnect()
-                    sshConnection = nil
-                }
-            }
+            // No cleanup needed with create-and-destroy pattern
         }
         .alert("Success", isPresented: $showSuccess) {
             Button("OK") {
@@ -272,11 +266,10 @@ struct CreateTorrent: View {
         return (true, nil)
     }
     
-    private func getTorrentCreateCommand(parentDirectory: String, torrentFileName: String, fileName: String, tracker: String) async -> String {
+    private func getTorrentCreateCommand(parentDirectory: String, torrentFileName: String, fileName: String, tracker: String, serverEntity: ServerEntity) async -> String {
         // Use imdl to create the torrent
         do {
-            guard let connection = sshConnection else { return "" }
-            let (exitCode, output) = try await connection.executeCommand("which imdl || echo '/tmp/imdl-install/imdl'")
+            let (exitCode, output) = try await SSHConnection.executeCommand(on: serverEntity, command: "which imdl || echo '/tmp/imdl-install/imdl'")
             if exitCode == 0 || output.contains("/tmp/imdl-install/imdl") {
                 let imdlPath = output.contains("/tmp/imdl-install/imdl") ? "/tmp/imdl-install/imdl" : "imdl"
                 return "cd '\(parentDirectory)' && \(imdlPath) torrent create --announce '\(tracker)' --output '\(torrentFileName)' '\(fileName)'"
@@ -318,7 +311,7 @@ struct CreateTorrent: View {
     private func ensureTorrentCreatorInstalled(connection: SSHConnection) async throws {
         await MainActor.run {
             progressPercentage = 0.02
-            commandOutput += "\nChecking for imdl (intermodal)..."
+            commandOutput += "\nChecking server tools..."
         }
         
         // Check if imdl is available in PATH
@@ -326,7 +319,7 @@ struct CreateTorrent: View {
             let (exitCode, _) = try await connection.executeCommand("which imdl")
             if exitCode == 0 {
                 await MainActor.run {
-                    commandOutput += "\nimdl found in PATH"
+                    commandOutput += "\nimdl found"
                 }
                 return // imdl is available in PATH
             }
@@ -339,7 +332,7 @@ struct CreateTorrent: View {
             let (exitCode, _) = try await connection.executeCommand("test -f /tmp/imdl-install/imdl && /tmp/imdl-install/imdl --version")
             if exitCode == 0 {
                 await MainActor.run {
-                    commandOutput += "\nimdl found in /tmp/imdl-install/"
+                    commandOutput += "\nimdl found"
                 }
                 return // imdl is available in install location
             }
@@ -348,7 +341,7 @@ struct CreateTorrent: View {
         }
         
         await MainActor.run {
-            commandOutput += "\nimdl not found. Installing imdl (intermodal torrent creator)..."
+            commandOutput += "\nimdl not found. Installing..."
             progressPercentage = 0.03
         }
         
@@ -363,7 +356,7 @@ struct CreateTorrent: View {
         do {
             let (_, output) = try await connection.executeCommand(installCommand)
             await MainActor.run {
-                commandOutput += "\nInstallation completed"
+                //commandOutput += "\nInstallation completed"
                 commandOutput += "\nimdl ready for use"
                 progressPercentage = 0.05
             }
@@ -415,33 +408,19 @@ struct CreateTorrent: View {
             commandOutput += "\nConnecting to server..."
         }
         
-        // Create and connect SSH connection if needed
-        if sshConnection == nil {
-            sshConnection = SSHConnection(server: serverEntity)
-        }
-        
-        guard let connection = sshConnection else {
+        // Use the safe connection pattern - create connection for this operation
+        try await SSHConnection.withConnection(server: serverEntity) { connection in
+            try await connection.connect()
+            
             await MainActor.run {
-                isProcessing = false
-                errorMessage = "Failed to create SSH connection"
-                showError = true
-                isError = true
+                progressPercentage = 0.1
+                commandOutput += "\nConnected to server"
             }
-            return
-        }
-        
-        // Connect to the server
-        try await connection.connect()
-        
-        await MainActor.run {
-            progressPercentage = 0.1
-            commandOutput += "\nConnected to server"
-        }
-        
-        // Ensure torrent creation tools are installed
-        try await ensureTorrentCreatorInstalled(connection: connection)
-        
-        await MainActor.run {
+            
+            // Ensure torrent creation tools are installed
+            try await ensureTorrentCreatorInstalled(connection: connection)
+            
+            await MainActor.run {
             progressPercentage = 0.15
             commandOutput += "\nPreparing torrent creation..."
         }
@@ -475,7 +454,8 @@ struct CreateTorrent: View {
             parentDirectory: parentDirectory,
             torrentFileName: torrentFileName,
             fileName: fileName,
-            tracker: tracker
+            tracker: tracker,
+            serverEntity: serverEntity
         )
         
         guard !createCommand.isEmpty else {
@@ -597,7 +577,7 @@ struct CreateTorrent: View {
                 if let torrentId = response.id {
                     Task {
                         try? await Task.sleep(for: .seconds(2))
-                        await checkTorrentStatus(torrentId: torrentId)
+                        await checkTorrentStatus(torrentId: torrentId, serverEntity: serverEntity)
                     }
                 }
             } else {
@@ -619,9 +599,10 @@ struct CreateTorrent: View {
                 isError = true
             }
         }
+        } // End of withConnection block
     }
     
-    func checkTorrentStatus(torrentId: Int) async {
+    func checkTorrentStatus(torrentId: Int, serverEntity: ServerEntity? = nil) async {
         do {
             if let torrent = try await manager.fetchTorrentDetails(id: torrentId) {
                 let statusDescription = getStatusDescription(status: torrent.status ?? 0)
@@ -723,55 +704,7 @@ struct CreateTorrent: View {
                     let fullPath = "\(downloadDir)/\(fileName)"
                     
                     Swift.print("  - Checking file accessibility for transmission daemon...")
-                    
-                    // Enhanced debugging - check file permissions and transmission user access
-                    if let connection = sshConnection {
-                        // Get detailed file information
-                        let escapedPath = fullPath.replacingOccurrences(of: "'", with: "'\\''")
-                        let (_, lsOutput) = try await connection.executeCommand("ls -la '\(escapedPath)' 2>/dev/null || echo 'FILE_NOT_FOUND'")
-                        Swift.print("  - File details: \(lsOutput.trimmingCharacters(in: .whitespacesAndNewlines))")
-                        
-                        // Check what user transmission daemon is running as
-                        let (_, transmissionUser) = try await connection.executeCommand("ps aux | grep transmission-daemon | grep -v grep | awk '{print $1}' | head -1")
-                        let actualUser = transmissionUser.trimmingCharacters(in: .whitespacesAndNewlines)
-                        Swift.print("  - Transmission daemon running as user: \(actualUser)")
-                        
-                        // Check permissions for the actual transmission daemon user
-                        if !actualUser.isEmpty && actualUser != "grep" {
-                            let (_, actualUserPermCheck) = try await connection.executeCommand("sudo -u \(actualUser) test -r '\(escapedPath)' 2>/dev/null && echo 'READABLE_BY_\(actualUser.uppercased())' || echo 'NOT_READABLE_BY_\(actualUser.uppercased())'")
-                            Swift.print("  - \(actualUser) user access: \(actualUserPermCheck.trimmingCharacters(in: .whitespacesAndNewlines))")
-                        }
-                        
-                        // Check permissions for transmission user (common users: debian-transmission, transmission)
-                        let (_, permCheck1) = try await connection.executeCommand("sudo -u debian-transmission test -r '\(escapedPath)' 2>/dev/null && echo 'READABLE_BY_DEBIAN_TRANSMISSION' || echo 'NOT_READABLE_BY_DEBIAN_TRANSMISSION'")
-                        Swift.print("  - Debian-transmission user access: \(permCheck1.trimmingCharacters(in: .whitespacesAndNewlines))")
-                        
-                        let (_, permCheck2) = try await connection.executeCommand("sudo -u transmission test -r '\(escapedPath)' 2>/dev/null && echo 'READABLE_BY_TRANSMISSION' || echo 'NOT_READABLE_BY_TRANSMISSION'")
-                        Swift.print("  - Transmission user access: \(permCheck2.trimmingCharacters(in: .whitespacesAndNewlines))")
-                        
-                        // Get file hash for verification
-                        let (_, hashOutput) = try await connection.executeCommand("sha1sum '\(escapedPath)' 2>/dev/null | cut -d' ' -f1 || echo 'HASH_FAILED'")
-                        Swift.print("  - File SHA1: \(hashOutput.trimmingCharacters(in: .whitespacesAndNewlines))")
-                        
-                        // Check directory permissions
-                        let parentDir = (downloadDir as NSString).deletingLastPathComponent
-                        let (_, dirPermCheck) = try await connection.executeCommand("ls -ld '\(parentDir.replacingOccurrences(of: "'", with: "'\\''"))' 2>/dev/null || echo 'DIR_NOT_FOUND'")
-                        Swift.print("  - Parent directory permissions: \(dirPermCheck.trimmingCharacters(in: .whitespacesAndNewlines))")
-                        
-                        // Try to fix permissions if needed
-                        if !actualUser.isEmpty && actualUser != "grep" {
-                            let (_, actualUserPermCheck) = try await connection.executeCommand("sudo -u \(actualUser) test -r '\(escapedPath)' 2>/dev/null && echo 'READABLE' || echo 'NOT_READABLE'")
-                            if actualUserPermCheck.contains("NOT_READABLE") {
-                                Swift.print("  - WARNING: File not readable by transmission daemon user (\(actualUser))!")
-                                Swift.print("  - Attempting to fix permissions...")
-                                let (_, chmodResult) = try await connection.executeCommand("sudo chmod 644 '\(escapedPath)' && sudo chown \(actualUser):\(actualUser) '\(escapedPath)' 2>/dev/null; echo 'PERMISSION_FIX_ATTEMPTED'")
-                                Swift.print("  - Permission fix result: \(chmodResult.trimmingCharacters(in: .whitespacesAndNewlines))")
-                            } else {
-                                Swift.print("  - File IS readable by transmission daemon user (\(actualUser))")
-                                Swift.print("  - This suggests the issue may not be file permissions...")
-                            }
-                        }
-                    }
+                    Swift.print("  - Note: Detailed SSH debugging not available in this context")
                     
                     await MainActor.run {
                         showError = true

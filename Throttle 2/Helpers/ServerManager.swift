@@ -12,7 +12,7 @@ class ServerManager: ObservableObject {
     static let shared = ServerManager()
     @Published var selectedServer: ServerEntity?
     
-    private var connections: [UUID: SSHConnection] = [:]
+    // Remove connection pooling - use create-and-destroy pattern instead
     
     private init() {}
     
@@ -22,33 +22,23 @@ class ServerManager: ObservableObject {
     }
     
     func connectSSH(_ server: ServerEntity) async throws -> SSHClient {
-        // Get or create connection for this server
-        let connection = try! connections[server.id!] ?? SSHConnection(server: server)
-        connections[server.id!] = connection
-        
-        // Connect and return the client
+        // Always create a new connection - no reuse
+        let connection = SSHConnection(server: server)
         try await connection.connect()
         return try await connection.getSSHClient()
     }
     
-    // Clean up connections when needed
-    func closeConnection(for server: ServerEntity) {
-        if let connection = connections[server.id!] {
-            Task {
-                await connection.disconnect()
-                connections.removeValue(forKey: server.id!)
-            }
-        }
+    // For operations that need guaranteed cleanup, use the helper methods
+    func executeCommand(on server: ServerEntity, command: String) async throws -> (status: Int32, output: String) {
+        return try await SSHConnection.executeCommand(on: server, command: command)
     }
     
-    // Clean up all connections
-    func closeAllConnections() {
-        Task {
-            for connection in connections.values {
-                await connection.disconnect()
-            }
-            connections.removeAll()
-        }
+    func downloadFile(from server: ServerEntity, remotePath: String, to localURL: URL) async throws {
+        try await SSHConnection.downloadFile(from: server, remotePath: remotePath, to: localURL)
+    }
+    
+    func uploadFile(to server: ServerEntity, from localURL: URL, remotePath: String) async throws {
+        try await SSHConnection.uploadFile(to: server, from: localURL, remotePath: remotePath)
     }
 }
 

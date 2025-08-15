@@ -27,7 +27,8 @@ public class ThumbnailManagerRemote: NSObject {
         cache.countLimit = 150
         return cache
     }()
-    // SSH connection pooling
+    // SSH connection pooling - DEPRECATED: Moving to create-and-destroy pattern
+    // Keep for gradual migration, but new code should use SSHConnection.withConnection()
     private var connections = [String: SSHConnection]()
     private let connectionsLock = NSLock()
     // Visibility tracking
@@ -38,9 +39,10 @@ public class ThumbnailManagerRemote: NSObject {
         fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
             .first?.appendingPathComponent("remoteThumbnailCache")
     }
-    // Track ffmpeg paths in UserDefaults
+    
+    // Track ffmpeg paths in UserDefaults - THREAD SAFE
     private let ffmpegPathPrefix = "com.throttle.ffmpeg.path."
-    private var ffmpegCheckedServers = Set<String>()
+    private let timeoutInterval: TimeInterval = 30.0
     
     override init() {
         super.init()
@@ -203,13 +205,15 @@ public class ThumbnailManagerRemote: NSObject {
         markAsInvisible(path)
     }
     
-    // MARK: - FFmpeg Thumbnail Generation (via SSH)
+    // MARK: - FFmpeg Thumbnail Generation (via SSH) - Refactored for safety
     private func generateFFmpegThumbnail(for path: String, server: ServerEntity, maxWidth: Int?) async throws -> PlatformImage {
-        let connection = getConnection(for: server)
-        let _ = try? await connection.executeCommand("mkdir -p $HOME/thumbs")
-        guard let ffmpegPath = await ensureFFmpegAvailable(for: server, connection: connection) else {
-            throw NSError(domain: "ThumbnailManagerRemote", code: -3, userInfo: [NSLocalizedDescriptionKey: "FFmpeg not available on server"])
-        }
+        return try await SSHConnection.withConnection(server: server) { connection in
+            try await connection.connect()
+            
+            let _ = try? await connection.executeCommand("mkdir -p $HOME/thumbs")
+            guard let ffmpegPath = await self.ensureFFmpegAvailable(for: server, using: connection) else {
+                throw NSError(domain: "ThumbnailManagerRemote", code: -3, userInfo: [NSLocalizedDescriptionKey: "FFmpeg not available on server"])
+            }
         let remoteTempThumbPath = "thumb_\(UUID().uuidString).jpg"
         let tempDir = FileManager.default.temporaryDirectory
         let localTempURL = tempDir.appendingPathComponent(UUID().uuidString + ".jpg")
@@ -284,6 +288,7 @@ public class ThumbnailManagerRemote: NSObject {
         }
         
         throw NSError(domain: "ThumbnailManagerRemote", code: -5, userInfo: [NSLocalizedDescriptionKey: "Could not create thumbnail"])
+        } // End of withConnection block
     }
     
     // MARK: - FFmpeg Availability (iOS logic)
@@ -301,24 +306,20 @@ public class ThumbnailManagerRemote: NSObject {
         }
     }
     
-    private func ensureFFmpegAvailable(for server: ServerEntity, connection: SSHConnection) async -> String? {
+    private func ensureFFmpegAvailable(for server: ServerEntity, using connection: SSHConnection) async -> String? {
         let serverKey = server.name ?? server.sftpHost ?? "default"
-        // Use the persistent ffmpegPath if available, but check it once per session
+        
+        // Check the persistent path if available (this is thread-safe via UserDefaults)
         if let path = getFFmpegPath(for: server), !path.isEmpty {
-            if !ffmpegCheckedServers.contains(serverKey) {
-                // Check the path is valid
-                if let (_, testOutput) = try? await connection.executeCommand("\(path) -version || echo 'notfound'") {
-                    if !testOutput.contains("notfound") && !testOutput.contains("not found") {
-                        ffmpegCheckedServers.insert(serverKey)
-                        print("[ThumbnailManagerRemote] Verified ffmpegPath for server: \(serverKey): \(path)")
-                        return path
-                    } else {
-                        print("[ThumbnailManagerRemote] Cached ffmpegPath invalid for server: \(serverKey), clearing and re-detecting.")
-                        setFFmpegPath(nil, for: server)
-                    }
+            // Always verify the path is still valid (don't rely on cached validation)
+            if let (_, testOutput) = try? await connection.executeCommand("\(path) -version || echo 'notfound'") {
+                if !testOutput.contains("notfound") && !testOutput.contains("not found") {
+                    print("[ThumbnailManagerRemote] Verified ffmpegPath for server: \(serverKey): \(path)")
+                    return path
+                } else {
+                    print("[ThumbnailManagerRemote] Cached ffmpegPath invalid for server: \(serverKey), clearing and re-detecting.")
+                    setFFmpegPath(nil, for: server)
                 }
-            } else {
-                return path
             }
         }
         // Otherwise, detect or install ffmpeg
@@ -342,7 +343,7 @@ public class ThumbnailManagerRemote: NSObject {
         if foundPath == nil {
             print("[ThumbnailManagerRemote] ffmpeg not found, attempting install for server: \(server.name ?? server.sftpHost ?? "default")...")
             do {
-                foundPath = try await RemoteFFmpegInstaller.ensureFFmpegAvailable(connection: connection)
+                foundPath = try await RemoteFFmpegInstaller.ensureFFmpegAvailable(using: connection)
                 print("[ThumbnailManagerRemote] ffmpeg installed at: \(String(describing: foundPath)) for server: \(server.name ?? server.sftpHost ?? "default")")
                 if let path = foundPath, path.hasPrefix("~") {
                     foundPath = path.replacingOccurrences(of: "~", with: "$HOME")
@@ -354,7 +355,6 @@ public class ThumbnailManagerRemote: NSObject {
         }
         if let foundPath = foundPath {
             setFFmpegPath(foundPath, for: server)
-            ffmpegCheckedServers.insert(serverKey)
             print("[ThumbnailManagerRemote] Persisted ffmpegPath for server: \(server.name ?? server.sftpHost ?? "default"): \(foundPath)")
             return foundPath
         }
@@ -568,5 +568,47 @@ public struct FileRowThumbnail: View {
         
         RemotePathThumbnailView(path: item.url.path, server: server , overlay: false)
        
+    }
+}
+
+// MARK: - Safe SSH Helper Methods (Create-and-Destroy Pattern)
+extension ThumbnailManagerRemote {
+    
+    /// Safely check if ffmpeg is available on a server
+    static func checkFFmpegAvailability(on server: ServerEntity) async -> String? {
+        do {
+            return try await SSHConnection.withConnection(server: server) { connection in
+                try await connection.connect()
+                
+                let knownInstallPaths = [
+                    "ffmpeg",
+                    "$HOME/bin/ffmpeg",
+                    "$HOME/bin/ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe"
+                ]
+                
+                for path in knownInstallPaths {
+                    if let (_, testOutput) = try? await connection.executeCommand("\(path) -version || echo 'notfound'") {
+                        if !testOutput.contains("notfound") && !testOutput.contains("not found") {
+                            return path
+                        }
+                    }
+                }
+                return nil
+            }
+        } catch {
+            print("[ThumbnailManagerRemote] Error checking ffmpeg availability: \(error)")
+            return nil
+        }
+    }
+    
+    /// Safely install ffmpeg on a server if not already present
+    static func ensureFFmpegInstalled(on server: ServerEntity) async throws -> String {
+        // First check if it's already available
+        if let existingPath = await checkFFmpegAvailability(on: server) {
+            return existingPath
+        }
+        
+        // If not, install it using the safe installer
+        return try await RemoteFFmpegInstaller.ensureFFmpegAvailable(on: server)
     }
 }

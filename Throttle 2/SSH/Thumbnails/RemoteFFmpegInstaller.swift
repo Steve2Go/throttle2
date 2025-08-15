@@ -4,7 +4,15 @@ import Foundation
 struct RemoteFFmpegInstaller {
     /// Checks for ffmpeg on the remote server, and if not found, downloads and installs it.
     /// - Returns: The path to the usable ffmpeg binary on the remote server.
-    static func ensureFFmpegAvailable(connection: SSHConnection) async throws -> String {
+    static func ensureFFmpegAvailable(on server: ServerEntity) async throws -> String {
+        return try await SSHConnection.withConnection(server: server) { connection in
+            try await connection.connect()
+            return try await ensureFFmpegAvailable(using: connection)
+        }
+    }
+    
+    /// Internal method that works with an existing connection
+    static func ensureFFmpegAvailable(using connection: SSHConnection) async throws -> String {
         print("[RemoteFFmpegInstaller] Checking for ffmpeg on remote server...")
         // 1. Check if ffmpeg is already available
         let checkCmd = "command -v ffmpeg || echo 'notfound'"
@@ -87,4 +95,4 @@ struct RemoteFFmpegInstaller {
         print("[RemoteFFmpegInstaller] ffmpeg installed successfully at \(installPath)")
         return installPath
     }
-} 
+    } // End of withConnection block 
