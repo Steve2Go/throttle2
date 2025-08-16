@@ -190,7 +190,7 @@ struct SFTPFileBrowserView: View {
                         }
                     }
                     #endif
-                    
+                    #if os(macOS)
                     ToolbarItem(placement: .cancellationAction) {
                         HStack {
                             Button(action: {
@@ -201,6 +201,18 @@ struct SFTPFileBrowserView: View {
                             }
                         }
                     }
+                    #else
+                    ToolbarItem(placement: .topBarTrailing) {
+                        HStack {
+                            Button(action: {
+//                             clearThumbnailOperations()
+                                dismiss()
+                            }) {
+                                Text("Close")
+                            }
+                        }
+                    }
+                    #endif
                     
                     // back button, if not at base path
                     if viewModel.currentPath != viewModel.basePath && viewModel.currentPath + "/" != viewModel.basePath {

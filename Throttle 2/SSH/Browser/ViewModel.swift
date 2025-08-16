@@ -272,7 +272,9 @@ class SFTPFileBrowserViewModel: ObservableObject {
                         let fileType = FileType.determine(from: fileItem.url)
                         if fileType == .video {
                             // Dismiss the current view first
-                            self.onDismiss?()
+                            defer{
+                                self.onDismiss?()
+                            }
                             
                             // Then open the video player
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
