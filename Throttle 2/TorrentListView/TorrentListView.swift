@@ -292,7 +292,9 @@ struct TorrentListView: View {
         
         
         #if os(iOS)
-        .sheet(isPresented: $store.FileBrowse, onDismiss: {}, content: {
+        .sheet(isPresented: $store.FileBrowse, onDismiss: {
+            store.isOpeningVideoDirectly = false
+        }, content: {
             Group {
                 if let url = store.fileURL, let torrentName = store.fileBrowserName {
 
@@ -313,8 +315,13 @@ struct TorrentListView: View {
                     }
                 }
             }
+            #if os(iOS)
+            .presentationDetents(store.isOpeningVideoDirectly ? [.height(1)] : [.medium, .large])
+            #endif
         })
-        .fullScreenCover(isPresented: $store.FileBrowseCover, onDismiss: {}, content: {
+        .fullScreenCover(isPresented: $store.FileBrowseCover, onDismiss: {
+            store.isOpeningVideoDirectly = false
+        }, content: {
             Group {
                 if let url = store.fileURL, let torrentName = store.fileBrowserName {
 

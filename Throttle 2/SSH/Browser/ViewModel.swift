@@ -55,6 +55,9 @@ class SFTPFileBrowserViewModel: ObservableObject {
     @Published var videoPlayerConfiguration: VideoPlayerConfiguration?
     @Published var showingVideoPlayer = false
     
+    // Dismiss closure to handle view dismissal
+    var onDismiss: (() -> Void)?
+    
     private var activeThumbnailOperations: [URL: Task<Void, Never>] = [:]
     
     @Published var musicPlayerPlaylist: [URL] = []
@@ -71,11 +74,12 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     // MARK: - Initialization and Connection
     
-    init(currentPath: String, basePath: String, server: ServerEntity?) {
+    init(currentPath: String, basePath: String, server: ServerEntity?, onDismiss: (() -> Void)? = nil) {
         self.currentPath = currentPath
         self.basePath = basePath
         self.initialPath = currentPath
         self.isInitialPathAFile = false // Will be determined after connection
+        self.onDismiss = onDismiss
         
         // Save server for later use
         self.server = server ?? ServerEntity() // Fallback to avoid force unwrap
@@ -259,6 +263,18 @@ class SFTPFileBrowserViewModel: ObservableObject {
                         self.items = [fileItem] // Set items to contain only this file
                         self.isLoading = false
                         self.updateImageUrls()
+                        
+                        // If the single file is a video, automatically open it in the video player
+                        let fileType = FileType.determine(from: fileItem.url)
+                        if fileType == .video {
+                            // Dismiss the current view first
+                            self.onDismiss?()
+                            
+                            // Then open the video player
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                self.openVideo(item: fileItem, server: self.server)
+                            }
+                        }
                     }
                 } else {
                     // Not a valid file, fallback to directory mode

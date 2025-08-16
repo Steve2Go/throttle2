@@ -47,7 +47,7 @@ struct SFTPFileBrowserView: View {
             self.server = server!
             self.currentPath = currentPath
             self.store = store
-            _viewModel = StateObject(wrappedValue: SFTPFileBrowserViewModel(currentPath: currentPath, basePath: basePath, server: server))
+            _viewModel = StateObject(wrappedValue: SFTPFileBrowserViewModel(currentPath: currentPath, basePath: basePath, server: server, onDismiss: nil))
         }
     
     
@@ -72,6 +72,12 @@ struct SFTPFileBrowserView: View {
 //                        await ThumbnailManager.shared.cleanup()
 //                    }
                     searchQuery = ""
+                }
+                .onAppear {
+                    // Set the dismiss closure for the viewModel
+                    viewModel.onDismiss = {
+                        dismiss()
+                    }
                 }
                 .onDisappear {
                     searchQuery = ""

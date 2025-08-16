@@ -152,6 +152,11 @@ struct TorrentRowView: View {
 #if os(iOS)
                                         store.fileURL = torrentU
                                         store.fileBrowserName = torrent.name!
+                                        
+                                        // Check if it's a video file
+                                        let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
+                                        store.isOpeningVideoDirectly = videoExtensions.contains(ext)
+                                        
                                         if isiPad{
                                             store.FileBrowse = true
                                         } else{
@@ -186,8 +191,14 @@ struct TorrentRowView: View {
                                     
                                     
                                 } label: {
-                                    Image(systemName: "internaldrive")
+                                    let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
+                                            if videoExtensions.contains(ext) {
+                                    Image(systemName: "play")
                                         .foregroundStyle(.gray)
+                                            } else{
+                                                Image(systemName: "internaldrive")
+                                                    .foregroundStyle(.gray)
+                                            }
                                 }
                                 .buttonStyle(.plain)
                             } else{
