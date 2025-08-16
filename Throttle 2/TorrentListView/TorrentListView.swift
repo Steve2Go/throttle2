@@ -303,6 +303,9 @@ struct TorrentListView: View {
                         server: store.selection,
                         store: store
                     ).withToast()
+                    #if os(macOS)
+                    .frame(minWidth: 800, minHeight: 500)
+                    #endif
                     
                 } else {
                     // Fallback if path not available
@@ -310,6 +313,9 @@ struct TorrentListView: View {
                         ProgressView()
                         Text("Loading file browser...")
                     }
+                    #if os(macOS)
+                    .frame(minWidth: 800, minHeight: 500)
+                    #endif
                 }
             }
             #if os(iOS)
@@ -352,6 +358,7 @@ struct TorrentListView: View {
                         server: store.selection,
                         store: store
                     ).withToast()
+                    .frame(minWidth: 800, minHeight: 800)
                     
                 } else {
                     // Fallback if path not available
@@ -359,6 +366,7 @@ struct TorrentListView: View {
                         ProgressView()
                         Text("Loading file browser...")
                     }
+                    .frame(minWidth: 800, minHeight: 800)
                 }
             }
         })

@@ -398,19 +398,21 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     func openVideo(item: FileItem, server: ServerEntity) {
         #if os(macOS)
-        // macOS: Try local FUSE mount first, then fall back to mpv with streaming
+        // Use default system media player on macOS to avoid mpv hardened runtime issues
         if let localPath = getLocalMountPath(for: item.url.path, server: server),
            FileManager.default.fileExists(atPath: localPath.path) {
-            // Use local file with mpv
-            openVideoWithMpv(localPath: localPath)
-            return
+            // Use local FUSE mounted file
+            NSWorkspace.shared.open(localPath)
         } else {
-            // Fall back to streaming with mpv
-            openVideoWithMpvStreaming(item: item, server: server)
-            return
+            // Create streaming URL and open with default player
+            let encodedPath = item.url.path
+            let streamUrl = "ftp://localhost:2121/\(FilenameMapper.encodePath(encodedPath))"
+            if let url = URL(string: streamUrl) {
+                NSWorkspace.shared.open(url)
+            }
         }
         #else
-        // iOS: Use existing VLCKit logic
+        // iOS: Use VLCKit
         openVideoWithVLCKit(item: item, server: server)
         #endif
     }
@@ -697,6 +699,22 @@ class SFTPFileBrowserViewModel: ObservableObject {
     }
     
     func openAudio(item: FileItem, server: ServerEntity) {
+        #if os(macOS)
+        // Use default system media player on macOS to avoid mpv hardened runtime issues
+        if let localPath = getLocalMountPath(for: item.url.path, server: server),
+           FileManager.default.fileExists(atPath: localPath.path) {
+            // Use local FUSE mounted file
+            NSWorkspace.shared.open(localPath)
+        } else {
+            // Create streaming URL and open with default player
+            let encodedPath = item.url.path
+            let streamUrl = "ftp://localhost:2121/\(FilenameMapper.encodePath(encodedPath))"
+            if let url = URL(string: streamUrl) {
+                NSWorkspace.shared.open(url)
+            }
+        }
+        #else
+        // iOS: Use existing VLCKit logic
         // Get all audio files from current directory
         let audioItems = items.filter { item in
             !item.isDirectory && FileType.determine(from: item.url) == .audio
@@ -758,20 +776,19 @@ class SFTPFileBrowserViewModel: ObservableObject {
                 self.showingMusicPlayer = true
             }
         }
+        #endif
     }
     
     /// Call this before releasing the view model to ensure proper async cleanup.
     @MainActor
     func cleanup() async {
-        defer{
-            nextVideoTimer = nil
-            downloadTask = nil
-        }
         // Invalidate timer
         nextVideoTimer?.invalidate()
+        nextVideoTimer = nil
         
-        // Cancel download task
+        // Cancel download task if any
         downloadTask?.cancel()
+        downloadTask = nil
         
         // Clear thumbnail operations
         clearThumbnailOperations()

@@ -165,13 +165,14 @@ struct TorrentRowView: View {
                                         }
 #else
                                         //macos
-                                        if useInternalBrowser {
+                                        let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
+                                        if useInternalBrowser && !videoExtensions.contains(ext){
                                             // Use internal browser (similar to iOS logic)
                                             store.fileURL = torrentU
                                             store.fileBrowserName = torrent.name!
                                             
                                             // Check if it's a video file for auto-opening
-                                            let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
+                                            //let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
                                             store.isOpeningVideoDirectly = videoExtensions.contains(ext)
                                             
                                             // Use sheet presentation like iPad
@@ -181,7 +182,7 @@ struct TorrentRowView: View {
                                             if store.selection?.sftpBrowse == true {
                                                 let pathName = get_fuse_path(torrent: torrent, downloadDir: torrentU)
                                                 // Check if torrent.name is a video file
-                                                let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
+                                                //let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
                                                 if videoExtensions.contains(ext) {
                                                     // Open the video file itself
                                                     NSWorkspace.shared.open(pathName)

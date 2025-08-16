@@ -570,13 +570,14 @@ Spacer()
             }.sheet(isPresented: $showBrowser, content: {
                 Group {
                     if let url = torrentUrl, let torrentName = torrent.name {
-                        #if os(iOS)
                         SFTPFileBrowserView(
                             currentPath: url + "/" + torrentName,
                             basePath: (store.selection?.pathServer) ?? "",
                             server: store.selection,
                             store: store
                         )
+                        #if os(macOS)
+                        .frame(minWidth: 800, minHeight: 800)
                         #endif
                         
                     } else {
@@ -585,6 +586,9 @@ Spacer()
                             ProgressView()
                             Text("Loading file browser...")
                         }
+                        #if os(macOS)
+                        .frame(minWidth: 800, minHeight: 800)
+                        #endif
                     }
                 }
             })

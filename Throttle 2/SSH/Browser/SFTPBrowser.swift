@@ -69,7 +69,9 @@ struct SFTPFileBrowserView: View {
                     }
                 }
                 // search bar
+                #if os(iOS)
                 .searchable(text: $searchQuery, prompt: "Search")
+                #endif
                 .onChange(of: searchQuery) {
                     viewModel.fetchItems()
                 }
@@ -93,16 +95,57 @@ struct SFTPFileBrowserView: View {
                 }
 //                //tools
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
+                    #if os(macOS)
+                    ToolbarItem(placement: .primaryAction) {
                         HStack {
-                            Button(action: {
-//                             clearThumbnailOperations()
-                                dismiss()
-                            }) {
-                                Text("Close")
+                            TextField("Search", text: $searchQuery)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 180)
+                            
+                            Menu {
+                                Button(action: {
+                                    viewMode = viewMode == "list" ? "grid" : "list"
+                                }) {
+                                    Text(viewMode == "list" ? "Show as Grid" : "Show as List")
+                                    Image(systemName: viewMode == "list" ? "square.grid.2x2" : "list.bullet")
+                                }
+                                Button {
+                                    sftpSortOrder = "name"
+                                    viewModel.fetchItems()
+                                } label:{
+                                    Text("Name")
+                                    if sftpSortOrder == "name" {
+                                        Image(systemName: "chevron.down")
+                                    }
+                                }
+                                Button {
+                                    sftpSortOrder = "date"
+                                    viewModel.fetchItems()
+                                } label:{
+                                    Text("Date")
+                                    if sftpSortOrder == "date" {
+                                        Image(systemName: "chevron.down")
+                                    }
+                                }
+                                Divider()
+                                Button("Folders First",  systemImage: sftpFoldersFirst  ? "checkmark.circle" : "circle"){
+                                    sftpFoldersFirst.toggle()
+                                    viewModel.fetchItems()
+                                }
+                                Divider()
+                                Button(action: { showUploadView = true }) {
+                                                        Label("Upload", systemImage: "arrow.up.doc")
+                                                    }
+                                Button("New Folder", systemImage: "folder.badge.plus"){
+                                    showNewFolderPrompt.toggle()
+                                }
+                                
+                            } label:{
+                                Image(systemName: "ellipsis.circle")
                             }
                         }
                     }
+                    #else
                     ToolbarItem(placement: .primaryAction) {
                         Menu {
                             Button(action: {
@@ -146,6 +189,18 @@ struct SFTPFileBrowserView: View {
                             Image(systemName: "ellipsis.circle")
                         }
                     }
+                    #endif
+                    
+                    ToolbarItem(placement: .cancellationAction) {
+                        HStack {
+                            Button(action: {
+//                             clearThumbnailOperations()
+                                dismiss()
+                            }) {
+                                Text("Close")
+                            }
+                        }
+                    }
                     
                     // back button, if not at base path
                     if viewModel.currentPath != viewModel.basePath && viewModel.currentPath + "/" != viewModel.basePath {
@@ -161,7 +216,8 @@ struct SFTPFileBrowserView: View {
                             }
                         }
                     }
-                }.navigationTitle(NSString( string: viewModel.currentPath ).lastPathComponent.capitalized)
+                }
+                .navigationTitle(NSString( string: viewModel.currentPath ).lastPathComponent.capitalized)
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif

@@ -22,6 +22,8 @@ struct SettingsView: View {
     @AppStorage("thumbsLocal") var thumbsLocal = false
     @AppStorage("finderBrowser") var finderBrowser: Bool = false
     @AppStorage("useInternalBrowser") var useInternalBrowser: Bool = false
+    // COMMENTED OUT DUE TO MPV HARDENED RUNTIME ISSUES - ALWAYS USING DEFAULT PLAYER
+    // @AppStorage("useDefaultMediaPlayer") var useDefaultMediaPlayer: Bool = false
     @AppStorage("preferredVideoPlayer") var preferredVideoPlayer: String = "system"
     @ObservedObject var presenting: Presenting
     @State var installerView = false
@@ -122,6 +124,17 @@ struct SettingsView: View {
                     description: "Use built-in browser for browsing remote files instead of Finder",
                     control: Toggle("", isOn: $useInternalBrowser)
                 )
+                
+                if useInternalBrowser {
+                    // COMMENTED OUT DUE TO MPV HARDENED RUNTIME ISSUES - ALWAYS USING DEFAULT PLAYER
+                    /*
+                    settingRow(
+                        title: "Use Default Media Player",
+                        description: "Use system default media player instead of mpv for videos and audio",
+                        control: Toggle("", isOn: $useDefaultMediaPlayer)
+                    )
+                    */
+                }
                 #endif
                
                     Button("Clear Cache"){
