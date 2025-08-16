@@ -92,6 +92,10 @@ class VideoPlayerViewController: UIViewController {
         button.layer.cornerRadius = 22 // Half of 44pt width/height for perfect circle
         button.layer.masksToBounds = true
         
+        // Add 1px white border
+        button.layer.borderWidth = 1.0
+        button.layer.borderColor = UIColor.white.cgColor
+        
         return button
     }()
     

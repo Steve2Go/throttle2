@@ -148,6 +148,10 @@ struct ImageBrowserView: View {
                             .padding(12)
                             .background(Color.white.opacity(0.3))
                             .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 1)
+                            )
                     }
                     .padding([.trailing], 5)
                 }
@@ -642,6 +646,10 @@ struct ImageBrowserControlView: View {
                             .padding(12)
                             .background(Color.black.opacity(0.5))
                             .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 1)
+                            )
                     }
                 }
                 .padding()
