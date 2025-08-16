@@ -143,6 +143,7 @@ struct ImageBrowserView: View {
                             .frame(width: 20, height: 20)
                             .foregroundColor(.white)
                             .padding(12)
+                            .background(Color.white.opacity(0.3))
                             .clipShape(Circle())
                     }
                     .padding([.trailing], 5)

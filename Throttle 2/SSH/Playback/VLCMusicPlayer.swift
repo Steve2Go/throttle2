@@ -141,7 +141,7 @@ struct VLCMusicPlayer: View {
                     .font(.title2)
                     .foregroundColor(.white)
                     .padding(16)
-                    .background(Color.black.opacity(0.7))
+                    .background(Color.white.opacity(0.7))
                     .clipShape(Circle())
             }
             .padding(.top, 20)

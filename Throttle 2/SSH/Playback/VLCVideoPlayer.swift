@@ -61,8 +61,13 @@ class VideoPlayerViewController: UIViewController {
     
     private lazy var controlsView: UIView = {
         let view = UIView()
-        view.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        view.backgroundColor = UIColor.white.withAlphaComponent(0.3)
         view.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Add rounded corners - increased roundness
+        view.layer.cornerRadius = 20
+        view.layer.masksToBounds = true
+        
         return view
     }()
     
@@ -81,6 +86,12 @@ class VideoPlayerViewController: UIViewController {
         button.tintColor = .white
         button.addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
         button.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Add white, partly transparent circular background
+        button.backgroundColor = UIColor.white.withAlphaComponent(0.3)
+        button.layer.cornerRadius = 22 // Half of 44pt width/height for perfect circle
+        button.layer.masksToBounds = true
+        
         return button
     }()
     
@@ -244,7 +255,6 @@ class VideoPlayerViewController: UIViewController {
         view.addSubview(seekIndicatorView)
         seekIndicatorView.addSubview(seekIndicatorImageView)
         seekIndicatorView.addSubview(seekIndicatorLabel)
-        
         view.addSubview(controlsView)
         
         controlsView.addSubview(playPauseButton)
@@ -255,9 +265,9 @@ class VideoPlayerViewController: UIViewController {
         controlsView.addSubview(timeLabel)
         
         NSLayoutConstraint.activate([
-            controlsView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            controlsView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            controlsView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -15),
+            controlsView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            controlsView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            controlsView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -30),
             controlsView.heightAnchor.constraint(equalToConstant: 110),
             
             closeButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
@@ -265,12 +275,12 @@ class VideoPlayerViewController: UIViewController {
             closeButton.widthAnchor.constraint(equalToConstant: 44),
             closeButton.heightAnchor.constraint(equalToConstant: 44),
             
-            timeSlider.topAnchor.constraint(equalTo: controlsView.topAnchor, constant: 8),
+            timeSlider.topAnchor.constraint(equalTo: controlsView.topAnchor, constant: 22),
             timeSlider.leadingAnchor.constraint(equalTo: controlsView.leadingAnchor, constant: 20),
             timeSlider.trailingAnchor.constraint(equalTo: controlsView.trailingAnchor, constant: -20),
             timeSlider.heightAnchor.constraint(equalToConstant: 24),
             
-            playPauseButton.topAnchor.constraint(equalTo: timeSlider.bottomAnchor, constant: 10),
+            playPauseButton.topAnchor.constraint(equalTo: timeSlider.bottomAnchor, constant: 17),
             playPauseButton.leadingAnchor.constraint(equalTo: controlsView.leadingAnchor, constant: 20),
             playPauseButton.widthAnchor.constraint(equalToConstant: 44),
             playPauseButton.heightAnchor.constraint(equalToConstant: 44),

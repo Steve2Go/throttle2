@@ -150,7 +150,7 @@ struct FilterContent: View {
                 Image(systemName: "line.3.horizontal.decrease")
             } else{
                 Image(systemName: "line.3.horizontal.decrease")
-                    .colorInvert()
+                    .foregroundColor(.orange)
             }
             
             #endif

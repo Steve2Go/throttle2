@@ -199,7 +199,7 @@ struct TorrentListView: View {
                         #else
                         ZStack{
                             Image(systemName: "checklist")
-                                .colorInvert()
+                                .foregroundColor(.orange)
                         }
                         #endif
                     }
