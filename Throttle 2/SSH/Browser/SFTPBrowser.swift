@@ -1,9 +1,13 @@
-#if os(iOS)
 import SwiftUI
 import Combine
 import Citadel
 import KeychainAccess
+#if os(iOS)
 import AVKit
+import UIKit
+#else
+import AppKit
+#endif
 import SimpleToast
 
 // MARK: - FileBrowserView
@@ -16,7 +20,7 @@ struct SFTPFileBrowserView: View {
     @ObservedObject var server: ServerEntity
     @State var store: Store
     @AppStorage("preferVLC") var preferVLC = false
-    @AppStorage("sftpViewMode") private var viewMode: String = "list"
+    @AppStorage("sftpViewMode") private var viewMode: String = "grid"
     @AppStorage("sftpSortOrder") private var sftpSortOrder: String = "date"
     @AppStorage("sftpFoldersFirst") var sftpFoldersFirst: Bool = true
     @AppStorage("searchQuery") var searchQuery: String = ""
@@ -33,8 +37,10 @@ struct SFTPFileBrowserView: View {
     
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    #if os(iOS)
         @State private var videoPlayerConfiguration: VideoPlayerConfiguration?
         @State private var showingVideoPlayer = false
+    #endif
     
     
     
@@ -87,7 +93,7 @@ struct SFTPFileBrowserView: View {
                 }
 //                //tools
                 .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItem(placement: .cancellationAction) {
                         HStack {
                             Button(action: {
 //                             clearThumbnailOperations()
@@ -97,7 +103,7 @@ struct SFTPFileBrowserView: View {
                             }
                         }
                     }
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItem(placement: .primaryAction) {
                         Menu {
                             Button(action: {
                                 viewMode = viewMode == "list" ? "grid" : "list"
@@ -143,7 +149,7 @@ struct SFTPFileBrowserView: View {
                     
                     // back button, if not at base path
                     if viewModel.currentPath != viewModel.basePath && viewModel.currentPath + "/" != viewModel.basePath {
-                        ToolbarItem(placement: .navigationBarLeading) {
+                        ToolbarItem(placement: .navigation) {
                             Button(action: {
                                 viewModel.navigateUp()
                             }) {
@@ -155,7 +161,10 @@ struct SFTPFileBrowserView: View {
                             }
                         }
                     }
-                }.navigationTitle(NSString( string: viewModel.currentPath ).lastPathComponent.capitalized).navigationBarTitleDisplayMode(.inline)
+                }.navigationTitle(NSString( string: viewModel.currentPath ).lastPathComponent.capitalized)
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
             }
 //            .navigationTitle(viewModel.isInitialPathAFile ?
 //                             viewModel.initialFileItem?.name ?? "File" :
@@ -169,13 +178,14 @@ struct SFTPFileBrowserView: View {
                     store.currentSFTPViewModel = nil
                 }
             }
+            #if os(iOS)
             .fullScreenCover(isPresented: $viewModel.showingVideoPlayer) {
-                
-                        if let config = viewModel.videoPlayerConfiguration {
-                            VideoPlayerContainerView(configuration: config)
-                                .ignoresSafeArea(edges: .all)
-                        }
-                    }
+                if let config = viewModel.videoPlayerConfiguration {
+                    VideoPlayerContainerView(configuration: config)
+                        .ignoresSafeArea(edges: .all)
+                }
+            }
+            #endif
             .alert("New Folder", isPresented: $showNewFolderPrompt) {
                 TextField("Folder Name", text: $newFolderName)
                 Button("Cancel", role: .cancel) { showNewFolderPrompt = false }
@@ -266,6 +276,7 @@ struct SFTPFileBrowserView: View {
                     .animation(.easeInOut, value: viewModel.isDownloading)
             )
             // Image browser sheet
+            #if os(iOS)
             .fullScreenCover(isPresented: $viewModel.showingImageBrowser) {
                 if let selectedIndex = viewModel.selectedImageIndex {
                     ImageBrowserViewWrapper(
@@ -275,6 +286,18 @@ struct SFTPFileBrowserView: View {
                     ).ignoresSafeArea()
                 }
             }
+            #else
+            .sheet(isPresented: $viewModel.showingImageBrowser) {
+                if let selectedIndex = viewModel.selectedImageIndex {
+                    ImageBrowserViewWrapper(
+                        imageUrls: viewModel.imageUrls,
+                        initialIndex: selectedIndex,
+                        sftpConnection: viewModel
+                    ).ignoresSafeArea()
+                }
+            }
+            #endif
+               
             // File action sheet
             .confirmationDialog(
                 "File Options",
@@ -304,6 +327,7 @@ struct SFTPFileBrowserView: View {
                     Button("Cancel", role: .cancel) {}
                 }
             }
+            #if os(iOS)
             .sheet(isPresented: $viewModel.showingMusicPlayer) {
                 VLCMusicPlayer(urls: viewModel.musicPlayerPlaylist, startIndex: viewModel.musicPlayerStartIndex)
                     .ignoresSafeArea(edges: .all)
@@ -311,6 +335,7 @@ struct SFTPFileBrowserView: View {
                         viewModel.showingMusicPlayer = false
                     }
             }
+            #endif
         }
     }
     
@@ -575,7 +600,11 @@ struct SFTPFileBrowserView: View {
                 .padding()
                 .background(
                     RoundedRectangle(cornerRadius: 10)
+                        #if os(iOS)
                         .fill(Color(.systemBackground))
+                        #else
+                        .fill(Color(NSColor.controlBackgroundColor))
+                        #endif
                         .shadow(radius: 5)
                         .opacity(0.95)
                 )
@@ -596,7 +625,7 @@ struct SFTPFileBrowserView: View {
 }
 
 
-
+#if os(iOS)
 
 struct VideoPlayerContainerView: UIViewControllerRepresentable {
     let configuration: VideoPlayerConfiguration
@@ -610,6 +639,8 @@ struct VideoPlayerContainerView: UIViewControllerRepresentable {
     }
 }
 
+#endif
+
 extension FileItem {
     var safeFileName: String {
         // Return the name directly from the file item, not from the URL
@@ -617,4 +648,3 @@ extension FileItem {
     }
     
 }
-#endif

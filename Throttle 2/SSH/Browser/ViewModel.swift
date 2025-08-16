@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import KeychainAccess
 import Citadel
@@ -52,8 +51,11 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     var downloadTask: Task<Void, Error>?
     weak var delegate: SFTPFileBrowserViewModelDelegate?
+        @Published var showingVideoPlayer = false
+    #if os(iOS)
     @Published var videoPlayerConfiguration: VideoPlayerConfiguration?
-    @Published var showingVideoPlayer = false
+    #endif
+    @Published var streamingUrl = ""
     
     // Dismiss closure to handle view dismissal
     var onDismiss: (() -> Void)?
@@ -65,7 +67,9 @@ class SFTPFileBrowserViewModel: ObservableObject {
     @Published var showingMusicPlayer = false
     
     protocol SFTPFileBrowserViewModelDelegate: AnyObject {
+        #if os(iOS)
         func viewModel(_ viewModel: SFTPFileBrowserViewModel, didRequestVideoPlayback configuration: VideoPlayerConfiguration)
+        #endif
     }
     
     func requestSent() {
@@ -393,6 +397,138 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     
     func openVideo(item: FileItem, server: ServerEntity) {
+        #if os(macOS)
+        // macOS: Try local FUSE mount first, then fall back to mpv with streaming
+        if let localPath = getLocalMountPath(for: item.url.path, server: server),
+           FileManager.default.fileExists(atPath: localPath.path) {
+            // Use local file with mpv
+            openVideoWithMpv(localPath: localPath)
+            return
+        } else {
+            // Fall back to streaming with mpv
+            openVideoWithMpvStreaming(item: item, server: server)
+            return
+        }
+        #else
+        // iOS: Use existing VLCKit logic
+        openVideoWithVLCKit(item: item, server: server)
+        #endif
+    }
+    
+    #if os(macOS)
+    private func getLocalMountPath(for remotePath: String, server: ServerEntity) -> URL? {
+        let mountPath = ServerMountManager.shared.getMountPath(for: server)
+        
+        // Check if mount exists
+        if FileManager.default.fileExists(atPath: mountPath.path) {
+            var cleanRemotePath = remotePath
+            
+            // Remove server base path if it exists
+            if let basePath = server.pathServer, remotePath.hasPrefix(basePath) {
+                cleanRemotePath = String(remotePath.dropFirst(basePath.count))
+            }
+            
+            // Remove leading slashes
+            cleanRemotePath = cleanRemotePath.trimmingCharacters(in: .init(charactersIn: "/"))
+            
+            return mountPath.appendingPathComponent(cleanRemotePath)
+        }
+        
+        return nil
+    }
+    
+    // Public method for other views to convert SFTP paths to FUSE paths
+    func convertToFUSEPath(_ remotePath: String) -> String? {
+        return getLocalMountPath(for: remotePath, server: server)?.path
+    }
+    
+    private func openVideoWithMpv(localPath: URL) {
+        // Get all video files from current directory for playlist
+        let videoItems = items.filter { item in
+            !item.isDirectory && FileType.determine(from: item.url) == .video
+        }
+        
+        if videoItems.count == 1 {
+            // Single video
+            launchMpv(with: [
+                "--fs",
+                "--keep-open=yes",
+                localPath.path
+            ])
+        } else {
+            // Create playlist from local paths
+            var playlist: [String] = []
+            for videoItem in videoItems {
+                if let localVideoPath = getLocalMountPath(for: videoItem.url.path, server: server) {
+                    playlist.append(localVideoPath.path)
+                }
+            }
+            
+            var args = ["--fs", "--keep-open=yes"]
+            args.append(contentsOf: playlist)
+            
+            // Start at correct index if possible
+            if let selectedIndex = videoItems.firstIndex(where: { $0.url.path == localPath.lastPathComponent }) {
+                args.append("--playlist-start=\(selectedIndex)")
+            }
+            
+            launchMpv(with: args)
+        }
+    }
+    
+    private func openVideoWithMpvStreaming(item: FileItem, server: ServerEntity) {
+        // For streaming, create FTP URLs like iOS version but use mpv
+        let videoItems = items.filter { item in
+            !item.isDirectory && FileType.determine(from: item.url) == .video
+        }
+        
+        let encodedPath = item.url.path
+        let streamUrl = "ftp://localhost:2121/\(FilenameMapper.encodePath(encodedPath))"
+        
+        if videoItems.count == 1 {
+            launchMpv(with: [
+                "--fs",
+                "--keep-open=yes",
+                streamUrl
+            ])
+        } else {
+            var playlist: [String] = []
+            for videoItem in videoItems {
+                let encodedItemPath = videoItem.url.path
+                playlist.append("ftp://localhost:2121/\(FilenameMapper.encodePath(encodedItemPath))")
+            }
+            
+            var args = ["--fs", "--keep-open=yes"]
+            args.append(contentsOf: playlist)
+            
+            if let selectedIndex = videoItems.firstIndex(where: { $0.url.path == item.url.path }) {
+                args.append("--playlist-start=\(selectedIndex)")
+            }
+            
+            launchMpv(with: args)
+        }
+    }
+    
+    private func launchMpv(with arguments: [String]) {
+        guard let mpvPath = Bundle.main.path(forResource: "mpv", ofType: nil) else {
+            print("❌ mpv not found in bundle")
+            return
+        }
+        
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: mpvPath)
+        process.arguments = arguments
+        
+        do {
+            try process.run()
+            print("🎬 Launched mpv with args: \(arguments)")
+        } catch {
+            print("❌ Failed to launch mpv: \(error)")
+        }
+    }
+    #endif
+    
+    private func openVideoWithVLCKit(item: FileItem, server: ServerEntity) {
         // Get all video files from current directory
         let videoItems = items.filter { item in
             !item.isDirectory && FileType.determine(from: item.url) == .video
@@ -428,7 +564,9 @@ class SFTPFileBrowserViewModel: ObservableObject {
 //            } else {
 //                videoUrl = URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)/\(encodedPath)")!
 //            }
+            #if os(iOS)
             self.videoPlayerConfiguration = VideoPlayerConfiguration(singleItem: videoUrl)
+            #endif
             self.showingVideoPlayer = true
         } else {
             var playlist: [URL] = []
@@ -440,7 +578,9 @@ class SFTPFileBrowserViewModel: ObservableObject {
 //                    playlist.append(URL(string: "sftp://\(username):\(encodedPassword)@\(hostname):\(port)/\(encodedPath)")!)
 //                }
             }
+            #if os(iOS)
             self.videoPlayerConfiguration = VideoPlayerConfiguration(playlist: playlist, startIndex: selectedIndex)
+            #endif
             self.showingVideoPlayer = true
         }
     }
@@ -640,4 +780,13 @@ class SFTPFileBrowserViewModel: ObservableObject {
     }
 }
 
-#endif
+// MARK: - SFTPUploadHandler Conformance
+extension SFTPFileBrowserViewModel: SFTPUploadHandler {
+    func getServer() -> ServerEntity? {
+        return server
+    }
+    
+    func refreshItems() {
+        self.fetchItems()
+    }
+}

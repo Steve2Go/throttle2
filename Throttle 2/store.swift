@@ -74,10 +74,7 @@ class Store: NSObject, ObservableObject {
    // #if os(iOS)
     //@Published var ssh: SSHConnection?
 //#endif
-#if os(iOS)
     var currentSFTPViewModel: SFTPFileBrowserViewModel?
-
-    #endif
     func restoreSelection() {
         guard let savedId = selectedServerId,
               let uuid = UUID(uuidString: savedId) else {

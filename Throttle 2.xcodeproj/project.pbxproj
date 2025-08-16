@@ -90,6 +90,8 @@
 				"install-ffmpeg-static.sh",
 			);
 			platformFiltersByRelativePath = {
+				"MPV/mpv-intel.app" = (macos, );
+				MPV/mpv.app = (macos, );
 				QuickLookVideo.app = (macos, );
 				"fuse-t-macos-installer-1.0.44.pkg" = (macos, );
 				"sshfs-macos-installer-1.0.2.pkg" = (macos, );

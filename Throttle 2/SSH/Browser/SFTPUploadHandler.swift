@@ -303,16 +303,3 @@ struct SFTPUploadView: View {
         }
     }
 }
-
-#if os(iOS)
-// Update the SFTPFileBrowserViewModel conformance to the new protocol
-extension SFTPFileBrowserViewModel: SFTPUploadHandler {
-    func getServer() -> ServerEntity? {
-        return server
-    }
-    
-    func refreshItems() {
-        self.fetchItems()
-    }
-}
-#endif

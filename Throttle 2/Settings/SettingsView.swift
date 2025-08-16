@@ -21,6 +21,7 @@ struct SettingsView: View {
     @AppStorage("mountOnLogin") var mountOnLogin = false
     @AppStorage("thumbsLocal") var thumbsLocal = false
     @AppStorage("finderBrowser") var finderBrowser: Bool = false
+    @AppStorage("useInternalBrowser") var useInternalBrowser: Bool = false
     @AppStorage("preferredVideoPlayer") var preferredVideoPlayer: String = "system"
     @ObservedObject var presenting: Presenting
     @State var installerView = false
@@ -115,6 +116,12 @@ struct SettingsView: View {
                 ) .onChange(of: thumbsLocal){
                     manager.reset()
                 }
+                
+                settingRow(
+                    title: "Use Internal Browser",
+                    description: "Use built-in browser for browsing remote files instead of Finder",
+                    control: Toggle("", isOn: $useInternalBrowser)
+                )
                 #endif
                
                     Button("Clear Cache"){

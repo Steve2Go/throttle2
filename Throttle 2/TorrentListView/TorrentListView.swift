@@ -291,21 +291,18 @@ struct TorrentListView: View {
         }
         
         
-        #if os(iOS)
         .sheet(isPresented: $store.FileBrowse, onDismiss: {
             store.isOpeningVideoDirectly = false
         }, content: {
             Group {
                 if let url = store.fileURL, let torrentName = store.fileBrowserName {
 
-                    #if os(iOS)
                     SFTPFileBrowserView(
                         currentPath: url + "/" + torrentName,
                         basePath: url + "/" + torrentName, //(store.selection?.pathServer) ?? "",
                         server: store.selection,
                         store: store
                     ).withToast()
-                    #endif
                     
                 } else {
                     // Fallback if path not available
@@ -319,20 +316,42 @@ struct TorrentListView: View {
             .presentationDetents(store.isOpeningVideoDirectly ? [.height(1)] : [.medium, .large])
             #endif
         })
+        #if os(iOS)
         .fullScreenCover(isPresented: $store.FileBrowseCover, onDismiss: {
             store.isOpeningVideoDirectly = false
         }, content: {
             Group {
                 if let url = store.fileURL, let torrentName = store.fileBrowserName {
 
-                    #if os(iOS)
                     SFTPFileBrowserView(
                         currentPath: url + "/" + torrentName,
                         basePath: url + "/" + torrentName, //(store.selection?.pathServer) ?? "",
                         server: store.selection,
                         store: store
                     ).withToast()
-                    #endif
+                    
+                } else {
+                    // Fallback if path not available
+                    VStack {
+                        ProgressView()
+                        Text("Loading file browser...")
+                    }
+                }
+            }
+        })
+        #else
+        .sheet(isPresented: $store.FileBrowseCover, onDismiss: {
+            store.isOpeningVideoDirectly = false
+        }, content: {
+            Group {
+                if let url = store.fileURL, let torrentName = store.fileBrowserName {
+
+                    SFTPFileBrowserView(
+                        currentPath: url + "/" + torrentName,
+                        basePath: url + "/" + torrentName, //(store.selection?.pathServer) ?? "",
+                        server: store.selection,
+                        store: store
+                    ).withToast()
                     
                 } else {
                     // Fallback if path not available

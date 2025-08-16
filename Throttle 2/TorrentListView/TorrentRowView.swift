@@ -25,6 +25,7 @@ struct TorrentRowView: View {
     @Binding var selected: [Int]
     @AppStorage("primaryFile") var primaryFiles: Bool = false
     @AppStorage("thumbsLocal") var thumbsLocal = false
+    @AppStorage("useInternalBrowser") var useInternalBrowser: Bool = false
     
     let videoExtensions = ["mp4", "mov", "m4v", "avi", "mkv", "wmv", "flv", "webm", "3gp", "mpg", "mpeg","vob"]
     
@@ -163,26 +164,39 @@ struct TorrentRowView: View {
                                             store.FileBrowseCover = true
                                         }
 #else
-                                        //macos, mounted via fuse
-                                        if store.selection?.sftpBrowse == true {
-                                            let pathName = get_fuse_path(torrent: torrent, downloadDir: torrentU)
-                                            // Check if torrent.name is a video file
+                                        //macos
+                                        if useInternalBrowser {
+                                            // Use internal browser (similar to iOS logic)
+                                            store.fileURL = torrentU
+                                            store.fileBrowserName = torrent.name!
+                                            
+                                            // Check if it's a video file for auto-opening
                                             let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
-                                            if videoExtensions.contains(ext) {
-                                                // Open the video file itself
-//                                                openInFinder(url: pathName)
-                                                NSWorkspace.shared.open(pathName)
-                                            } else {
-                                                // Open the folder containing the file
-                                                let folderURL = pathName.deletingLastPathComponent()
-                                                openInFinder(url: pathName)
+                                            store.isOpeningVideoDirectly = videoExtensions.contains(ext)
+                                            
+                                            // Use sheet presentation like iPad
+                                            store.FileBrowse = true
+                                        } else {
+                                            // Use existing Finder-based logic
+                                            if store.selection?.sftpBrowse == true {
+                                                let pathName = get_fuse_path(torrent: torrent, downloadDir: torrentU)
+                                                // Check if torrent.name is a video file
+                                                let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
+                                                if videoExtensions.contains(ext) {
+                                                    // Open the video file itself
+                                                    NSWorkspace.shared.open(pathName)
+                                                } else {
+                                                    // Open the folder containing the file
+                                                    let folderURL = pathName.deletingLastPathComponent()
+                                                    openInFinder(url: pathName)
+                                                }
                                             }
-                                        }
-                                        else if store.selection?.pathServer != nil && store.selection?.pathFilesystem != nil {
-                                            let pathName = URL(string :"file://" + torrentU.replacingOccurrences(of: (store.selection?.pathServer!)!, with: store.selection?.pathFilesystem! ?? "/") + "/" + torrent.name!)
-                                            if pathName != nil{
-                                                print(pathName!.absoluteString)
-                                                openInFinder(url: pathName!)
+                                            else if store.selection?.pathServer != nil && store.selection?.pathFilesystem != nil {
+                                                let pathName = URL(string :"file://" + torrentU.replacingOccurrences(of: (store.selection?.pathServer!)!, with: store.selection?.pathFilesystem! ?? "/") + "/" + torrent.name!)
+                                                if pathName != nil{
+                                                    print(pathName!.absoluteString)
+                                                    openInFinder(url: pathName!)
+                                                }
                                             }
                                         }
                                         

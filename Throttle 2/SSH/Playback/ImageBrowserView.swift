@@ -1,6 +1,7 @@
-#if os(iOS)
 import SwiftUI
+#if os(iOS)
 import WebKit
+#endif
 import Citadel
 #if os(macOS)
 import AppKit
@@ -111,7 +112,9 @@ class ImageBrowserSharedState: ObservableObject {
     }
 }
 
-// MARK: - Image Browser View
+#if os(iOS)
+// MARK: - iOS Image Browser Views
+
 struct ImageBrowserView: View {
     let imageUrls: [URL]
     @State private var currentIndex: Int
@@ -1021,26 +1024,6 @@ struct ImageWebView: UIViewRepresentable {
     }
 }
 
-// MARK: - Wrapper for UIViewController integration
-struct ImageBrowserViewWrapper: UIViewControllerRepresentable {
-    let imageUrls: [URL]
-    let initialIndex: Int
-    let sftpConnection: SFTPFileBrowserViewModel
-    
-    func makeUIViewController(context: Context) -> UIViewController {
-        // Simply return the created view controller
-        return UIViewController.createImageBrowserViewController(
-            imageUrls: imageUrls,
-            initialIndex: initialIndex,
-            sftpConnection: sftpConnection
-        )
-    }
-    
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
-        // Nothing to update
-    }
-}
-
 // Extension to help with creating a SwiftUI image browser view controller
 extension UIViewController {
     static func createImageBrowserViewController(
@@ -1203,6 +1186,196 @@ class ImageBrowserViewController: UIViewController {
         
         // Notify the external display manager to resume normal operation
         ExternalDisplayManager.shared.resumeAfterVideoPlayer()
+    }
+}
+
+#endif
+
+// MARK: - Cross-platform Image Browser Wrapper
+struct ImageBrowserViewWrapper: View {
+    let imageUrls: [URL]
+    let initialIndex: Int
+    let sftpConnection: SFTPFileBrowserViewModel
+    
+    var body: some View {
+        #if os(iOS)
+        ImageBrowserViewRepresentable(
+            imageUrls: imageUrls,
+            initialIndex: initialIndex,
+            sftpConnection: sftpConnection
+        )
+        #else
+        ImageBrowserView(
+            imageUrls: imageUrls,
+            initialIndex: initialIndex,
+            sftpConnection: sftpConnection
+        )
+        #endif
+    }
+}
+
+#if os(iOS)
+// iOS UIViewControllerRepresentable wrapper
+struct ImageBrowserViewRepresentable: UIViewControllerRepresentable {
+    let imageUrls: [URL]
+    let initialIndex: Int
+    let sftpConnection: SFTPFileBrowserViewModel
+    
+    func makeUIViewController(context: Context) -> UIViewController {
+        // Simply return the created view controller
+        return UIViewController.createImageBrowserViewController(
+            imageUrls: imageUrls,
+            initialIndex: initialIndex,
+            sftpConnection: sftpConnection
+        )
+    }
+    
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        // Nothing to update
+    }
+}
+#endif
+
+#if os(macOS)
+// MARK: - macOS Image Browser 
+struct ImageBrowserView: View {
+    let imageUrls: [URL]
+    let initialIndex: Int
+    let sftpConnection: SFTPFileBrowserViewModel
+    
+    @State private var currentIndex: Int
+    @State private var imageData: Data?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    
+    init(imageUrls: [URL], initialIndex: Int, sftpConnection: SFTPFileBrowserViewModel) {
+        self.imageUrls = imageUrls
+        self.initialIndex = initialIndex
+        self.sftpConnection = sftpConnection
+        self._currentIndex = State(initialValue: initialIndex)
+    }
+    
+    var body: some View {
+        VStack {
+            // Image display area
+            ZStack {
+                Color.black
+                
+                if isLoading {
+                    ProgressView("Loading...")
+                        .foregroundColor(.white)
+                } else if let imageData = imageData,
+                          let nsImage = NSImage(data: imageData) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let errorMessage = errorMessage {
+                    VStack {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                            .foregroundColor(.red)
+                        Text(errorMessage)
+                            .foregroundColor(.white)
+                    }
+                } else {
+                    Text("No image available")
+                        .foregroundColor(.white)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            // Navigation controls
+            HStack {
+                Button(action: previousImage) {
+                    Image(systemName: "chevron.left")
+                }
+                .disabled(currentIndex <= 0)
+                
+                Spacer()
+                
+                Text("\(currentIndex + 1) of \(imageUrls.count)")
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Button(action: nextImage) {
+                    Image(systemName: "chevron.right")
+                }
+                .disabled(currentIndex >= imageUrls.count - 1)
+            }
+            .padding()
+        }
+        .frame(minWidth: 600, minHeight: 400)
+        .navigationTitle("Image Browser")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Show in Finder") {
+                    openInFinder()
+                }
+            }
+        }
+        .onAppear {
+            loadCurrentImage()
+        }
+        .onChange(of: currentIndex) { _ in
+            loadCurrentImage()
+        }
+    }
+    
+    private func loadCurrentImage() {
+        guard currentIndex >= 0 && currentIndex < imageUrls.count else { return }
+        
+        isLoading = true
+        errorMessage = nil
+        imageData = nil
+        
+        let currentUrl = imageUrls[currentIndex]
+        
+        Task {
+            do {
+                let data = try await RemoteImageLoader(url: currentUrl, server: sftpConnection.server).loadImage()
+                await MainActor.run {
+                    self.imageData = data
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to load image: \(error.localizedDescription)"
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+    
+    private func previousImage() {
+        if currentIndex > 0 {
+            currentIndex -= 1
+        }
+    }
+    
+    private func nextImage() {
+        if currentIndex < imageUrls.count - 1 {
+            currentIndex += 1
+        }
+    }
+    
+    private func openInFinder() {
+        // On macOS, we should open the FUSE-mounted path in Finder
+        guard currentIndex >= 0 && currentIndex < imageUrls.count else { return }
+        
+        let currentUrl = imageUrls[currentIndex]
+        
+        // Convert SFTP path to FUSE mount path
+        if let fusePath = sftpConnection.convertToFUSEPath(currentUrl.path) {
+            let fileURL = URL(fileURLWithPath: fusePath)
+            NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+        } else {
+            // Fallback: show error or copy URL to clipboard
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(currentUrl.absoluteString, forType: .string)
+        }
     }
 }
 #endif
