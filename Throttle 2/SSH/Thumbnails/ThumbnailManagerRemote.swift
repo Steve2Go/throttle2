@@ -5,6 +5,7 @@
 
 import Foundation
 import SwiftUI
+import  Semaphore
 #if os(macOS)
 import AppKit
 typealias PlatformImage = NSImage
@@ -87,42 +88,6 @@ public class ThumbnailManagerRemote: NSObject {
             return newConnection
         }
     }
-    
-    // MARK: - AsyncSemaphore for queuing
-    actor AsyncSemaphore {
-        private var value: Int
-        private var waiters: [CheckedContinuation<Void, Never>] = []
-        init(value: Int) { self.value = value }
-        func wait() async {
-            if value > 0 {
-                value -= 1
-            } else {
-                await withCheckedContinuation { continuation in
-                    waiters.append(continuation)
-                }
-            }
-        }
-        func signal() {
-            if !waiters.isEmpty {
-                let continuation = waiters.removeFirst()
-                continuation.resume()
-            } else {
-                value += 1
-            }
-        }
-    }
-    // Actor for thread-safe semaphore storage
-    actor SemaphoreStore {
-        private var semaphores: [String: ThumbnailManagerRemote.AsyncSemaphore] = [:]
-        func get(for key: String, max: Int) -> ThumbnailManagerRemote.AsyncSemaphore {
-            if let sem = semaphores[key] { return sem }
-            let sem = ThumbnailManagerRemote.AsyncSemaphore(value: max)
-            semaphores[key] = sem
-            return sem
-        }
-    }
-    private let semaphoreStore = SemaphoreStore()
-    
     // MARK: - Main entry point
     func getThumbnail(for path: String, server: ServerEntity) async throws -> PlatformImage {
         return try await getResizedImage(for: path, server: server, maxWidth: nil)
@@ -131,20 +96,11 @@ public class ThumbnailManagerRemote: NSObject {
     // New: Get resized image with optional maxWidth
     func getResizedImage(for path: String, server: ServerEntity, maxWidth: Int?) async throws -> PlatformImage {
         if !isVisible(path) {
+            print("ThumbnailManagerRemote: Path \(path) is not visible, skipping")
             throw NSError(domain: "ThumbnailManagerRemote", code: -10, userInfo: [NSLocalizedDescriptionKey: "Not visible"])
         }
-        let key = server.name ?? server.sftpHost ?? "default"
-        let max = max(1, server.thumbMax)
-        let semaphore = await semaphoreStore.get(for: key, max: Int(max))
-        await semaphore.wait()
-        var didSignal = false
-        func signalIfNeeded() async {
-            if !didSignal {
-                await semaphore.signal()
-                didSignal = true
-            }
-        }
-        defer { Task { await signalIfNeeded() } }
+        
+        // Check cache first without acquiring semaphore
         if let cached = memoryCache.object(forKey: path as NSString) {
             return cached
         }
@@ -152,6 +108,8 @@ public class ThumbnailManagerRemote: NSObject {
             memoryCache.setObject(cached, forKey: path as NSString)
             return cached
         }
+        
+        // Check if already in progress before acquiring semaphore
         let alreadyInProgress = markInProgress(path: path)
         if alreadyInProgress {
             // Wait for the thumbnail to become available in cache or on disk
@@ -168,19 +126,39 @@ public class ThumbnailManagerRemote: NSObject {
             }
             throw NSError(domain: "ThumbnailManagerRemote", code: -1, userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for thumbnail in progress"])
         }
+        
+        // Only acquire semaphore if we're actually going to generate the thumbnail
         defer { clearInProgress(path: path) }
-        let fileType = FileType.determine(from: URL(fileURLWithPath: path))
-        if fileType == .video || fileType == .image {
-            do {
+        
+        // Check semaphore status for debugging
+        let status = await GlobalConnectionSemaphore.shared.getStatus()
+        if !status.hasActiveSemaphore {
+            print("ThumbnailManagerRemote: WARNING - No active semaphore! Server: \(status.serverName ?? "none"), Max: \(status.maxConnections)")
+        } else {
+            print("ThumbnailManagerRemote: Semaphore status - (\(status.activeConnections)/\(status.maxConnections)) for '\(status.serverName ?? "unknown")'")
+        }
+        
+        print("ThumbnailManagerRemote: Acquiring semaphore for \(path)")
+        await GlobalConnectionSemaphore.shared.acquireConnection()
+        
+        do {
+            let fileType = FileType.determine(from: URL(fileURLWithPath: path))
+            if fileType == .video || fileType == .image {
                 let image = try await self.generateFFmpegThumbnail(for: path, server: server, maxWidth: maxWidth)
                 memoryCache.setObject(image, forKey: path as NSString)
                 _ = try? saveToCache(image: image, for: path)
+                await GlobalConnectionSemaphore.shared.releaseConnection()
+                print("ThumbnailManagerRemote: Released semaphore for \(path)")
                 return image
-            } catch {
-                throw error
+            } else {
+                await GlobalConnectionSemaphore.shared.releaseConnection()
+                print("ThumbnailManagerRemote: Released semaphore for \(path) - unsupported file type")
+                throw NSError(domain: "ThumbnailManagerRemote", code: -2, userInfo: [NSLocalizedDescriptionKey: "Unsupported file type for thumbnail"])
             }
-        } else {
-            throw NSError(domain: "ThumbnailManagerRemote", code: -2, userInfo: [NSLocalizedDescriptionKey: "Unsupported file type for thumbnail"])
+        } catch {
+            await GlobalConnectionSemaphore.shared.releaseConnection()
+            print("ThumbnailManagerRemote: Released semaphore for \(path) - error: \(error)")
+            throw error
         }
     }
     

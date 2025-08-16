@@ -66,6 +66,9 @@ class SSHConnectionManager {
             await connection.resetState()
         }
         
+        // Clear global semaphore when resetting all connections
+        await GlobalConnectionSemaphore.shared.clearSemaphore()
+        
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
     }
     
@@ -598,13 +601,20 @@ class SSHConnection {
         server: ServerEntity,
         operation: @escaping (SSHConnection) async throws -> T
     ) async throws -> T {
+        // Acquire global connection semaphore
+        await GlobalConnectionSemaphore.shared.acquireConnection()
+        
         let connection = SSHConnection(server: server)
         do {
             let result = try await operation(connection)
             await connection.disconnect()
+            // Release semaphore after successful operation
+            await GlobalConnectionSemaphore.shared.releaseConnection()
             return result
         } catch {
             await connection.disconnect()
+            // Release semaphore after failed operation
+            await GlobalConnectionSemaphore.shared.releaseConnection()
             throw error
         }
     }

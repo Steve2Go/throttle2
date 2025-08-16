@@ -12,6 +12,7 @@
 		E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = E7150E522D631F8B009C4217 /* KeychainAccess */; };
 		E76AA8B62D8423E00009CA6F /* SimpleToast in Frameworks */ = {isa = PBXBuildFile; productRef = E76AA8B52D8423E00009CA6F /* SimpleToast */; };
 		E77791BD2DF16BAD0004A54D /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E71532C02D77E0BD000BB18F /* MobileVLCKit.xcframework */; platformFilter = ios; };
+		E7AD05962E5138BF0041B1F1 /* Semaphore in Frameworks */ = {isa = PBXBuildFile; productRef = E7AD05952E5138BF0041B1F1 /* Semaphore */; };
 		E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */ = {isa = PBXBuildFile; productRef = E7F5F3EF2D718B2700079054 /* FilePicker */; };
 		E7F968E82D89307700A19857 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = E7F968E72D89307700A19857 /* README.md */; };
 /* End PBXBuildFile section */
@@ -122,6 +123,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E7AD05962E5138BF0041B1F1 /* Semaphore in Frameworks */,
 				E70D0AD52D9E84DD00C9CB48 /* Citadel in Frameworks */,
 				E7F5F3F02D718B2700079054 /* FilePicker in Frameworks */,
 				E7150E532D631F8B009C4217 /* KeychainAccess in Frameworks */,
@@ -221,6 +223,7 @@
 				E7F5F3EF2D718B2700079054 /* FilePicker */,
 				E76AA8B52D8423E00009CA6F /* SimpleToast */,
 				E70D0AD42D9E84DD00C9CB48 /* Citadel */,
+				E7AD05952E5138BF0041B1F1 /* Semaphore */,
 			);
 			productName = "Throttle 2";
 			productReference = E7150E172D631D08009C4217 /* Throttle 2.app */;
@@ -299,6 +302,7 @@
 				E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */,
 				E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */,
 				E70D0AD32D9E84DD00C9CB48 /* XCRemoteSwiftPackageReference "Citadel" */,
+				E7AD05942E5138BF0041B1F1 /* XCRemoteSwiftPackageReference "Semaphore" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E7150E182D631D08009C4217 /* Products */;
@@ -931,6 +935,14 @@
 				minimumVersion = 0.10.1;
 			};
 		};
+		E7AD05942E5138BF0041B1F1 /* XCRemoteSwiftPackageReference "Semaphore" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/Semaphore";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
 		E7F5F3EE2D718B2700079054 /* XCRemoteSwiftPackageReference "FilePicker" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/markrenaud/FilePicker";
@@ -956,6 +968,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E76AA8B42D8423DF0009CA6F /* XCRemoteSwiftPackageReference "SimpleToast" */;
 			productName = SimpleToast;
+		};
+		E7AD05952E5138BF0041B1F1 /* Semaphore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E7AD05942E5138BF0041B1F1 /* XCRemoteSwiftPackageReference "Semaphore" */;
+			productName = Semaphore;
 		};
 		E7F5F3EF2D718B2700079054 /* FilePicker */ = {
 			isa = XCSwiftPackageProductDependency;

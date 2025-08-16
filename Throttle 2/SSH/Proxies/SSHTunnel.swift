@@ -58,6 +58,11 @@ class TunnelManagerHolder {
             tunnel.stop()
         }
         
+        // Clear the global semaphore when tearing down all tunnels
+        Task {
+            await GlobalConnectionSemaphore.shared.clearSemaphore()
+        }
+        
         print("TunnelManagerHolder: All tunnels have been torn down")
     }
 }
@@ -104,6 +109,9 @@ class SSHTunnelManager {
         }
         await state.setStarted(true)
         
+        // Acquire global connection semaphore for tunnel
+        await GlobalConnectionSemaphore.shared.acquireConnection()
+        
         do {
             // 1. Connect to SSH server
             client = try await ServerManager.shared.connectSSH(server)
@@ -114,6 +122,8 @@ class SSHTunnelManager {
             print("SSH Tunnel established: localhost:\(localPort) -> \(remoteHost):\(remotePort)")
         } catch {
             await state.setStarted(false)
+            // Release semaphore on failure
+            await GlobalConnectionSemaphore.shared.releaseConnection()
             stop()
             throw SSHTunnelError.connectionFailed(error)
         }
@@ -177,6 +187,8 @@ class SSHTunnelManager {
             Task { [weak self] in
                 try? await client.close()
                 self?.client = nil
+                // Release global connection semaphore when tunnel stops
+                await GlobalConnectionSemaphore.shared.releaseConnection()
             }
         }
         

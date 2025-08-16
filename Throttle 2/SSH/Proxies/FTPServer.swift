@@ -39,6 +39,9 @@ actor SimpleFTPServerManager {
         for server in servers {
             server.stop()
         }
+        
+        // Clear the global semaphore when removing all FTP servers
+        await GlobalConnectionSemaphore.shared.clearSemaphore()
     }
     
     func activeServersCount() -> Int {
@@ -464,6 +467,8 @@ class FTPSimpleHandler : @unchecked Sendable {
                 } catch {
                     print("Error disconnecting SSH connection: \(error)")
                 }
+                // Release global semaphore after disconnecting
+                await GlobalConnectionSemaphore.shared.releaseConnection()
             }
         } else {
             connectionLock.unlock()
@@ -510,6 +515,8 @@ class FTPSimpleHandler : @unchecked Sendable {
                 } catch {
                     print("Error disconnecting SSH connection during force close: \(error)")
                 }
+                // Release global semaphore after disconnecting
+                await GlobalConnectionSemaphore.shared.releaseConnection()
             }
         } else {
             connectionLock.unlock()
@@ -543,14 +550,21 @@ class FTPSimpleHandler : @unchecked Sendable {
         print("Cleanup complete for FTP handler \(id)")
     }
     
-    // Create a new SSH connection with enhanced error handling
+    // Create a new SSH connection with enhanced error handling and global semaphore
     private func createSSHConnection() async throws -> SSHConnection {
         print("Creating new SSH connection for FTP handler \(id)")
+        
+        // Acquire connection from global semaphore
+        await GlobalConnectionSemaphore.shared.acquireConnection()
+        
         do {
             let connection = SSHConnection(server: server)
             try await connection.connect()
             return connection
         } catch {
+            // Release semaphore on failure
+            await GlobalConnectionSemaphore.shared.releaseConnection()
+            
             print("Failed to create SSH connection: \(error)")
             // Check for max connections error (customize this check as needed)
             let nsError = error as NSError
@@ -594,7 +608,7 @@ class FTPSimpleHandler : @unchecked Sendable {
         return connection
     }
     
-    // Release an SSH connection after use with safety checks
+    // Release an SSH connection after use with safety checks and global semaphore
     private func releaseSSHConnection() {
         connectionLock.lock()
         if let connection = activeSSHConnection {
@@ -609,6 +623,8 @@ class FTPSimpleHandler : @unchecked Sendable {
                 } catch {
                     print("Error releasing SSH connection: \(error)")
                 }
+                // Release global semaphore after disconnecting
+                await GlobalConnectionSemaphore.shared.releaseConnection()
             }
         } else {
             connectionLock.unlock()

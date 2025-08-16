@@ -34,6 +34,10 @@ class Store: NSObject, ObservableObject {
         didSet {
             if let server = selection {
                 selectedServerId = server.id?.uuidString
+                // Update ServerManager to initialize global semaphore
+                Task { @MainActor in
+                    ServerManager.shared.setServer(server)
+                }
                 Task {
                    // await updateConnection(for: server)
                 }

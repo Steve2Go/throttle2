@@ -17,8 +17,15 @@ class ServerManager: ObservableObject {
     private init() {}
     
     func setServer(_ server: ServerEntity) {
+        print("ServerManager: Setting server to \(server.name ?? "unnamed") with thumbMax=\(server.thumbMax)")
         selectedServer = server
         UserDefaults.standard.set(server.id?.uuidString, forKey: "selectedServer")
+        
+        // Initialize global connection semaphore for this server
+        Task {
+            await GlobalConnectionSemaphore.shared.setSemaphore(for: server)
+            print("ServerManager: Global semaphore initialized for server \(server.name ?? "unnamed")")
+        }
     }
     
     func connectSSH(_ server: ServerEntity) async throws -> SSHClient {
