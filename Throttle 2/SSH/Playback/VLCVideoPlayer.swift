@@ -187,6 +187,20 @@ class VideoPlayerViewController: UIViewController {
         mediaPlayer.drawable = videoView
     }
     
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        print("VideoPlayerViewController: viewWillDisappear")
+        
+        // Pause playback when view is disappearing
+        if mediaPlayer.isPlaying {
+            mediaPlayer.pause()
+        }
+        
+        // Invalidate timer to prevent callbacks after view disappears
+        controlsTimer?.invalidate()
+        controlsTimer = nil
+    }
+    
     
     private func setupUI() {
         print("Setting up UI")
@@ -456,9 +470,33 @@ class VideoPlayerViewController: UIViewController {
     
     @objc private func closeButtonTapped() {
         print("closeButtonTapped: Stopping mediaPlayer and dismissing view controller")
-        mediaPlayer.stop()
-        mediaPlayer.media = nil
+        cleanup()
         dismiss(animated: true)
+    }
+    
+    private func cleanup() {
+        print("VideoPlayerViewController: Starting cleanup")
+        
+        // Stop and invalidate timer first
+        controlsTimer?.invalidate()
+        controlsTimer = nil
+        
+        // Clear media player delegate before stopping
+        mediaPlayer.delegate = nil
+        
+        // Stop media player safely
+        if mediaPlayer.isPlaying {
+            mediaPlayer.stop()
+        }
+        mediaPlayer.media = nil
+        
+        // Clean up external window
+        if let window = externalWindow {
+            window.isHidden = true
+            externalWindow = nil
+        }
+        
+        print("VideoPlayerViewController: Cleanup completed")
     }
     
     @objc private func sliderValueChanged(_ slider: UISlider) {
@@ -488,23 +526,22 @@ class VideoPlayerViewController: UIViewController {
     
     deinit {
         print("VideoPlayerViewController is being deinitialized")
-        // Stop observing gateway changes
-        NotificationCenter.default.removeObserver(self,
-                                                  name: .gatewayChanged,
-                                                  object: nil)
-        controlsTimer?.invalidate()
-        if mediaPlayer.isPlaying {
-            mediaPlayer.stop()
-            mediaPlayer.media = nil
-        }
         
-        if externalWindow != nil {
-            externalWindow?.isHidden = true
-            externalWindow = nil
-        }
+        // Perform cleanup to ensure everything is properly cleaned up
+        cleanup()
         
+        // Remove notification observers
+        NotificationCenter.default.removeObserver(self)
     }
     @objc private func handleGatewayChange() {
+        // Safety check: Don't handle gateway changes if we're being dismissed
+        guard !isBeingDismissed && !isMovingFromParent else {
+            print("Gateway change ignored - view controller is being dismissed")
+            return
+        }
+        
+        print("VideoPlayerViewController: Handling gateway change")
+        
         // Save current playback state
         let savedIndex = currentIndex
         let savedTime = mediaPlayer.time.intValue
@@ -608,38 +645,57 @@ class VideoPlayerViewController: UIViewController {
 
 extension VideoPlayerViewController: VLCMediaPlayerDelegate {
     func mediaPlayerStateChanged(_ aNotification: Notification!) {
+        // Safety check: Ensure we're still alive and not in the middle of cleanup
+        guard !isBeingDismissed && !isMovingFromParent else {
+            print("Media player state change ignored - view controller is being dismissed")
+            return
+        }
+        
         print("Media player state changed to: \(mediaPlayer.state.rawValue)")
         
-        switch mediaPlayer.state {
-        case .error:
-            print("Playback error occurred")
-            playNextVideo()
-        case .ended:
-            print("Playback ended normally")
-            playNextVideo()
-        case .stopped:
-            print("Playback stopped")
-            playPauseButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
-        case .playing:
-            print("Playback started")
-            print("Media length: \(mediaPlayer.media?.length.intValue ?? 0)")
-            playPauseButton.setImage(UIImage(systemName: "pause.fill"), for: .normal)
-        default:
-            break
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            switch self.mediaPlayer.state {
+            case .error:
+                print("Playback error occurred")
+                self.playNextVideo()
+            case .ended:
+                print("Playback ended normally")
+                self.playNextVideo()
+            case .stopped:
+                print("Playback stopped")
+                self.playPauseButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
+            case .playing:
+                print("Playback started")
+                print("Media length: \(self.mediaPlayer.media?.length.intValue ?? 0)")
+                self.playPauseButton.setImage(UIImage(systemName: "pause.fill"), for: .normal)
+            default:
+                break
+            }
         }
     }
     
     func mediaPlayerTimeChanged(_ aNotification: Notification!) {
-        guard !isSliderBeingTouched else { return }
-        
-        let currentTime = mediaPlayer.time.intValue
-        let totalTime = mediaPlayer.media?.length.intValue ?? 0
-        
-        if totalTime > 0 {
-            timeSlider.value = Float(currentTime) / Float(totalTime)
+        // Safety check: Ensure we're still alive and not in the middle of cleanup
+        guard !isBeingDismissed && !isMovingFromParent else {
+            return
         }
         
-        timeLabel.text = formatTime(current: Int(currentTime), total: Int(totalTime))
+        guard !isSliderBeingTouched else { return }
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            let currentTime = self.mediaPlayer.time.intValue
+            let totalTime = self.mediaPlayer.media?.length.intValue ?? 0
+            
+            if totalTime > 0 {
+                self.timeSlider.value = Float(currentTime) / Float(totalTime)
+            }
+            
+            self.timeLabel.text = self.formatTime(current: Int(currentTime), total: Int(totalTime))
+        }
     }
 }
 extension Notification.Name {
