@@ -68,6 +68,10 @@ class VideoPlayerViewController: UIViewController {
         view.layer.cornerRadius = 20
         view.layer.masksToBounds = true
         
+        // Add 1px white border to match close button
+        view.layer.borderWidth = 1.0
+        view.layer.borderColor = UIColor.white.cgColor
+        
         return view
     }()
     
@@ -181,6 +185,14 @@ class VideoPlayerViewController: UIViewController {
                                                object: nil)
     }
     
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        print("VideoPlayerViewController: viewDidAppear")
+        
+        // Disable idle timer to prevent screen from timing out during video playback
+        UIApplication.shared.isIdleTimerDisabled = true
+    }
+    
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         print("ViewDidLayoutSubviews called")
@@ -191,6 +203,9 @@ class VideoPlayerViewController: UIViewController {
         super.viewWillDisappear(animated)
         print("VideoPlayerViewController: viewWillDisappear")
         
+        // Re-enable idle timer when video player is dismissed
+        UIApplication.shared.isIdleTimerDisabled = false
+        
         // Pause playback when view is disappearing
         if mediaPlayer.isPlaying {
             mediaPlayer.pause()
@@ -199,6 +214,18 @@ class VideoPlayerViewController: UIViewController {
         // Invalidate timer to prevent callbacks after view disappears
         controlsTimer?.invalidate()
         controlsTimer = nil
+    }
+    
+    deinit {
+        print("VideoPlayerViewController: deinit")
+        
+        // Ensure idle timer is re-enabled if view controller is deallocated
+        UIApplication.shared.isIdleTimerDisabled = false
+        
+        // Clean up any remaining resources
+        controlsTimer?.invalidate()
+        NotificationCenter.default.removeObserver(self)
+
     }
     
     
@@ -526,15 +553,6 @@ class VideoPlayerViewController: UIViewController {
         return String(format: "%02d:%02d / %02d:%02d", currentMinutes, currentSeconds, totalMinutes, totalSeconds)
     }
     
-    deinit {
-        print("VideoPlayerViewController is being deinitialized")
-        
-        // Perform cleanup to ensure everything is properly cleaned up
-        cleanup()
-        
-        // Remove notification observers
-        NotificationCenter.default.removeObserver(self)
-    }
     @objc private func handleGatewayChange() {
         // Safety check: Don't handle gateway changes if we're being dismissed
         guard !isBeingDismissed && !isMovingFromParent else {
