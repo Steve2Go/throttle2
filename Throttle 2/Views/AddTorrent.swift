@@ -15,8 +15,8 @@ struct AddTorrentView: View {
         animation: .default
     ) var servers: FetchedResults<ServerEntity>
     @ObservedObject var store: Store
-    @StateObject var manager: TorrentManager
-    @State var presenting: Presenting
+    @ObservedObject var manager: TorrentManager
+    @ObservedObject var presenting: Presenting
     
     @State private var isShowingFilePicker = false
     @State private var downloadDir: String = ""
@@ -56,7 +56,7 @@ struct AddTorrentView: View {
                                 store.selectedFile = nil
                             } label: {
                                 HStack {
-                                    Text(store.selectedFile!.lastPathComponent)
+                                    Text(store.selectedFile?.lastPathComponent ?? "Unknown File")
                                     Image(systemName: "xmark.circle.fill")
                                 }
                             }
@@ -176,6 +176,8 @@ struct AddTorrentView: View {
                         
                         Spacer()
                         Button("Cancel") {
+                            // Clean up security scoped resources before dismissing
+                            store.cleanupPreviousFileAccess()
                             presenting.activeSheet = nil
                         }
 #if os(iOS)
@@ -242,6 +244,12 @@ struct AddTorrentView: View {
         } message: { error in
             Text(error.localizedDescription)
         }
+        .onDisappear {
+            // Ensure cleanup happens if view is dismissed in any other way
+            if presenting.activeSheet != "adding" {
+                store.cleanupPreviousFileAccess()
+            }
+        }
     }
     
     
@@ -290,20 +298,26 @@ struct AddTorrentView: View {
                 
                 if deleteOnSuccess {
                     do {
-                        let _ = store.selectedFile!.startAccessingSecurityScopedResource()
+                        // The file is already accessible from the URL opening, no need to access again
                         try FileManager.default.removeItem(at: file!)
-                        // File deleted successfully
-                        
+                        print("Successfully deleted torrent file: \(file!.lastPathComponent)")
                     } catch {
                         print("Error deleting file: \(error)")
                     }
                 }
+                
+                // Clean up security scoped resource access
+                store.cleanupPreviousFileAccess()
+                
                 presenting.activeSheet = nil
                 isLoading = false
                 ToastManager.shared.show(message: "Download Added", icon: "icloud.and.arrow.down", color: Color.green)
             }
             
         } catch {
+            // Clean up on error as well
+            store.cleanupPreviousFileAccess()
+            
             isLoading = false
             self.error = error
             showError = true

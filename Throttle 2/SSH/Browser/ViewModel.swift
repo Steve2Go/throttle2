@@ -45,8 +45,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
     let basePath: String
     let initialPath: String
     
-    // Using SSHConnection instead of SFTPConnectionManager
-    private var sshConnection: SSHConnection
+    // Server configuration for creating temporary connections
     var server: ServerEntity
     
     var downloadTask: Task<Void, Error>?
@@ -88,10 +87,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
         // Save server for later use
         self.server = server ?? ServerEntity() // Fallback to avoid force unwrap
         
-        // Initialize the SSH connection - fail silently if invalid config
-        self.sshConnection = try! SSHConnection(server: self.server)
+        // No longer create a persistent SSH connection - use temporary connections instead
+        // This prevents connection conflicts with image loading and other concurrent operations
         
-        // Connect to the server
+        // Connect to the server for initial setup
         connectToServer()
     }
     
@@ -103,10 +102,12 @@ class SFTPFileBrowserViewModel: ObservableObject {
     
     private func connectToServer() {
         Task { [self] in
-            //guard let self = self else { return }
             do {
-                try await self.sshConnection.connect()
-                await self.checkIfInitialPathIsFile()
+                // Test connection and check initial path using temporary connection
+                try await SSHConnection.withConnection(server: self.server) { connection in
+                    try await connection.connect()
+                    await self.checkIfInitialPathIsFile()
+                }
             } catch {
                 await MainActor.run {
                     self.isLoading = false
@@ -123,8 +124,12 @@ class SFTPFileBrowserViewModel: ObservableObject {
         let newFolderPath = "\(currentPath)/\(name)".replacingOccurrences(of: "//", with: "/")
         Task { [weak self] in
             guard let self = self else { return }
+            
             do {
-                try await self.sshConnection.createDirectory(path: newFolderPath)
+                try await SSHConnection.withConnection(server: self.server) { connection in
+                    try await connection.connect()
+                    try await connection.createDirectory(path: newFolderPath)
+                }
                 await MainActor.run {
                     self.fetchItems()
                 }
@@ -142,39 +147,55 @@ class SFTPFileBrowserViewModel: ObservableObject {
         Task { [weak self] in
             guard let self = self else { return }
             await MainActor.run { self.isLoading = true }
+            
             do {
                 let fileItems = try await self.listDirectoryContents(path: self.currentPath)
-                // Build filename mapping for this directory
-                let upOneValue = NSString(string: NSString(string: self.currentPath).deletingLastPathComponent).lastPathComponent
-                let sortedItems: [FileItem]
-                if self.sftpSortOrder == "date" {
-                    sortedItems = fileItems.sorted { $0.modificationDate > $1.modificationDate }
-                } else {
-                    sortedItems = fileItems.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-                }
-                let foldersFirst = self.sftpFoldersFirst
-                let filteredItems = !self.searchQuery.isEmpty ? sortedItems.filter { $0.name.localizedCaseInsensitiveContains(self.searchQuery) } : sortedItems
-                let foldersSorted = foldersFirst ? filteredItems.sorted { $0.isDirectory && !$1.isDirectory } : filteredItems
-                await MainActor.run {
-                    self.upOne = upOneValue.count > 10 ? String(upOneValue.prefix(10)) + "..." : upOneValue
-                    self.items = foldersSorted
-                    self.isLoading = false
-                    self.updateImageUrls()
-                    self.refreshTrigger = UUID()
-                }
+                await self.processFetchedItems(fileItems)
             } catch {
-                await MainActor.run {
-                    self.isLoading = false
-                    ToastManager.shared.show(message: "SFTP Listing Error: \(error)", icon: "exclamationmark.triangle", color: Color.red)
-                }
-                print("SFTP Directory Listing Error: \(error)")
+                await self.handleFetchError(error, recovered: false)
             }
         }
     }
     
-    // List directory contents using the SSHConnection's listDirectory method
+    // Helper to process fetched items (extracted from original fetchItems)
+    private func processFetchedItems(_ fileItems: [FileItem]) async {
+        let upOneValue = NSString(string: NSString(string: self.currentPath).deletingLastPathComponent).lastPathComponent
+        let sortedItems: [FileItem]
+        if self.sftpSortOrder == "date" {
+            sortedItems = fileItems.sorted { $0.modificationDate > $1.modificationDate }
+        } else {
+            sortedItems = fileItems.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
+        let foldersFirst = self.sftpFoldersFirst
+        let filteredItems = !self.searchQuery.isEmpty ? sortedItems.filter { $0.name.localizedCaseInsensitiveContains(self.searchQuery) } : sortedItems
+        let foldersSorted = foldersFirst ? filteredItems.sorted { $0.isDirectory && !$1.isDirectory } : filteredItems
+        await MainActor.run {
+            self.upOne = upOneValue.count > 10 ? String(upOneValue.prefix(10)) + "..." : upOneValue
+            self.items = foldersSorted
+            self.isLoading = false
+            self.updateImageUrls()
+            self.refreshTrigger = UUID()
+        }
+    }
+    
+    // Helper to handle fetch errors
+    private func handleFetchError(_ error: Error, recovered: Bool) async {
+        await MainActor.run {
+            self.isLoading = false
+            let message = recovered ? 
+                "SFTP Listing Error (after recovery attempt): \(error)" : 
+                "SFTP Listing Error: \(error)"
+            ToastManager.shared.show(message: message, icon: "exclamationmark.triangle", color: Color.red)
+        }
+        print("SFTP Directory Listing Error: \(error)")
+    }
+
+    // List directory contents using temporary SSH connection
     private func listDirectoryContents(path: String) async throws -> [FileItem] {
-        return try await sshConnection.listDirectory(path: path)
+        return try await SSHConnection.withConnection(server: self.server) { connection in
+            try await connection.connect()
+            return try await connection.listDirectory(path: path)
+        }
     }
     
     func updateImageUrls() {
@@ -186,10 +207,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
         let newPath = "\(currentPath)/\(folderName)".replacingOccurrences(of: "//", with: "/")
         Task { [weak self] in
             guard let self = self else { return }
-            DispatchQueue.main.async {
+            await MainActor.run {
                 self.currentPath = newPath
-                self.fetchItems()
             }
+            self.fetchItems()
         }
     }
     
@@ -241,7 +262,11 @@ class SFTPFileBrowserViewModel: ObservableObject {
                 let escapedPath = initialPath.replacingOccurrences(of: "'", with: "'\\''")
                 let command = "stat -c \"%s %Y\" '\(escapedPath)' 2>/dev/null || echo 'error'"
                 
-                let (_, output) = try await sshConnection.executeCommand(command)
+                let output = try await SSHConnection.withConnection(server: self.server) { connection in
+                    try await connection.connect()
+                    let (_, output) = try await connection.executeCommand(command)
+                    return output
+                }
                 let components = output.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ")
                 
                 if components.count == 2 && components[0] != "error" {
@@ -307,10 +332,13 @@ class SFTPFileBrowserViewModel: ObservableObject {
             guard let self = self else { return }
             self.isLoading = true
             do {
-                if item.isDirectory {
-                    try await self.recursiveDelete(atPath: item.url.path)
-                } else {
-                    try await self.sshConnection.removeFile(path: item.url.path)
+                try await SSHConnection.withConnection(server: self.server) { connection in
+                    try await connection.connect()
+                    if item.isDirectory {
+                        try await self.recursiveDelete(atPath: item.url.path, using: connection)
+                    } else {
+                        try await connection.removeFile(path: item.url.path)
+                    }
                 }
                 self.isLoading = false
                 self.fetchItems()
@@ -321,18 +349,21 @@ class SFTPFileBrowserViewModel: ObservableObject {
         }
     }
     
-    private func recursiveDelete(atPath path: String) async throws {
+    private func recursiveDelete(atPath path: String, using connection: SSHConnection) async throws {
         // Collect all files and directories under the given path
         var allPaths: [(path: String, isDirectory: Bool)] = []
         
         func collectPaths(currentPath: String) async throws {
-            let entries = try await listDirectoryContents(path: currentPath)
+            let entries = try await connection.listDirectory(path: currentPath)
             for entry in entries {
                 // Skip special entries
-                if entry.name == "." || entry.name == ".." { continue }
-                allPaths.append((path: entry.url.path, isDirectory: entry.isDirectory))
-                if entry.isDirectory {
-                    try await collectPaths(currentPath: entry.url.path)
+                if entry.filename == "." || entry.filename == ".." { continue }
+                let entryPath = "\(currentPath)/\(entry.filename)".replacingOccurrences(of: "//", with: "/")
+                let isDirectory = entry.attributes.permissions != nil &&
+                                 (entry.attributes.permissions! & 0x4000) != 0
+                allPaths.append((path: entryPath, isDirectory: isDirectory))
+                if isDirectory {
+                    try await collectPaths(currentPath: entryPath)
                 }
             }
         }
@@ -347,14 +378,14 @@ class SFTPFileBrowserViewModel: ObservableObject {
         // Delete all collected entries: files first, then directories
         for (entryPath, isDirectory) in allPaths {
             if isDirectory {
-                try await sshConnection.removeDirectory(path: entryPath)
+                try await connection.removeDirectory(path: entryPath)
             } else {
-                try await sshConnection.removeFile(path: entryPath)
+                try await connection.removeFile(path: entryPath)
             }
         }
         
         // Finally, remove the root directory
-        try await sshConnection.removeDirectory(path: path)
+        try await connection.removeDirectory(path: path)
     }
     
     // Rename a file or directory
@@ -365,7 +396,10 @@ class SFTPFileBrowserViewModel: ObservableObject {
             let parentPath = URL(fileURLWithPath: item.url.path).deletingLastPathComponent().path
             let newPath = "\(parentPath)/\(newName)".replacingOccurrences(of: "//", with: "/")
             do {
-                try await self.sshConnection.rename(oldPath: item.url.path, newPath: newPath)
+                try await SSHConnection.withConnection(server: self.server) { connection in
+                    try await connection.connect()
+                    try await connection.rename(oldPath: item.url.path, newPath: newPath)
+                }
                 self.isLoading = false
                 self.fetchItems()
                 ToastManager.shared.show(message: "Renamed", icon: "info.circle", color: Color.green)
@@ -633,9 +667,12 @@ class SFTPFileBrowserViewModel: ObservableObject {
                 if FileManager.default.fileExists(atPath: localURL.path) {
                     try FileManager.default.removeItem(at: localURL)
                 }
-                try await self.sshConnection.downloadFile(remotePath: item.url.path, localURL: localURL, progress: { progress in
-                    _ = progressHandler(progress)
-                })
+                try await SSHConnection.withConnection(server: self.server) { connection in
+                    try await connection.connect()
+                    try await connection.downloadFile(remotePath: item.url.path, localURL: localURL, progress: { progress in
+                        _ = progressHandler(progress)
+                    })
+                }
                 if FileManager.default.fileExists(atPath: localURL.path) {
                     await MainActor.run {
                         self.downloadProgress = 1.0
@@ -694,10 +731,20 @@ class SFTPFileBrowserViewModel: ObservableObject {
     // MARK: - Thumbnail Management
     
     func clearThumbnailOperations() {
+        // Cancel local thumbnail operations
         for (_, operation) in activeThumbnailOperations {
             operation.cancel()
         }
         activeThumbnailOperations.removeAll()
+        
+        // Clear global thumbnail queue for this directory
+        Task {
+            // Mark all current items as invisible to remove them from queue
+            for item in items where !item.isDirectory {
+                ThumbnailManagerRemote.shared.markAsInvisible(item.url.path)
+                await GlobalConnectionSemaphore.shared.removeThumbnailFromQueue(path: item.url.path)
+            }
+        }
     }
     
     func openAudio(item: FileItem, server: ServerEntity) {
@@ -794,8 +841,7 @@ class SFTPFileBrowserViewModel: ObservableObject {
         
         // Clear thumbnail operations
         clearThumbnailOperations()
-        // Disconnect SSH connection
-        await sshConnection.disconnect()
+        // No need to disconnect - using temporary connections
     }
 }
 

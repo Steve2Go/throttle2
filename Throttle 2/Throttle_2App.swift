@@ -10,6 +10,9 @@ import KeychainAccess
 import UniformTypeIdentifiers
 import CoreData
 import SimpleToast
+#if os(macOS)
+import AppKit
+#endif
 
 let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "jfif", "bmp"]
 let videoExtensions: Set<String> = ["mp4", "mov", "avi", "mkv", "flv", "mpeg", "m4v", "wmv"]
@@ -28,8 +31,34 @@ actor FTPStartupActor {
 
 private let ftpStartupActor = FTPStartupActor()
 
+#if os(macOS)
+// AppDelegate to handle file opening when app is already running
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        print("🍏 AppDelegate: application(_:open:) called with URLs: \(urls)")
+        
+        for url in urls {
+            print("🍏 AppDelegate: Processing URL: \(url)")
+            print("🍏 AppDelegate: URL scheme: \(url.scheme ?? "nil")")
+            print("🍏 AppDelegate: URL path: \(url.path)")
+            print("🍏 AppDelegate: URL isFileURL: \(url.isFileURL)")
+            
+            // Post notification to trigger onOpenURL in SwiftUI
+            NotificationCenter.default.post(
+                name: Notification.Name("HandleExternalURL"),
+                object: url
+            )
+        }
+    }
+}
+#endif
+
 @main
 struct Throttle_2App: App {
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #endif
+    
     @Environment(\.managedObjectContext) var viewContext
     let dataManager = DataManager.shared
     var tunnelManager: SSHTunnelManager?
@@ -53,7 +82,6 @@ struct Throttle_2App: App {
         Window("Throttle 2", id: "main-window") {
             ContentView(presenting: presenting,manager: manager, filter: filter, store: store )
                 .environment(\.managedObjectContext, DataManager.shared.viewContext)
-                .handlesExternalEvents(preferring: Set(arrayLiteral: "*"), allowing: Set(arrayLiteral: "*"))
                 .environmentObject(networkMonitor)
                 //.environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .background(colorScheme == .dark ? Color.black : Color.white)
@@ -116,6 +144,9 @@ struct Throttle_2App: App {
                // }
             
         }
+        // Enforce single window behavior for better file handling
+        .defaultSize(width: 1200, height: 800)
+        .windowResizability(.contentSize)
     
         
         .commands {

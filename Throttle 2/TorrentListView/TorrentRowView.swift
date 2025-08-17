@@ -57,25 +57,28 @@ struct TorrentRowView: View {
             if showThumbs != false  && !selecting && torrent.hashString != nil && torrent.progress == 1 {
                 let torrentFiles = manager.getTorrentFiles(forHash: torrent.hashString!)
        
-                if let mediaFile = findFirstMediaFile(from: torrentFiles) {
+                let allMediaFiles = findAllMediaFiles(from: torrentFiles)
+                
+                if !allMediaFiles.isEmpty {
                     if store.selection != nil {
                         
 #if os(iOS)
-                        let mediaPath = get_media_path(file: mediaFile, torrent:torrent, server: store.selection!)
-                        
-                        //PathThumbnailView(path: mediaPath, server: store.selection!, fromRow: torrent.files.count > 1 ? true : nil)
-                        RemotePathThumbnailView(path: mediaPath, server: store.selection!)
+                        TorrentThumbnailView(mediaFiles: allMediaFiles, torrent: torrent, server: store.selection!)
 #else
                         if store.selection?.sftpBrowse == true {
                             if thumbsLocal {
-                                let mediaPath = get_media_path_local(file: mediaFile, torrent:torrent, server: store.selection!)
-                                PathThumbnailViewMacOS(path: mediaPath)
+                                // For local thumbnails, use the first media file as before
+                                if let mediaFile = findFirstMediaFile(from: torrentFiles) {
+                                    let mediaPath = get_media_path_local(file: mediaFile, torrent:torrent, server: store.selection!)
+                                    PathThumbnailViewMacOS(path: mediaPath)
+                                }
                             } else {
-                                let mediaPath = get_media_path(file: mediaFile, torrent:torrent, server: store.selection!)
-                                RemotePathThumbnailView(path: mediaPath, server: store.selection!)
+                                TorrentThumbnailView(mediaFiles: allMediaFiles, torrent: torrent, server: store.selection!)
                             }
                         } else if store.selection?.fsBrowse == true {
-                            if let downloadDir = torrent.dynamicFields["downloadDir"]?.value as? String,
+                            // For filesystem browsing, use the first media file as before
+                            if let mediaFile = findFirstMediaFile(from: torrentFiles),
+                               let downloadDir = torrent.dynamicFields["downloadDir"]?.value as? String,
                                let serverPath = store.selection?.pathServer,
                                let filesystemPath = store.selection?.pathFilesystem,
                                let decodedName = mediaFile.name.removingPercentEncoding {
@@ -355,6 +358,24 @@ struct TorrentRowView: View {
             let ext = file.name.components(separatedBy: ".").last?.lowercased() ?? ""
             return (videoExtensions.contains(ext) && file.progress == 1)
         })
+    }
+    
+    func findAllMediaFiles(from files: [TorrentFile]) -> [TorrentFile] {
+        let videoExtensions = ["mp4", "mov", "m4v", "avi", "mkv", "wmv", "flv", "webm", "3gp", "mpg", "mpeg","vob"]
+        let imageExtensions = ["jpg", "jpeg", "png", "gif", "heic", "heif", "bmp", "tiff", "webp","jfif"]
+        
+        // Return all completed media files, prioritizing images first, then videos
+        let images = files.filter { file in
+            let ext = file.name.components(separatedBy: ".").last?.lowercased() ?? ""
+            return imageExtensions.contains(ext) && file.progress == 1
+        }
+        
+        let videos = files.filter { file in
+            let ext = file.name.components(separatedBy: ".").last?.lowercased() ?? ""
+            return videoExtensions.contains(ext) && file.progress == 1
+        }
+        
+        return images + videos
     }
     
    // #if os(iOS)

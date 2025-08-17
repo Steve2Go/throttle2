@@ -5,7 +5,6 @@
 
 import Foundation
 import SwiftUI
-import  Semaphore
 #if os(macOS)
 import AppKit
 typealias PlatformImage = NSImage
@@ -13,6 +12,12 @@ typealias PlatformImage = NSImage
 import UIKit
 typealias PlatformImage = UIImage
 #endif
+
+// MARK: - Notifications
+extension Notification.Name {
+    static let thumbnailShouldRefresh = Notification.Name("ThumbnailShouldRefresh")
+    static let thumbnailFailedRetryNext = Notification.Name("ThumbnailFailedRetryNext")
+}
 
 // MARK: - Remote Thumbnail Manager
 
@@ -97,9 +102,19 @@ public class ThumbnailManagerRemote: NSObject {
     func getThumbnail(for path: String, server: ServerEntity) async throws -> PlatformImage {
         return try await getResizedImage(for: path, server: server, maxWidth: nil)
     }
-    
+
     // New: Get resized image with optional maxWidth
     func getResizedImage(for path: String, server: ServerEntity, maxWidth: Int?) async throws -> PlatformImage {
+        return try await getResizedImageInternal(for: path, server: server, maxWidth: maxWidth, existingConnection: nil)
+    }
+    
+    // New: Get resized image using existing SSH connection (avoids creating new connections)
+    func getResizedImage(for path: String, server: ServerEntity, maxWidth: Int?, using connection: SSHConnection) async throws -> PlatformImage {
+        return try await getResizedImageInternal(for: path, server: server, maxWidth: maxWidth, existingConnection: connection)
+    }
+    
+    // Internal method that handles both new connections and existing connections
+    private func getResizedImageInternal(for path: String, server: ServerEntity, maxWidth: Int?, existingConnection: SSHConnection?) async throws -> PlatformImage {
         // Check visibility first - if not visible, don't even start
         if !isVisible(path) {
             throw NSError(domain: "ThumbnailManagerRemote", code: -10, userInfo: [NSLocalizedDescriptionKey: "Not visible"])
@@ -538,6 +553,197 @@ public struct FileRowThumbnail: View {
         
         RemotePathThumbnailView(path: item.url.path, server: server , overlay: false)
        
+    }
+}
+
+// MARK: - Multi-File Thumbnail View for Torrents
+
+public struct TorrentThumbnailView: View {
+    let mediaFiles: [TorrentFile]
+    let torrent: Torrent
+    let server: ServerEntity
+    
+    @State private var currentFileIndex = 0
+    @State private var thumbnail: PlatformImage?
+    @State private var isLoading = false
+    @State private var loadingTask: Task<Void, Never>?
+    @State private var hasTriedAll = false
+    
+    init(mediaFiles: [TorrentFile], torrent: Torrent, server: ServerEntity) {
+        self.mediaFiles = mediaFiles
+        self.torrent = torrent
+        self.server = server
+    }
+    
+    public var body: some View {
+        Group {
+            if let thumbnail = thumbnail {
+                ZStack {
+#if os(macOS)
+                    Image(nsImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                        .cornerRadius(8)
+#elseif os(iOS)
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                        .cornerRadius(8)
+#endif
+                    
+                    if server.sftpBrowse {
+                        let fileType = FileType.determine(from: URL(fileURLWithPath: getCurrentMediaPath()))
+                        if fileType == .video {
+                            Image(systemName: "play.fill")
+                                .resizable()
+                                .frame(width: 15, height: 15)
+                                .padding([.top,.leading],30)
+                                .foregroundColor(.white)
+                        } else if fileType == .image {
+                            Image(systemName: "photo.fill")
+                                .resizable()
+                                .frame(width: 17, height: 14)
+                                .padding([.top,.leading],30)
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+            } else if isLoading {
+                ZStack {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 60, height: 60)
+                        .cornerRadius(8)
+                    
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.8)
+                }
+            } else {
+                // Default placeholder
+                let fileType = FileType.determine(from: URL(fileURLWithPath: getCurrentMediaPath()))
+                switch fileType {
+                case .video, .image:
+                    Rectangle()
+                        .fill(Color.black)
+                        .frame(width: 60, height: 60)
+                        .cornerRadius(8)
+                        .overlay {
+                            if fileType == .video {
+                                Image(systemName: "play.fill")
+                                    .resizable()
+                                    .frame(width: 15, height: 15)
+                                    .padding([.top,.leading],30)
+                                    .foregroundColor(.white)
+                            } else if fileType == .image {
+                                Image(systemName: "photo.fill")
+                                    .resizable()
+                                    .frame(width: 17, height: 14)
+                                    .padding([.top,.leading],30)
+                                    .foregroundColor(.white)
+                            }
+                        }
+                case .audio:
+                    Image("audio")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                case .archive:
+                    Image("archive")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                case .part:
+                    Image("part")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                case .other:
+                    Image("document")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                }
+            }
+        }
+        .onAppear {
+            if !mediaFiles.isEmpty {
+                tryNextMediaFile()
+            }
+        }
+        .onDisappear {
+            loadingTask?.cancel()
+            if !mediaFiles.isEmpty {
+                ThumbnailManagerRemote.shared.markAsInvisible(getCurrentMediaPath())
+            }
+        }
+    }
+    
+    private func getCurrentMediaPath() -> String {
+        guard currentFileIndex < mediaFiles.count else { return "" }
+        let mediaFile = mediaFiles[currentFileIndex]
+        return get_media_path(file: mediaFile, torrent: torrent, server: server)
+    }
+    
+    private func get_media_path(file: TorrentFile, torrent: Torrent, server: ServerEntity) -> String {
+        let name = file.name
+        if let path = torrent.dynamicFields["downloadDir"] {
+            let returnvalue = "\(path.value)/\(name)".replacingOccurrences(of: "//", with: "/")
+            return returnvalue
+        }
+        return name
+    }
+    
+    private func tryNextMediaFile() {
+        guard currentFileIndex < mediaFiles.count, !hasTriedAll else { 
+            if hasTriedAll {
+                print("TorrentThumbnail: All media files failed for torrent: \(torrent.name ?? "unknown")")
+            }
+            return 
+        }
+        
+        let mediaPath = getCurrentMediaPath()
+        print("TorrentThumbnail: Attempting thumbnail for file \(currentFileIndex + 1)/\(mediaFiles.count): \(mediaFiles[currentFileIndex].name)")
+        
+        // Mark current path as visible for queue management
+        ThumbnailManagerRemote.shared.markAsVisible(mediaPath)
+        
+        isLoading = true
+        loadingTask?.cancel()
+        
+        loadingTask = Task {
+            do {
+                let image = try await ThumbnailManagerRemote.shared.getThumbnail(for: mediaPath, server: server)
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        print("TorrentThumbnail: ✅ Successfully generated thumbnail for: \(mediaFiles[currentFileIndex].name)")
+                        self.thumbnail = image
+                        self.isLoading = false
+                    }
+                }
+            } catch {
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        print("TorrentThumbnail: ❌ Failed to generate thumbnail for: \(mediaFiles[currentFileIndex].name) - Error: \(error.localizedDescription)")
+                        self.isLoading = false
+                        // Mark current path as invisible since it failed
+                        ThumbnailManagerRemote.shared.markAsInvisible(mediaPath)
+                        
+                        // Try next media file
+                        self.currentFileIndex += 1
+                        if self.currentFileIndex < self.mediaFiles.count {
+                            print("TorrentThumbnail: Trying next media file...")
+                            self.tryNextMediaFile()
+                        } else {
+                            print("TorrentThumbnail: ❌ Exhausted all \(self.mediaFiles.count) media files for torrent: \(self.torrent.name ?? "unknown")")
+                            self.hasTriedAll = true
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

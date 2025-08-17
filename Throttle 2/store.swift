@@ -62,6 +62,9 @@ class Store: NSObject, ObservableObject {
     @Published var selectedFile: URL?
     @Published var selectedTorrentId: Int?
     
+    // URL handling state to prevent concurrent access
+    @Published var isHandlingURL = false
+    
     @Published var streamingUrl = ""
     
     //Sidebar
@@ -154,5 +157,18 @@ func getKeyAndPassphrase(for server: ServerEntity) -> (keyPath: String, passphra
     }
     
     return nil
+}
+
+extension Store {
+    /// Clean up any previous file access to prevent resource leaks and crashes
+    func cleanupPreviousFileAccess() {
+        if let previousFile = selectedFile {
+            previousFile.stopAccessingSecurityScopedResource()
+            print("Cleaned up security scoped resource for: \(previousFile.lastPathComponent)")
+        }
+        selectedFile = nil
+        magnetLink = ""
+        isHandlingURL = false
+    }
 }
 

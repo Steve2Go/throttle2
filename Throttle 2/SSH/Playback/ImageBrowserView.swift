@@ -78,7 +78,14 @@ class RemoteImageLoader {
     func cancel() {
         downloadTask?.cancel()
     }
+    
+    deinit {
+        // Ensure we cancel any ongoing tasks when the loader is deallocated
+        downloadTask?.cancel()
+    }
 }
+
+// MARK: - Preloading Image Cache (shared across viewers)
 
 // MARK: - A shared state object to coordinate between views
 class ImageBrowserSharedState: ObservableObject {
@@ -211,10 +218,22 @@ struct ImageBrowserView: View {
             preloadAdjacentImages(currentIndex: currentIndex)
         }
         .onDisappear {
+            // Cancel all preload tasks
             for task in preloadTasks.values { task.cancel() }
             preloadTasks.removeAll()
             preloadedImages.removeAll()
-            Task { await sftpViewModel.cleanup() }
+            
+            // Mark all images as invisible and remove from queue
+            for url in imageUrls {
+                ThumbnailManagerRemote.shared.markAsInvisible(url.path)
+                Task {
+                    await GlobalConnectionSemaphore.shared.removeThumbnailFromQueue(path: url.path)
+                }
+            }
+            
+            // DON'T call cleanup on the shared ViewModel - it disconnects the SSH connection
+            // that the main folder browser is still using. Only clean up our own operations.
+            print("🧹 Image browser cleaned up without disconnecting shared SSH connection")
         }
     }
     
@@ -228,6 +247,9 @@ struct ImageBrowserView: View {
             if !indicesToPreload.contains(idx) {
                 let url = imageUrls[idx]
                 ThumbnailManagerRemote.shared.markAsInvisible(url.path)
+                Task {
+                    await GlobalConnectionSemaphore.shared.removeThumbnailFromQueue(path: url.path)
+                }
                 task.cancel()
                 preloadTasks.removeValue(forKey: idx)
             }
@@ -248,7 +270,11 @@ struct ImageBrowserView: View {
                 } catch {
                     // Ignore errors for preloading
                 }
+                // Mark as invisible and remove from queue when done
                 ThumbnailManagerRemote.shared.markAsInvisible(url.path)
+                Task {
+                    await GlobalConnectionSemaphore.shared.removeThumbnailFromQueue(path: url.path)
+                }
             }
             preloadTasks[idx] = task
         }
@@ -303,6 +329,10 @@ struct SSHImageViewer: View {
         }
         .onDisappear {
             ThumbnailManagerRemote.shared.markAsInvisible(url.path)
+            // Also remove from queue to prevent connection errors
+            Task {
+                await GlobalConnectionSemaphore.shared.removeThumbnailFromQueue(path: url.path)
+            }
             loader?.cancel()
             loadingTask?.cancel()
         }
@@ -404,6 +434,14 @@ struct ExternalImageBrowserView: View {
             }
             preloadTasks.removeAll()
             preloadedImages.removeAll()
+            
+            // Mark all images as invisible and remove from queue
+            for url in imageUrls {
+                ThumbnailManagerRemote.shared.markAsInvisible(url.path)
+                Task {
+                    await GlobalConnectionSemaphore.shared.removeThumbnailFromQueue(path: url.path)
+                }
+            }
         }
     }
     
@@ -565,6 +603,10 @@ struct EnhancedExternalSSHImageViewer: View {
             // Cancel any ongoing tasks
             loader?.cancel()
             loadingTask?.cancel()
+            // Remove from thumbnail queue to prevent connection errors
+            Task {
+                await GlobalConnectionSemaphore.shared.removeThumbnailFromQueue(path: url.path)
+            }
         }
     }
     

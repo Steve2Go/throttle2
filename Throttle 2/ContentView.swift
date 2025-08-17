@@ -181,39 +181,15 @@ struct ContentView: View {
         }
         
         .onOpenURL { url in
-            if url.isFileURL {
-                store.selectedFile = url
-                _ = store.selectedFile!.startAccessingSecurityScopedResource()
-                //if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true  {
-                    Task{
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        presenting.activeSheet = "adding"
-                    }
-                //}
-            }
-            else if url.absoluteString.lowercased().hasPrefix("magnet:") {
-                store.magnetLink = url.absoluteString
-                //if manager.fetchTimer?.isValid == true || store.selection?.sftpRpc != true {
-                Task{
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                    presenting.activeSheet = "adding"
-                    //}
-                }
-            }
-            else if url.scheme == "throttle2", url.host == "mountall" {
-                    #if os(macOS)
-                store.launching = true
-                    // Mount all servers and quit (headless)
-                    let serverArray = Array(servers)
-                    ServerMountManager.shared.mountAllServers(serverArray)
-                    // quit after mounting
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                        NSApp.terminate(nil)
-                    }
-                    #endif
-                }
-            else {
-                print("URL ignored: Not a file or magnet link")
+            print("🔗 onOpenURL called with: \(url)")
+            self.handleURL(url)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("HandleExternalURL"))) { notification in
+            print("🔔 Received HandleExternalURL notification from AppDelegate")
+            if let url = notification.object as? URL {
+                print("🔔 Notification URL: \(url)")
+                // Handle the URL using the same logic as onOpenURL
+                self.handleURL(url)
             }
         }
     }
@@ -228,6 +204,92 @@ struct ContentView: View {
             },
             set: { presenting.activeSheet = $0?.rawValue }
         )
+    }
+    
+    private func handleURL(_ url: URL) {
+        print("🔗 handleURL called with: \(url)")
+        print("🔗 URL scheme: \(url.scheme ?? "nil")")
+        print("🔗 URL host: \(url.host ?? "nil")")
+        print("🔗 URL path: \(url.path)")
+        print("🔗 URL isFileURL: \(url.isFileURL)")
+        print("🔗 URL absoluteString: \(url.absoluteString)")
+        
+        #if os(macOS)
+        // First, ensure the window comes to front (critical for single window app)
+        DispatchQueue.main.async {
+            if let window = NSApplication.shared.windows.first(where: { $0.title == "Throttle 2" }) {
+                window.makeKeyAndOrderFront(nil)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
+        }
+        #endif
+        
+        // Prevent concurrent URL handling to avoid crashes
+        if store.isHandlingURL {
+            print("Already handling URL, ignoring: \(url.lastPathComponent)")
+            return
+        }
+        
+        if url.isFileURL {
+            print("🗂️ Processing file URL: \(url.path)")
+            // Clean up any previous file access
+            store.cleanupPreviousFileAccess()
+            
+            store.selectedFile = url
+            
+            // Safely handle security scoped resource access
+            guard let selectedFile = store.selectedFile,
+                  selectedFile.startAccessingSecurityScopedResource() else {
+                print("Failed to access security scoped resource for: \(url.lastPathComponent)")
+                store.selectedFile = nil
+                return
+            }
+            
+            store.isHandlingURL = true
+            print("Opening torrent file: \(url.lastPathComponent)")
+            
+            Task {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                await MainActor.run {
+                    presenting.activeSheet = "adding"
+                    store.isHandlingURL = false
+                }
+            }
+        }
+        else if url.absoluteString.lowercased().hasPrefix("magnet:") {
+            print("🧲 Processing magnet link: \(url.absoluteString.prefix(50))...")
+            // Clean up any previous file access
+            store.cleanupPreviousFileAccess()
+            
+            store.magnetLink = url.absoluteString
+            store.isHandlingURL = true
+            print("Opening magnet link")
+            
+            Task {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                await MainActor.run {
+                    presenting.activeSheet = "adding"
+                    store.isHandlingURL = false
+                }
+            }
+        }
+        else if url.scheme == "throttle2", url.host == "mountall" {
+            print("🏔️ Processing mountall URL scheme - TERMINATING APP")
+            #if os(macOS)
+            store.launching = true
+            // Mount all servers and quit (headless)
+            let serverArray = Array(servers)
+            ServerMountManager.shared.mountAllServers(serverArray)
+            // quit after mounting
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                NSApp.terminate(nil)
+            }
+            #endif
+        }
+        else {
+            print("❌ URL ignored: Not a file or magnet link - \(url)")
+            print("❌ URL scheme: \(url.scheme ?? "nil"), host: \(url.host ?? "nil")")
+        }
     }
 
 }

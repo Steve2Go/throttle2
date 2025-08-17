@@ -1,10 +1,5 @@
 import Foundation
 
-// Notification for thumbnail refresh
-extension Notification.Name {
-    static let thumbnailShouldRefresh = Notification.Name("thumbnailShouldRefresh")
-}
-
 /// Simple thumbnail queue item
 struct ThumbnailQueueItem {
     let path: String
