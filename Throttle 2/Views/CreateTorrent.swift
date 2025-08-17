@@ -38,6 +38,7 @@ struct CreateTorrent: View {
     @State private var showError = false
     @State private var successMessage = ""
     @State private var errorMessage = ""
+    @State private var currentTask: Task<Void, Never>?
     
     // Remove persistent SSH connection - use create-and-destroy pattern instead
     // @State private var sshConnection: SSHConnection?
@@ -161,14 +162,32 @@ struct CreateTorrent: View {
                 
                 ToolbarItem(placement: .confirmationAction) {
                     if !isCreated {
-                        Button {
-                            Task {
-                                try await createTorrent()
+                        if isProcessing {
+                            Button("Cancel") {
+                                currentTask?.cancel()
+                                isProcessing = false
+                                progressPercentage = 0
+                                commandOutput += "\nOperation cancelled by user"
                             }
-                        } label: {
-                            Text("Build Torrent")
+                            .foregroundColor(.red)
+                        } else {
+                            Button {
+                                currentTask = Task {
+                                    do {
+                                        try await createTorrent()
+                                    } catch {
+                                        await MainActor.run {
+                                            errorMessage = "Task cancelled or failed: \(error.localizedDescription)"
+                                            showError = true
+                                            isProcessing = false
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Text("Build Torrent")
+                            }
+                            .disabled(filePath.isEmpty || tracker.isEmpty)
                         }
-                        .disabled(filePath.isEmpty || isProcessing || tracker.isEmpty)
                     } else {
                         Button {
                             // Seeding starts automatically, but this button can open the torrent client
@@ -191,7 +210,8 @@ struct CreateTorrent: View {
             #endif
         }
         .onDisappear {
-            // No cleanup needed with create-and-destroy pattern
+            // Cancel any running task when view disappears
+            currentTask?.cancel()
         }
         .alert("Success", isPresented: $showSuccess) {
             Button("OK") {
@@ -266,15 +286,28 @@ struct CreateTorrent: View {
         return (true, nil)
     }
     
-    private func getTorrentCreateCommand(parentDirectory: String, torrentFileName: String, fileName: String, tracker: String, serverEntity: ServerEntity) async -> String {
+    private func getTorrentCreateCommand(sourceDirectory: String, sourceName: String, torrentPath: String, tracker: String, serverEntity: ServerEntity) async -> String {
         // Use imdl to create the torrent
         do {
             let (exitCode, output) = try await SSHConnection.executeCommand(on: serverEntity, command: "which imdl || echo '/tmp/imdl-install/imdl'")
             if exitCode == 0 || output.contains("/tmp/imdl-install/imdl") {
                 let imdlPath = output.contains("/tmp/imdl-install/imdl") ? "/tmp/imdl-install/imdl" : "imdl"
-                return "cd '\(parentDirectory)' && \(imdlPath) torrent create --announce '\(tracker)' --output '\(torrentFileName)' '\(fileName)'"
+                
+                // Build the command - change to source directory but output torrent to temp location
+                let command = "cd '\(sourceDirectory)' && '\(imdlPath)' torrent create --announce '\(tracker)' --output '\(torrentPath)' '\(sourceName)'"
+                
+                // Log the command for debugging
+//                await MainActor.run {
+//                    commandOutput += "\nPrepared command: \(command)"
+//                }
+                
+                return command
             }
-        } catch {}
+        } catch {
+//            await MainActor.run {
+//                commandOutput += "\nError checking imdl: \(error.localizedDescription)"
+//            }
+        }
         
         return ""
     }
@@ -316,32 +349,44 @@ struct CreateTorrent: View {
         
         // Check if imdl is available in PATH
         do {
-            let (exitCode, _) = try await connection.executeCommand("which imdl")
+            let (exitCode, output) = try await connection.executeCommand("which imdl")
             if exitCode == 0 {
                 await MainActor.run {
                     commandOutput += "\nimdl found"
                 }
                 return // imdl is available in PATH
+            } else {
+                await MainActor.run {
+                    commandOutput += "\nchecking imdl install location..."
+                }
             }
         } catch {
-            // Continue checking other locations
+//            await MainActor.run {
+//                commandOutput += "\nError checking PATH: \(error.localizedDescription)"
+//            }
         }
         
         // Check if imdl is available in our install location
         do {
-            let (exitCode, _) = try await connection.executeCommand("test -f /tmp/imdl-install/imdl && /tmp/imdl-install/imdl --version")
+            let (exitCode, output) = try await connection.executeCommand("test -f /tmp/imdl-install/imdl && /tmp/imdl-install/imdl --version")
             if exitCode == 0 {
                 await MainActor.run {
-                    commandOutput += "\nimdl found"
+                    commandOutput += "\nimdl found in install location"
                 }
                 return // imdl is available in install location
+            } else {
+//                await MainActor.run {
+//                    commandOutput += "\nimdl not found in install location"
+//                }
             }
         } catch {
-            // Continue to installation
+//            await MainActor.run {
+//                commandOutput += "\nError checking install location: \(error.localizedDescription)"
+//            }
         }
         
         await MainActor.run {
-            commandOutput += "\nimdl not found. Installing..."
+            commandOutput += "\nInitialising imdl..."
             progressPercentage = 0.03
         }
         
@@ -354,20 +399,47 @@ struct CreateTorrent: View {
         """
         
         do {
-            let (_, output) = try await connection.executeCommand(installCommand)
+//            await MainActor.run {
+//                commandOutput += "\nRunning installation command..."
+//            }
+            
+            let (installExitCode, output) = try await connection.executeCommand(installCommand)
+            
             await MainActor.run {
-                //commandOutput += "\nInstallation completed"
-                commandOutput += "\nimdl ready for use"
-                progressPercentage = 0.05
+               // commandOutput += "\nInstallation result (exit code \(installExitCode)): \(output)"
+                
+                if installExitCode == 0 || output.contains("imdl") {
+                    commandOutput += "\nimdl installation completed"
+                    progressPercentage = 0.05
+                } else {
+                    commandOutput += "\nInstallation may have failed"
+                }
             }
+            
+            // Verify installation worked
+            let (verifyExitCode, verifyOutput) = try await connection.executeCommand("test -f /tmp/imdl-install/imdl && echo 'imdl available' || echo 'imdl not found'")
+            
+            await MainActor.run {
+                commandOutput += "\nPost-install verification: \(verifyOutput)"
+            }
+            
+            if verifyExitCode != 0 || !verifyOutput.contains("available") {
+                throw NSError(domain: "TorrentCreation", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: "Failed to install or verify imdl installation. Server output: \(output)"
+                ])
+            }
+            
         } catch {
             throw NSError(domain: "TorrentCreation", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "Failed to install imdl. Please check network connection and try again."
+                NSLocalizedDescriptionKey: "Failed to install imdl. Error: \(error.localizedDescription). Please check network connection and server permissions."
             ])
         }
     }
     
     func createTorrent() async throws {
+        // Check if task was cancelled before starting
+        try Task.checkCancellation()
+        
         await MainActor.run {
             isProcessing = true
             progressPercentage = 0.01
@@ -406,43 +478,105 @@ struct CreateTorrent: View {
         
         await MainActor.run {
             commandOutput += "\nConnecting to server..."
+            commandOutput += "\nServer: \(serverEntity.name ?? "Unknown")"
+            //commandOutput += "\nHost: \(serverEntity.ip ?? "Unknown")"
         }
         
         // Use the safe connection pattern - create connection for this operation
         try await SSHConnection.withConnection(server: serverEntity) { connection in
+            // Check for cancellation before each major step
+            try Task.checkCancellation()
+            
+//            await MainActor.run {
+//                commandOutput += "\nEstablishing SSH connection..."
+//            }
+            
             try await connection.connect()
             
             await MainActor.run {
                 progressPercentage = 0.1
-                commandOutput += "\nConnected to server"
+                commandOutput += "\nSSH connection established successfully"
             }
+            
+            try Task.checkCancellation()
             
             // Ensure torrent creation tools are installed
             try await ensureTorrentCreatorInstalled(connection: connection)
             
             await MainActor.run {
-            progressPercentage = 0.15
-            commandOutput += "\nPreparing torrent creation..."
-        }
-        
-        // Simple approach: Create torrent in the parent directory of the files
-        let parentDirectory = (filePath as NSString).deletingLastPathComponent
-        let fileName = (filePath as NSString).lastPathComponent
-        let torrentFileName = "\(fileName).torrent"
-        let torrentPath = "\(parentDirectory)/\(torrentFileName)"
+                progressPercentage = 0.15
+                commandOutput += "\nVerifying source..."
+            }
+            
+            try Task.checkCancellation()
+            
+            // Verify the source file/directory exists
+            let (verifyExitCode, verifyOutput) = try await connection.executeCommand("ls -la '\(filePath)'")
+            if verifyExitCode != 0 {
+                await MainActor.run {
+                    isProcessing = false
+                    errorMessage = "Source file/directory not found: \(filePath)\nOutput: \(verifyOutput)"
+                    showError = true
+                    isError = true
+                }
+                return
+            }
+            
+            await MainActor.run {
+                commandOutput += "\nSource verified: \(verifyOutput.components(separatedBy: .newlines).first ?? "")"
+                progressPercentage = 0.18
+                commandOutput += "\nPreparing torrent creation..."
+            }
+            
+            // Create torrent in a temp location to avoid permission issues
+            let parentDirectory = (filePath as NSString).deletingLastPathComponent
+            let fileName = (filePath as NSString).lastPathComponent
+            let torrentFileName = "\(fileName).torrent"
+            
+            // Use a temp directory for torrent output to avoid permission issues
+            let tempTorrentDir = "/tmp/imdl-install"
+            let torrentPath = "\(tempTorrentDir)/\(torrentFileName)"
+            
+//            await MainActor.run {
+//                commandOutput += "\nEnsuring temp directory exists..."
+//            }
+            
+            // Ensure the temp directory exists and is writable
+            let (mkdirExitCode, mkdirOutput) = try await connection.executeCommand("mkdir -p '\(tempTorrentDir)' && echo 'temp_dir_ok' || echo 'temp_dir_failed'")
+            
+            if !mkdirOutput.contains("temp_dir_ok") {
+                await MainActor.run {
+                    isProcessing = false
+                    errorMessage = "Cannot create temp directory '\(tempTorrentDir)'. Output: \(mkdirOutput)"
+                    showError = true
+                    isError = true
+                }
+                return
+            }
+            
+            await MainActor.run {
+               // commandOutput += "\nTemp directory ready: \(tempTorrentDir)"
+                progressPercentage = 0.19
+                //commandOutput += "\nPreparing torrent creation..."
+            }
         
         // Check file size for progress estimation
         let fileSize = await monitorFileSize(connection: connection, filePath: filePath)
         let isLargeFile = (fileSize ?? 0) > 100_000_000 // 100MB threshold
         
+        // Calculate timeout based on file size (minimum 60 seconds, up to 30 minutes for very large files)
+        let timeoutSeconds = min(1800, max(60, Int((fileSize ?? 0) / 1_000_000))) // 1 second per MB
+        
         await MainActor.run {
             progressPercentage = 0.2
-            commandOutput += "\nCreating torrent: \(torrentFileName)"
-            commandOutput += "\nSource: \(fileName)"
-            commandOutput += "\nLocation: \(parentDirectory)"
+            //commandOutput += "\nCreating torrent: \(torrentFileName)"
+            //commandOutput += "\nSource: \(fileName)"
+            //commandOutput += "\nSource location: \(parentDirectory)"
+            //commandOutput += "\nTorrent output: \(torrentPath)"
             if let size = fileSize {
                 let sizeString = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
                 commandOutput += "\nFile size: \(sizeString)"
+                commandOutput += "\nEstimated timeout: \(timeoutSeconds) seconds"
                 if isLargeFile {
                     commandOutput += "\nLarge file detected - creation may take time"
                 }
@@ -451,9 +585,9 @@ struct CreateTorrent: View {
         
         // Get the appropriate torrent creation command
         let createCommand = await getTorrentCreateCommand(
-            parentDirectory: parentDirectory,
-            torrentFileName: torrentFileName,
-            fileName: fileName,
+            sourceDirectory: parentDirectory,
+            sourceName: fileName,
+            torrentPath: torrentPath,
             tracker: tracker,
             serverEntity: serverEntity
         )
@@ -468,75 +602,147 @@ struct CreateTorrent: View {
             return
         }
         
+        // Test imdl before proceeding
+        await MainActor.run {
+            progressPercentage = 0.25
+            commandOutput += "\nTesting imdl installation..."
+        }
+        
         do {
+            let imdlPath = createCommand.contains("/tmp/imdl-install/imdl") ? "/tmp/imdl-install/imdl" : "imdl"
+            let (testExitCode, testOutput) = try await connection.executeCommand("\(imdlPath) --version")
+            
+            await MainActor.run {
+                if testExitCode == 0 {
+                    commandOutput += "\nimdl version: \(testOutput.trimmingCharacters(in: .whitespacesAndNewlines))"
+                } else {
+                    commandOutput += "\nWarning: imdl test failed (exit code \(testExitCode)): \(testOutput)"
+                }
+            }
+        } catch {
+            await MainActor.run {
+                commandOutput += "\nWarning: Could not test imdl: \(error.localizedDescription)"
+            }
+        }
+        
+        do {
+            try Task.checkCancellation()
+            
             await MainActor.run {
                 progressPercentage = 0.3
                 commandOutput += "\nExecuting imdl torrent creator..."
+                commandOutput += "\nCommand: \(createCommand)"
+                commandOutput += "\nTimeout set to: \(timeoutSeconds) seconds"
                 if isLargeFile {
-                    commandOutput += "\nPlease wait, processing large file..."
+                    commandOutput += "\nLarge file detected - creation may take time"
                 }
             }
             
-            // For large files, monitor progress
-            if isLargeFile {
-                // Start the command in background and monitor
-                let backgroundTask = Task {
-                    return try await connection.executeCommand(createCommand)
-                }
-                
-                // Monitor progress for large files
-                var progressMonitor = 0.3
-                while !backgroundTask.isCancelled {
-                    do {
-                        let result = try await withTimeout(seconds: 2) {
-                            try await backgroundTask.value
-                        }
-                        // Command completed
-                        let (_, output) = result
-                        await MainActor.run {
-                            progressPercentage = 0.7
-                            commandOutput += "\nTorrent creation completed"
-                            commandOutput += "\nOutput: \(output)"
-                        }
-                        break
-                    } catch {
-                        // Still running, update progress
-                        progressMonitor = min(0.65, progressMonitor + 0.05)
-                        await MainActor.run {
-                            progressPercentage = progressMonitor
-                        }
-                        try await Task.sleep(for: .seconds(3))
+            // Execute the command with real-time output monitoring
+            var lastOutput = ""
+            var progressTimer = 0.3
+            let commandStartTime = Date()
+            
+            // Start the command asynchronously
+            let commandTask = Task {
+                return try await connection.executeCommand(createCommand)
+            }
+            
+            // Monitor the command execution with periodic updates
+            while !commandTask.isCancelled {
+                do {
+                    // Try to get the result with a short timeout
+                    let result = try await withTimeout(seconds: 5) {
+                        try await commandTask.value
                     }
-                }
-            } else {
-                // Regular execution for smaller files
-                let (_, output) = try await connection.executeCommand(createCommand)
-                
-                await MainActor.run {
-                    progressPercentage = 0.7
-                    commandOutput += "\nTorrent creation completed"
-                    commandOutput += "\nOutput: \(output)"
-                }
-                
-                // Check for imdl validation errors in output
-                if output.lowercased().contains("error") || output.lowercased().contains("invalid") {
+                    
+                    // Command completed successfully
+                    let (exitCode, output) = result
+                    
                     await MainActor.run {
-                        isProcessing = false
-                        errorMessage = "imdl validation error: \(output)"
-                        showError = true
-                        isError = true
+                        progressPercentage = 0.7
+                        commandOutput += "\nCommand completed with exit code: \(exitCode)"
+                        commandOutput += "\nimdl output: \(output)"
+                        
+                        let duration = Date().timeIntervalSince(commandStartTime)
+                        commandOutput += "\nExecution time: \(String(format: "%.1f", duration)) seconds"
                     }
-                    return
+                    
+                    // Check for success/failure
+                    if exitCode != 0 {
+                        await MainActor.run {
+                            isProcessing = false
+                            errorMessage = "imdl failed with exit code \(exitCode).\n\nOutput: \(output)\n\nThis usually means:\n- File permissions issue\n- Invalid tracker URL\n- Disk space problem\n- Network connectivity issue"
+                            showError = true
+                            isError = true
+                        }
+                        return
+                    }
+                    
+                    // Check for error indicators in output
+                    let outputLower = output.lowercased()
+                    if outputLower.contains("error") || outputLower.contains("failed") || outputLower.contains("invalid") {
+                        await MainActor.run {
+                            isProcessing = false
+                            errorMessage = "imdl validation error: \(output)"
+                            showError = true
+                            isError = true
+                        }
+                        return
+                    }
+                    
+                    // Success - break out of monitoring loop
+                    await MainActor.run {
+                        commandOutput += "\nimdl torrent creation succeeded!"
+                    }
+                    break
+                    
+                } catch {
+                    // Command still running, update progress and continue monitoring
+                    try Task.checkCancellation() // Check if we were cancelled
+                    
+                    progressTimer = min(0.65, progressTimer + 0.02)
+                    let elapsed = Date().timeIntervalSince(commandStartTime)
+                    
+                    await MainActor.run {
+                        progressPercentage = progressTimer
+                        commandOutput += "\nStill processing... (\(String(format: "%.0f", elapsed))s elapsed)"
+                    }
+                    
+                    // If we've been running too long, give a timeout error
+                    if elapsed > TimeInterval(timeoutSeconds) {
+                        commandTask.cancel()
+                        await MainActor.run {
+                            isProcessing = false
+                            errorMessage = "Operation timed out after \(timeoutSeconds) seconds. The file may be too large or there may be a network issue."
+                            showError = true
+                            isError = true
+                        }
+                        return
+                    }
+                    
+                    // Wait a bit before checking again
+                    try await Task.sleep(for: .seconds(3))
                 }
             }
             
             // Verify the torrent file was created
-            let (_, fileCheck) = try await connection.executeCommand("ls -la '\(torrentPath)'")
-            if fileCheck.contains("No such file") {
+            await MainActor.run {
+                progressPercentage = 0.75
+                commandOutput += "\nVerifying torrent file creation..."
+            }
+            
+            let (checkExitCode, fileCheck) = try await connection.executeCommand("ls -la '\(torrentPath)'")
+            
+            await MainActor.run {
+                commandOutput += "\nFile check output: \(fileCheck)"
+            }
+            
+            if checkExitCode != 0 || fileCheck.contains("No such file") || fileCheck.contains("cannot access") {
                 await MainActor.run {
                     isProcessing = false
                     progressPercentage = 0
-                    errorMessage = "Torrent file was not created"
+                    errorMessage = "Torrent file was not created at '\(torrentPath)'. Check output: \(fileCheck)"
                     showError = true
                     isError = true
                 }
@@ -545,7 +751,7 @@ struct CreateTorrent: View {
             
             await MainActor.run {
                 progressPercentage = 0.8
-                commandOutput += "\nTorrent file created successfully"
+                commandOutput += "\nTorrent file verified successfully"
                 commandOutput += "\nReading torrent file and adding to daemon..."
             }
             
@@ -553,16 +759,26 @@ struct CreateTorrent: View {
             let torrentData = try await connection.downloadFileToMemory(remotePath: torrentPath)
             let base64Torrent = torrentData.base64EncodedString()
             
+            await MainActor.run {
+                progressPercentage = 0.9
+                commandOutput += "\nTorrent file downloaded, adding to transmission daemon..."
+            }
+            
             // Add the torrent to transmission daemon using the metainfo (base64 encoded content)
             let response = try await manager.addTorrent(
                 metainfo: base64Torrent,
                 downloadDir: parentDirectory
             )
             
+            await MainActor.run {
+                commandOutput += "\nAdd torrent response: \(String(describing: response))"
+            }
+            
             if response.result == "success" {
                 await MainActor.run {
                     progressPercentage = 1.0
                     commandOutput += "\nTorrent added to daemon successfully!"
+                    commandOutput += "\nTorrent ID: \(response.id ?? -1)"
                     commandOutput += "\nTorrent should start seeding immediately since files are already present."
                     isProcessing = false
                     isCreated = true
@@ -570,8 +786,15 @@ struct CreateTorrent: View {
                     showSuccess = true
                 }
                 
-                // Clean up the torrent file
-                try? await connection.executeCommand("rm -f '\(torrentPath)'")
+                // Clean up the temporary torrent file
+                let (rmExitCode, rmOutput) = try await connection.executeCommand("rm -f '\(torrentPath)'")
+                await MainActor.run {
+                    if rmExitCode == 0 {
+                        commandOutput += "\nTorrent file cleaned up from temp location"
+                    } else {
+                        commandOutput += "\nWarning: Could not clean up temp torrent file: \(rmOutput)"
+                    }
+                }
                 
                 // Optional: Monitor the torrent status briefly
                 if let torrentId = response.id {
@@ -584,7 +807,7 @@ struct CreateTorrent: View {
                 await MainActor.run {
                     isProcessing = false
                     progressPercentage = 0
-                    errorMessage = "Failed to add torrent to daemon"
+                    errorMessage = "Failed to add torrent to daemon. Response: \(String(describing: response))"
                     showError = true
                     isError = true
                 }
@@ -594,7 +817,54 @@ struct CreateTorrent: View {
             await MainActor.run {
                 isProcessing = false
                 progressPercentage = 0
-                errorMessage = "Error creating torrent: \(error.localizedDescription)"
+                let errorDescription = error.localizedDescription
+                commandOutput += "\nERROR: \(errorDescription)"
+                
+                // Get more detailed error information
+                var detailedError = "Error creating torrent: \(errorDescription)"
+                
+                // Check for specific SSH/Citadel errors
+                if let sshError = error as? NSError {
+                    commandOutput += "\nError domain: \(sshError.domain)"
+                    commandOutput += "\nError code: \(sshError.code)"
+                    commandOutput += "\nError userInfo: \(sshError.userInfo)"
+                    
+                    if sshError.domain.contains("Citadel") {
+                        if sshError.code == 1 {
+                            detailedError = """
+                            SSH Command Failed (Citadel.SSHClient.CommandFailed error 1)
+                            
+                            This usually means:
+                            • The imdl command failed to execute properly
+                            • Permission denied accessing files or directories
+                            • The imdl binary is not found or not executable
+                            • Network connectivity issues during torrent creation
+                            • Disk space insufficient on the server
+                            
+                            Check the SSH connection and try again.
+                            If the problem persists, verify:
+                            1. File permissions on the source file/directory
+                            2. Available disk space on the server
+                            3. Network connectivity to tracker URLs
+                            """
+                        } else {
+                            detailedError = "SSH connection error (code \(sshError.code)): \(errorDescription)"
+                        }
+                    }
+                }
+                
+                // Provide more specific error messages based on content
+                if errorDescription.contains("timeout") || errorDescription.contains("Timeout") {
+                    detailedError = "Operation timed out. The torrent creation is taking longer than expected. This can happen with very large files or slow connections."
+                } else if errorDescription.contains("connection") || errorDescription.contains("Connection") {
+                    detailedError = "Connection error: \(errorDescription)\n\nPlease check your SSH connection and try again."
+                } else if errorDescription.contains("permission") || errorDescription.contains("Permission") {
+                    detailedError = "Permission error: \(errorDescription)\n\nPlease check file permissions and SSH access."
+                } else if errorDescription.contains("cancelled") || errorDescription.contains("Cancelled") {
+                    detailedError = "Operation was cancelled by user."
+                }
+                
+                errorMessage = detailedError
                 showError = true
                 isError = true
             }

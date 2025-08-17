@@ -482,12 +482,14 @@ class VideoPlayerViewController: UIViewController {
         controlsTimer = nil
         
         // Clear media player delegate before stopping
-        mediaPlayer.delegate = nil
+        
         
         // Stop media player safely
         if mediaPlayer.isPlaying {
             mediaPlayer.stop()
         }
+        
+        mediaPlayer.delegate = nil
         mediaPlayer.media = nil
         
         // Clean up external window
