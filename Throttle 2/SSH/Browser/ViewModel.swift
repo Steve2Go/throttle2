@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import KeychainAccess
 import Citadel
 import SimpleToast
@@ -23,6 +24,9 @@ class SFTPFileBrowserViewModel: ObservableObject {
     @Published var selectedFile: FileItem?
     @Published var upOne = ""
     @Published var showingFFmpegPlayer = false
+    
+    // Track if we should dismiss the browser when video player closes
+    var shouldDismissOnVideoPlayerClose = false
 
     @AppStorage("sftpSortOrder") var sftpSortOrder: String = "date"
     @AppStorage("sftpFoldersFirst") var sftpFoldersFirst: Bool = true
@@ -87,12 +91,31 @@ class SFTPFileBrowserViewModel: ObservableObject {
         // Save server for later use
         self.server = server ?? ServerEntity() // Fallback to avoid force unwrap
         
+        // Set up observer for video player dismissal
+        setupVideoPlayerObserver()
+        
         // No longer create a persistent SSH connection - use temporary connections instead
         // This prevents connection conflicts with image loading and other concurrent operations
         
         // Connect to the server for initial setup
         connectToServer()
     }
+    
+    private func setupVideoPlayerObserver() {
+        // Observe changes to showingVideoPlayer
+        $showingVideoPlayer
+            .removeDuplicates()
+            .sink { [weak self] isShowing in
+                // When video player is dismissed (changes from true to false)
+                if !isShowing && self?.shouldDismissOnVideoPlayerClose == true {
+                    self?.shouldDismissOnVideoPlayerClose = false
+                    self?.onDismiss?()
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    private var cancellables = Set<AnyCancellable>()
     
     deinit {
         Task { [weak self] in
@@ -290,21 +313,22 @@ class SFTPFileBrowserViewModel: ObservableObject {
                         self.isInitialPathAFile = true
                         self.initialFileItem = fileItem
                         self.items = [fileItem] // Set items to contain only this file
-                        self.isLoading = false
-                        self.updateImageUrls()
                         
-                        // If the single file is a video, automatically open it in the video player
+                        // Check if the single file is a video first, before doing any thumbnail processing
                         let fileType = FileType.determine(from: fileItem.url)
                         if fileType == .video {
-                            // Dismiss the current view first
-                            defer{
-                                self.onDismiss?()
-                            }
+                            // For video files, skip thumbnail generation and go directly to video player
+                            self.isLoading = false
                             
-                            // Then open the video player
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                self.openVideo(item: fileItem, server: self.server)
-                            }
+                            // Mark that we should dismiss the browser when video player closes
+                            self.shouldDismissOnVideoPlayerClose = true
+                            
+                            // Open the video player immediately
+                            self.openVideo(item: fileItem, server: self.server)
+                        } else {
+                            // For non-video files, proceed with normal thumbnail loading
+                            self.isLoading = false
+                            self.updateImageUrls()
                         }
                     }
                 } else {

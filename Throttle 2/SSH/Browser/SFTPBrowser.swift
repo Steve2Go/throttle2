@@ -62,7 +62,20 @@ struct SFTPFileBrowserView: View {
         VStack {
             NavigationStack {
                 Group {
-                    if viewMode == "list" {
+                    // If we're about to show a video player for a single video file, show a loading state instead of thumbnails
+                    if viewModel.isInitialPathAFile, 
+                       let initialFile = viewModel.initialFileItem,
+                       FileType.determine(from: initialFile.url) == .video,
+                       viewModel.showingVideoPlayer {
+                        VStack {
+//                            ProgressView("Loading video player...")
+//                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+//                                .foregroundColor(.white)
+//                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                        .background(Color.black)
+                        .ignoresSafeArea()
+                    } else if viewMode == "list" {
                         listView
                     } else {
                         gridView
