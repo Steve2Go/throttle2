@@ -93,6 +93,9 @@
 				QuickLookVideo.app = (macos, );
 				"fuse-t-macos-installer-1.0.44.pkg" = (macos, );
 				"sshfs-macos-installer-1.0.2.pkg" = (macos, );
+				"transmission/transmission-create" = (macos, );
+				"transmission/transmission-daemon" = (macos, );
+				"transmission/transmission-remote" = (macos, );
 			};
 			target = E7150E162D631D08009C4217 /* Throttle 2 */;
 		};

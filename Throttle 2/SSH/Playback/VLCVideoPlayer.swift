@@ -178,10 +178,22 @@ class VideoPlayerViewController: UIViewController {
         super.viewDidLoad()
         print("ViewDidLoad called")
         setupUI()
+        
         // Observe gateway change notifications
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(handleGatewayChange),
                                                name: .gatewayChanged,
+                                               object: nil)
+        
+        // Observe app background/foreground notifications to pause/resume
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(appDidEnterBackground),
+                                               name: UIApplication.didEnterBackgroundNotification,
+                                               object: nil)
+        
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(appWillEnterForeground),
+                                               name: UIApplication.willEnterForegroundNotification,
                                                object: nil)
     }
     
@@ -225,7 +237,9 @@ class VideoPlayerViewController: UIViewController {
         // Clean up any remaining resources
         controlsTimer?.invalidate()
         NotificationCenter.default.removeObserver(self)
-
+        
+        // Gentle VLC cleanup - just clear delegate
+        mediaPlayer.delegate = nil
     }
     
     
@@ -508,16 +522,13 @@ class VideoPlayerViewController: UIViewController {
         controlsTimer?.invalidate()
         controlsTimer = nil
         
-        // Clear media player delegate before stopping
-        
-        
-        // Stop media player safely
+        // Pause playback to stop background play
         if mediaPlayer.isPlaying {
-            mediaPlayer.stop()
+            mediaPlayer.pause()
         }
         
+        // Clear delegate to stop callbacks
         mediaPlayer.delegate = nil
-        mediaPlayer.media = nil
         
         // Clean up external window
         if let window = externalWindow {
@@ -525,7 +536,7 @@ class VideoPlayerViewController: UIViewController {
             externalWindow = nil
         }
         
-        print("VideoPlayerViewController: Cleanup completed")
+        print("VideoPlayerViewController: Cleanup completed - letting system handle VLC cleanup")
     }
     
     @objc private func sliderValueChanged(_ slider: UISlider) {
@@ -587,6 +598,18 @@ class VideoPlayerViewController: UIViewController {
             try? await Task.sleep(nanoseconds: 100_000_000)
             self.mediaPlayer.play()
         }
+    }
+    
+    @objc private func appDidEnterBackground() {
+        print("VideoPlayerViewController: App entered background - pausing playback")
+        if mediaPlayer.isPlaying {
+            mediaPlayer.pause()
+        }
+    }
+    
+    @objc private func appWillEnterForeground() {
+        print("VideoPlayerViewController: App will enter foreground")
+        // Don't auto-resume - let user decide to play again
     }
     
     func configure(with url: URL) {
