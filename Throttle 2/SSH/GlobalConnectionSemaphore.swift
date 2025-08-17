@@ -9,7 +9,7 @@ extension Notification.Name {
 struct ThumbnailQueueItem {
     let path: String
     let server: ServerEntity
-    let continuation: CheckedContinuation<Void, Never>
+    let continuation: CheckedContinuation<Bool, Never>  // Returns true if should proceed, false if cancelled
 }
 
 /// Global connection limiter with simple thumbnail queue
@@ -31,9 +31,9 @@ actor GlobalConnectionSemaphore {
             currentServerName = serverName
             self.maxConnections = effectiveMax
             activeConnections = 0
-            // Clear queue when switching servers
+            // Clear queue when switching servers - cancel all pending thumbnails
             for item in thumbnailQueue {
-                item.continuation.resume()
+                item.continuation.resume(returning: false)
             }
             thumbnailQueue.removeAll()
             print("GlobalConnectionSemaphore: Set limit to \(effectiveMax) connections for server '\(serverName)'")
@@ -50,20 +50,20 @@ actor GlobalConnectionSemaphore {
     func setSemaphore(for server: ServerEntity) async {
         let serverName = server.name ?? server.sftpHost ?? "unknown"
         let maxConnections = Int(server.thumbMax)
-        await setSemaphore(for: serverName, maxConnections: maxConnections)
+        setSemaphore(for: serverName, maxConnections: maxConnections)
     }
     
     /// Add thumbnail to queue
-    func queueThumbnail(path: String, server: ServerEntity) async {
+    func queueThumbnail(path: String, server: ServerEntity) async -> Bool {
         print("GlobalConnectionSemaphore: 📥 Queuing thumbnail: \(path)")
         
         // Check if already in queue
         if thumbnailQueue.contains(where: { $0.path == path }) {
             print("GlobalConnectionSemaphore: ⚠️ Thumbnail already queued: \(path)")
-            return
+            return false
         }
         
-        await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { continuation in
             let item = ThumbnailQueueItem(path: path, server: server, continuation: continuation)
             thumbnailQueue.append(item)
             print("GlobalConnectionSemaphore: Queue size: \(thumbnailQueue.count)")
@@ -75,7 +75,7 @@ actor GlobalConnectionSemaphore {
     func removeThumbnailFromQueue(path: String) {
         if let index = thumbnailQueue.firstIndex(where: { $0.path == path }) {
             let item = thumbnailQueue.remove(at: index)
-            item.continuation.resume()
+            item.continuation.resume(returning: false)  // Cancel the request
             print("GlobalConnectionSemaphore: 🗑️ Removed from queue: \(path)")
         }
     }
@@ -121,14 +121,27 @@ actor GlobalConnectionSemaphore {
     
     /// Process the thumbnail queue - start thumbnails if connections available
     private func processQueue() {
-        while activeConnections < maxConnections && !thumbnailQueue.isEmpty {
+        // Reserve connections: 1 for FTP server, 1 for SSH tunnel
+        let reservedConnections = 2
+        let availableForThumbnails = max(0, maxConnections - reservedConnections)
+        
+        while activeConnections < availableForThumbnails && !thumbnailQueue.isEmpty {
             let item = thumbnailQueue.removeFirst()
+            
+            // Check if the thumbnail is still visible
+            let isVisible = ThumbnailManagerRemote.shared.isVisiblePath(item.path)
+            if !isVisible {
+                print("GlobalConnectionSemaphore: ⏭️ Skipping invisible thumbnail: \(item.path). Queue: \(thumbnailQueue.count)")
+                item.continuation.resume(returning: false)
+                continue
+            }
+            
             activeConnections += 1
             
-            print("GlobalConnectionSemaphore: � Starting thumbnail: \(item.path). Active: \(activeConnections)/\(maxConnections), Queue: \(thumbnailQueue.count)")
+            print("GlobalConnectionSemaphore: � Starting thumbnail: \(item.path). Active: \(activeConnections)/\(availableForThumbnails) (reserved: \(reservedConnections)), Queue: \(thumbnailQueue.count)")
             
             // Resume the thumbnail generation
-            item.continuation.resume()
+            item.continuation.resume(returning: true)
         }
     }
     
@@ -142,9 +155,9 @@ actor GlobalConnectionSemaphore {
         maxConnections = 5
         activeConnections = 0
         
-        // Clear thumbnail queue
+        // Clear thumbnail queue - cancel all pending thumbnails
         for item in thumbnailQueue {
-            item.continuation.resume()
+            item.continuation.resume(returning: false)
         }
         thumbnailQueue.removeAll()
     }

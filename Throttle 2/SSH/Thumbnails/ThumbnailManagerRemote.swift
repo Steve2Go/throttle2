@@ -88,6 +88,11 @@ public class ThumbnailManagerRemote: NSObject {
         return visiblePaths.contains(path)
     }
     
+    // Public method for queue management
+    public func isVisiblePath(_ path: String) -> Bool {
+        return isVisible(path)
+    }
+    
     // MARK: - Main entry point
     func getThumbnail(for path: String, server: ServerEntity) async throws -> PlatformImage {
         return try await getResizedImage(for: path, server: server, maxWidth: nil)
@@ -95,6 +100,7 @@ public class ThumbnailManagerRemote: NSObject {
     
     // New: Get resized image with optional maxWidth
     func getResizedImage(for path: String, server: ServerEntity, maxWidth: Int?) async throws -> PlatformImage {
+        // Check visibility first - if not visible, don't even start
         if !isVisible(path) {
             throw NSError(domain: "ThumbnailManagerRemote", code: -10, userInfo: [NSLocalizedDescriptionKey: "Not visible"])
         }
@@ -113,7 +119,21 @@ public class ThumbnailManagerRemote: NSObject {
         print("ThumbnailManagerRemote: Status - Server: \(status.serverName ?? "none"), Active: \(status.activeConnections)/\(status.maxConnections), Queue: \(status.queueSize)")
         
         // Queue for thumbnail generation (will wait if needed)
-        await GlobalConnectionSemaphore.shared.queueThumbnail(path: path, server: server)
+        let shouldProceed = await GlobalConnectionSemaphore.shared.queueThumbnail(path: path, server: server)
+        
+        // If cancelled (because became invisible), don't generate
+        if !shouldProceed {
+            print("ThumbnailManagerRemote: ❌ Thumbnail generation cancelled: \(path)")
+            throw NSError(domain: "ThumbnailManagerRemote", code: -11, userInfo: [NSLocalizedDescriptionKey: "Thumbnail generation cancelled"])
+        }
+        
+        // Check visibility again after getting connection slot - may have become invisible while waiting
+        if !isVisible(path) {
+            print("ThumbnailManagerRemote: ❌ Thumbnail became invisible while waiting: \(path)")
+            // Don't start generation, just release connection immediately
+            await GlobalConnectionSemaphore.shared.releaseConnection()
+            throw NSError(domain: "ThumbnailManagerRemote", code: -10, userInfo: [NSLocalizedDescriptionKey: "Became invisible while waiting"])
+        }
         
         do {
             // Double-check cache after getting connection slot
