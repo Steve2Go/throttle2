@@ -161,10 +161,11 @@ struct TorrentRowView: View {
                                         let ext = (torrent.name as NSString?)?.pathExtension.lowercased() ?? ""
                                         store.isOpeningVideoDirectly = videoExtensions.contains(ext)
                                         
-                                        if isiPad{
+                                        if isiPad || videoExtensions.contains(ext) {
                                             store.FileBrowse = true
                                         } else{
                                             store.FileBrowseCover = true
+                                            //store.FileBrowse = true
                                         }
 #else
                                         //macos
