@@ -19,22 +19,18 @@ typealias PlatformImage = UIImage
 public class ThumbnailManagerRemote: NSObject {
     public static let shared = ThumbnailManagerRemote()
     private let fileManager = FileManager.default
-    private let thumbnailQueue = DispatchQueue(label: "com.throttle.remoteThumbnailQueue", qos: .utility)
-    private var inProgressPaths = Set<String>()
-    private let inProgressLock = NSLock()
+    
     // Memory cache for thumbnails
     private let memoryCache: NSCache<NSString, PlatformImage> = {
         let cache = NSCache<NSString, PlatformImage>()
         cache.countLimit = 150
         return cache
     }()
-    // SSH connection pooling - DEPRECATED: Moving to create-and-destroy pattern
-    // Keep for gradual migration, but new code should use SSHConnection.withConnection()
-    private var connections = [String: SSHConnection]()
-    private let connectionsLock = NSLock()
+    
     // Visibility tracking
     private var visiblePaths = Set<String>()
     private let visiblePathsLock = NSLock()
+    
     // Cache directory for saved thumbnails
     private var cacheDirectory: URL? {
         fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
@@ -48,6 +44,23 @@ public class ThumbnailManagerRemote: NSObject {
     override init() {
         super.init()
         createCacheDirectoryIfNeeded()
+        
+        // Listen for semaphore retry notifications
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThumbnailRefreshNotification),
+            name: .thumbnailShouldRefresh,
+            object: nil
+        )
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc private func handleThumbnailRefreshNotification() {
+        // This notification tells UI components to refresh their thumbnails
+        // No action needed here - the UI will call getThumbnail again for visible items
     }
     
     private func createCacheDirectoryIfNeeded() {
@@ -75,19 +88,6 @@ public class ThumbnailManagerRemote: NSObject {
         return visiblePaths.contains(path)
     }
     
-    // MARK: - SSH connection pooling
-    private func getConnection(for server: ServerEntity) -> SSHConnection {
-        let serverKey = server.name ?? server.sftpHost ?? "default"
-        connectionsLock.lock()
-        defer { connectionsLock.unlock() }
-        if let connection = connections[serverKey] {
-            return connection
-        } else {
-            let newConnection = SSHConnection(server: server)
-            connections[serverKey] = newConnection
-            return newConnection
-        }
-    }
     // MARK: - Main entry point
     func getThumbnail(for path: String, server: ServerEntity) async throws -> PlatformImage {
         return try await getResizedImage(for: path, server: server, maxWidth: nil)
@@ -96,11 +96,10 @@ public class ThumbnailManagerRemote: NSObject {
     // New: Get resized image with optional maxWidth
     func getResizedImage(for path: String, server: ServerEntity, maxWidth: Int?) async throws -> PlatformImage {
         if !isVisible(path) {
-            print("ThumbnailManagerRemote: Path \(path) is not visible, skipping")
             throw NSError(domain: "ThumbnailManagerRemote", code: -10, userInfo: [NSLocalizedDescriptionKey: "Not visible"])
         }
         
-        // Check cache first without acquiring semaphore
+        // Check cache first
         if let cached = memoryCache.object(forKey: path as NSString) {
             return cached
         }
@@ -109,77 +108,38 @@ public class ThumbnailManagerRemote: NSObject {
             return cached
         }
         
-        // Check if already in progress before acquiring semaphore
-        let alreadyInProgress = markInProgress(path: path)
-        if alreadyInProgress {
-            // Wait for the thumbnail to become available in cache or on disk
-            for _ in 0..<100 { // Wait up to ~5 seconds (100 * 0.05s)
-                if let cached = memoryCache.object(forKey: path as NSString) {
-                    return cached
-                }
-                if let cached = try? await loadFromCache(for: path) {
-                    memoryCache.setObject(cached, forKey: path as NSString)
-                    return cached
-                }
-                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
-                if Task.isCancelled { throw CancellationError() }
-            }
-            throw NSError(domain: "ThumbnailManagerRemote", code: -1, userInfo: [NSLocalizedDescriptionKey: "Timeout waiting for thumbnail in progress"])
-        }
-        
-        // Only acquire semaphore if we're actually going to generate the thumbnail
-        defer { clearInProgress(path: path) }
-        
-        // Check semaphore status for debugging
+        // Check connection status for debugging
         let status = await GlobalConnectionSemaphore.shared.getStatus()
-        if !status.hasActiveSemaphore {
-            print("ThumbnailManagerRemote: WARNING - No active semaphore! Server: \(status.serverName ?? "none"), Max: \(status.maxConnections)")
-        } else {
-            print("ThumbnailManagerRemote: Semaphore status - (\(status.activeConnections)/\(status.maxConnections)) for '\(status.serverName ?? "unknown")'")
-        }
+        print("ThumbnailManagerRemote: Status - Server: \(status.serverName ?? "none"), Active: \(status.activeConnections)/\(status.maxConnections), Queue: \(status.queueSize)")
         
-        print("ThumbnailManagerRemote: Acquiring semaphore for \(path)")
-        await GlobalConnectionSemaphore.shared.acquireConnection()
+        // Queue for thumbnail generation (will wait if needed)
+        await GlobalConnectionSemaphore.shared.queueThumbnail(path: path, server: server)
         
         do {
+            // Double-check cache after getting connection slot
+            if let cached = memoryCache.object(forKey: path as NSString) {
+                await GlobalConnectionSemaphore.shared.releaseConnection()
+                return cached
+            }
+            
             let fileType = FileType.determine(from: URL(fileURLWithPath: path))
             if fileType == .video || fileType == .image {
                 let image = try await self.generateFFmpegThumbnail(for: path, server: server, maxWidth: maxWidth)
                 memoryCache.setObject(image, forKey: path as NSString)
                 _ = try? saveToCache(image: image, for: path)
                 await GlobalConnectionSemaphore.shared.releaseConnection()
-                print("ThumbnailManagerRemote: Released semaphore for \(path)")
                 return image
             } else {
                 await GlobalConnectionSemaphore.shared.releaseConnection()
-                print("ThumbnailManagerRemote: Released semaphore for \(path) - unsupported file type")
                 throw NSError(domain: "ThumbnailManagerRemote", code: -2, userInfo: [NSLocalizedDescriptionKey: "Unsupported file type for thumbnail"])
             }
         } catch {
             await GlobalConnectionSemaphore.shared.releaseConnection()
-            print("ThumbnailManagerRemote: Released semaphore for \(path) - error: \(error)")
             throw error
         }
     }
     
-    private func markInProgress(path: String) -> Bool {
-        inProgressLock.lock()
-        defer { inProgressLock.unlock() }
-        if inProgressPaths.contains(path) {
-            return true
-        }
-        inProgressPaths.insert(path)
-        return false
-    }
-    
-    private func clearInProgress(path: String) {
-        inProgressLock.lock()
-        defer { inProgressLock.unlock() }
-        inProgressPaths.remove(path)
-    }
-    
     public func cancelThumbnail(for path: String) {
-        clearInProgress(path: path)
         markAsInvisible(path)
     }
     
@@ -506,10 +466,22 @@ public struct RemotePathThumbnailView: View {
                 loadingTask = nil
             }
             isVisible = false
-//            ThumbnailManagerRemote.shared.markAsInvisible(path)
+            // Remove from queue when no longer visible
+            Task {
+                await GlobalConnectionSemaphore.shared.removeThumbnailFromQueue(path: path)
+            }
             loadingTask?.cancel()
             
 //            ThumbnailManagerRemote.shared.cancelThumbnail(for: path)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .thumbnailShouldRefresh)) { _ in
+            // Retry thumbnail loading if we don't have one yet and are visible
+            if thumbnail == nil && isVisible && !isLoading {
+                loadingTask?.cancel()
+                loadingTask = Task {
+                    await loadThumbnailIfNeeded()
+                }
+            }
         }
     }
     

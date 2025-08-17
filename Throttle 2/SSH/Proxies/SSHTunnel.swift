@@ -77,6 +77,7 @@ actor TunnelState {
 class SSHTunnelManager {
     private var client: SSHClient?
     private var localServer: Channel?
+    private var hasAcquiredConnection = false
     
     var localPort: Int
     private let remoteHost: String
@@ -111,6 +112,7 @@ class SSHTunnelManager {
         
         // Acquire global connection semaphore for tunnel
         await GlobalConnectionSemaphore.shared.acquireConnection()
+        hasAcquiredConnection = true
         
         do {
             // 1. Connect to SSH server
@@ -123,7 +125,10 @@ class SSHTunnelManager {
         } catch {
             await state.setStarted(false)
             // Release semaphore on failure
-            await GlobalConnectionSemaphore.shared.releaseConnection()
+            if hasAcquiredConnection {
+                await GlobalConnectionSemaphore.shared.releaseConnection()
+                hasAcquiredConnection = false
+            }
             stop()
             throw SSHTunnelError.connectionFailed(error)
         }
@@ -182,13 +187,20 @@ class SSHTunnelManager {
         localServer?.close(promise: nil)
         localServer = nil
         
-        // Close the SSH client
+        // Close the SSH client and release semaphore synchronously
         if let client = client {
+            // Release connection semaphore immediately if we had acquired one
+            if hasAcquiredConnection {
+                Task {
+                    await GlobalConnectionSemaphore.shared.releaseConnection()
+                }
+                hasAcquiredConnection = false
+            }
+            
+            // Close client in background but don't depend on it for semaphore release
             Task { [weak self] in
                 try? await client.close()
                 self?.client = nil
-                // Release global connection semaphore when tunnel stops
-                await GlobalConnectionSemaphore.shared.releaseConnection()
             }
         }
         
