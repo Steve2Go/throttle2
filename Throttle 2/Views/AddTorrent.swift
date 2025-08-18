@@ -296,7 +296,7 @@ struct AddTorrentView: View {
                              userInfo: [NSLocalizedDescriptionKey: "Failed to add torrent"])
             } else {
                 
-                if deleteOnSuccess {
+                if deleteOnSuccess && store.magnetLink.isEmpty {
                     do {
                         // The file is already accessible from the URL opening, no need to access again
                         try FileManager.default.removeItem(at: file!)

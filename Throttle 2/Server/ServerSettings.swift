@@ -68,11 +68,15 @@ struct TransmissionSettingsView: View {
     @State private var browsingForField: String = ""
     @State private var saveError: String? = nil
     @State private var showSaveError: Bool = false
-    @State private var showSuccess: Bool = false
     
     // Local server credentials
     @State private var localRemoteUsername: String = ""
     @State private var localRemotePassword: String = ""
+    
+    // Local server settings
+    @State private var localPort: String = ""
+    @State private var localStartOnLogin: Bool = false
+    @State private var localRemoteAccess: Bool = false
     
     // Tab items
     private var tabs: [String] {
@@ -210,13 +214,6 @@ struct TransmissionSettingsView: View {
                     dismissButton: .default(Text("OK"))
                 )
             }
-            .alert(isPresented: $showSuccess) {
-                Alert(
-                    title: Text("Success"),
-                    message: Text("Settings saved successfully"),
-                    dismissButton: .default(Text("OK"))
-                )
-            }
         }
     }
     #else
@@ -320,13 +317,6 @@ struct TransmissionSettingsView: View {
             Alert(
                 title: Text("Error"),
                 message: Text(saveError ?? "Failed to save settings"),
-                dismissButton: .default(Text("OK"))
-            )
-        }
-        .alert(isPresented: $showSuccess) {
-            Alert(
-                title: Text("Success"),
-                message: Text("Settings saved successfully"),
                 dismissButton: .default(Text("OK"))
             )
         }
@@ -723,14 +713,23 @@ struct TransmissionSettingsView: View {
                     HStack {
                         Text("Port:")
                         Spacer()
-                        Text("\(server.localPort)")
+                        TextField("Port", text: $localPort)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
+                            .onChange(of: localPort) { _, newValue in
+                                saveLocalSettings()
+                            }
                     }
                     
-                    Toggle("Start on Login", isOn: .constant(server.localStartOnLogin))
-                        .disabled(true) // Read-only in settings view
+                    Toggle("Start on Login", isOn: $localStartOnLogin)
+                        .onChange(of: localStartOnLogin) { _, _ in
+                            saveLocalSettings()
+                        }
                     
-                    Toggle("Remote Access", isOn: .constant(server.localRemoteAccess))
-                        .disabled(true) // Read-only in settings view
+                    Toggle("Remote Access", isOn: $localRemoteAccess)
+                        .onChange(of: localRemoteAccess) { _, _ in
+                            saveLocalSettings()
+                        }
                 }
                 
                 // Always show credentials section for local servers
@@ -898,6 +897,9 @@ struct TransmissionSettingsView: View {
                     if let server = store.selection, server.isLocal == true {
                         localRemoteUsername = server.localRemoteUsername ?? "throttle"
                         localRemotePassword = server.localRemotePassword ?? ""
+                        localPort = String(server.localPort)
+                        localStartOnLogin = server.localStartOnLogin
+                        localRemoteAccess = server.localRemoteAccess
                     }
                     
                     isLoading = false
@@ -988,15 +990,31 @@ struct TransmissionSettingsView: View {
         
         do {
             try server.managedObjectContext?.save()
-            // Show success feedback
-            DispatchQueue.main.async {
-                showSuccess = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    showSuccess = false
-                }
-            }
         } catch {
             saveError = "Failed to save credentials: \(error.localizedDescription)"
+            showSaveError = true
+        }
+    }
+    
+    private func saveLocalSettings() {
+        guard let server = store.selection, server.isLocal == true else { return }
+        
+        // Validate port
+        if let portValue = Int(localPort), portValue > 0 && portValue <= 65535 {
+            server.localPort = Int32(portValue)
+        } else {
+            // Reset to previous value if invalid
+            localPort = String(server.localPort)
+            return
+        }
+        
+        server.localStartOnLogin = localStartOnLogin
+        server.localRemoteAccess = localRemoteAccess
+        
+        do {
+            try server.managedObjectContext?.save()
+        } catch {
+            saveError = "Failed to save settings: \(error.localizedDescription)"
             showSaveError = true
         }
     }

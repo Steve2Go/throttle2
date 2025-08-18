@@ -71,9 +71,11 @@ struct Throttle_2App: App {
     @ObservedObject var filter = TorrentFilters()
     @ObservedObject var store = Store()
     @StateObject var networkMonitor = NetworkMonitor()
+    @StateObject var localTransmissionManager = LocalTransmissionManager.shared
     @State var tunnelClosed = false
     @AppStorage("isBackground") var isBackground = false
     @AppStorage("mountOnLogin") var mountOnLogin = false
+    @AppStorage("transmissionOnLogin") var transmissionOnLogin = false
     @AppStorage("sftpCompression") var sftpCompression: Bool = false
     @AppStorage("sftpCipher") var sftpCipher: Bool = true
     var body: some Scene {
@@ -215,6 +217,41 @@ struct Throttle_2App: App {
                 }) {
                     Text("Faster Encryption (chacha20-poly1305)" + (sftpCipher ? "  ✓" : ""))
                     
+                }
+            }
+            
+            CommandMenu("Transmission") {
+                let localServers = serverArray.filter { $0.isLocal }
+                
+                if let localServer = localServers.first {
+                    Button("Start Daemon") {
+                        localTransmissionManager.startDaemon(for: localServer)
+                    }
+                    .disabled(localTransmissionManager.isRunning)
+                    
+                    Button("Stop Daemon") {
+                        localTransmissionManager.stopDaemon(for: localServer)
+                    }
+                    .disabled(!localTransmissionManager.isRunning)
+                    
+                    Button("Restart Daemon") {
+                        localTransmissionManager.stopDaemon(for: localServer)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            localTransmissionManager.startDaemon(for: localServer)
+                        }
+                    }
+                    .disabled(!localTransmissionManager.isRunning)
+                    
+                    Divider()
+                    
+                    // Toggle for Transmission on Login
+                    Button(action: { transmissionOnLogin.toggle() }) {
+                        Text("Start on Login" + (transmissionOnLogin ? "  ✓" : ""))
+                    }
+                    .keyboardShortcut("t", modifiers: [.command, .shift])
+                } else {
+                    Text("No local servers configured")
+                        .foregroundColor(.secondary)
                 }
             }
             

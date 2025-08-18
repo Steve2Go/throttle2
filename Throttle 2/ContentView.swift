@@ -31,6 +31,7 @@ struct ContentView: View {
     @AppStorage("firstRun") private var firstRun = true
     @AppStorage("isSidebarVisible") private var isSidebarVisible: Bool = true
     @AppStorage("mountOnLogin") var mountOnLogin = false
+    @AppStorage("transmissionOnLogin") var transmissionOnLogin = false
     @State var isCreating = false
 #if os(iOS)
     @State var currentSFTPViewModel: SFTPFileBrowserViewModel?
@@ -101,6 +102,12 @@ struct ContentView: View {
                 let serverArray = Array(servers)
                 ServerMountManager.shared.mountAllServers(serverArray)
             }
+            
+            // Always start transmission daemon when app launches if we have local servers
+            let localServers = servers.filter { $0.isLocal }
+            if let localServer = localServers.first {
+                LocalTransmissionManager.shared.startDaemon(for: localServer)
+            }
             #endif
             
             if presenting.didStart {
@@ -144,6 +151,44 @@ struct ContentView: View {
                         try? task.run()
                     } catch {
                         print("Failed to install LaunchAgent: \(error)")
+                    }
+                }
+            } else {
+                // Unload and remove the LaunchAgent
+                let task = Process()
+                task.launchPath = "/bin/launchctl"
+                task.arguments = ["unload", destURL.path]
+                try? task.run()
+                try? fileManager.removeItem(at: destURL)
+            }
+            #endif
+        }
+        .onChange(of: transmissionOnLogin) {
+            #if os(macOS)
+            let fileManager = FileManager.default
+            let agentName = "com.srgim.throttle2.transmission.plist"
+            let launchAgentsURL = fileManager.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/LaunchAgents")
+            let destURL = launchAgentsURL.appendingPathComponent(agentName)
+
+            if transmissionOnLogin == true {
+                // Copy the plist from the app bundle to ~/Library/LaunchAgents/
+                if let srcURL = Bundle.main.url(forResource: "com.srgim.throttle2.transmission", withExtension: "plist") {
+                    do {
+                        // Create LaunchAgents directory if needed
+                        try fileManager.createDirectory(at: launchAgentsURL, withIntermediateDirectories: true)
+                        // Remove any existing file
+                        if fileManager.fileExists(atPath: destURL.path) {
+                            try fileManager.removeItem(at: destURL)
+                        }
+                        try fileManager.copyItem(at: srcURL, to: destURL)
+                        // Load the agent
+                        let task = Process()
+                        task.launchPath = "/bin/launchctl"
+                        task.arguments = ["load", destURL.path]
+                        try? task.run()
+                    } catch {
+                        print("Failed to install transmission LaunchAgent: \(error)")
                     }
                 }
             } else {
@@ -282,6 +327,21 @@ struct ContentView: View {
             ServerMountManager.shared.mountAllServers(serverArray)
             // quit after mounting
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                NSApp.terminate(nil)
+            }
+            #endif
+        }
+        else if url.scheme == "throttle2", url.host == "starttransmission" {
+            print("🚀 Processing starttransmission URL scheme - HEADLESS TRANSMISSION START")
+            #if os(macOS)
+            store.launching = true
+            // Start transmission daemon for local servers and quit (headless)
+            let localServers = servers.filter { $0.isLocal }
+            if let localServer = localServers.first {
+                LocalTransmissionManager.shared.startDaemon(for: localServer)
+            }
+            // quit after starting transmission
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 NSApp.terminate(nil)
             }
             #endif
