@@ -223,22 +223,19 @@ struct Throttle_2App: App {
             CommandMenu("Transmission") {
                 let localServers = serverArray.filter { $0.isLocal }
                 
-                if let localServer = localServers.first {
+                if !localServers.isEmpty {
                     Button("Start Daemon") {
-                        localTransmissionManager.startDaemon(for: localServer)
+                        localTransmissionManager.startDaemon()
                     }
                     .disabled(localTransmissionManager.isRunning)
                     
                     Button("Stop Daemon") {
-                        localTransmissionManager.stopDaemon(for: localServer)
+                        localTransmissionManager.stopDaemon()
                     }
                     .disabled(!localTransmissionManager.isRunning)
                     
                     Button("Restart Daemon") {
-                        localTransmissionManager.stopDaemon(for: localServer)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            localTransmissionManager.startDaemon(for: localServer)
-                        }
+                        localTransmissionManager.restartDaemon()
                     }
                     .disabled(!localTransmissionManager.isRunning)
                     

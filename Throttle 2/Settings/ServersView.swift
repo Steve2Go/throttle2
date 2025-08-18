@@ -372,43 +372,10 @@ struct ServerEditView: View {
                     }
                     
                     if isLocal {
-                        // Local server specific settings
-                        HStack {
-                            Text("Port")
-                            Spacer()
-                            TextField("Port number", text: $localPort)
-                                .multilineTextAlignment(.trailing)
-                                .keyboardType(.numberPad)
+                        // Use the dedicated LocalTransmissionSettingsView
+                        if let server = server {
+                            LocalTransmissionSettingsView(server: server)
                         }
-                        
-                        Toggle("Start daemon on login", isOn: $localStartOnLogin)
-                        Toggle("Enable remote access", isOn: $localRemoteAccess)
-                        
-                        if localRemoteAccess {
-                            HStack {
-                                Text("Username")
-                                Spacer()
-                                TextField("Username", text: $localRemoteUsername)
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .frame(maxWidth: 120)
-                            }
-                            
-                            HStack {
-                                Text("Password")
-                                Spacer()
-                                SecureField("Password", text: $localRemotePassword)
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .frame(maxWidth: 120)
-                            }
-                            
-                            HStack {
-                                Text("SSH Key")
-                                Spacer()
-                                Text(localSSHKeyGenerated ? "Generated" : "Not Generated")
-                                    .foregroundColor(localSSHKeyGenerated ? .green : .orange)
-                            }
-                        }
-                        
                     } else {
                         // Regular server settings
                         Toggle("RPC Over SSH Tunnel", isOn: $sftpRpc)
@@ -436,29 +403,10 @@ struct ServerEditView: View {
                     TextField(isLocal ? "Local server name" : "Server name", text: $name)
                     
                     if isLocal {
-                        // Local server specific settings (macOS)
-                        TextField("Port", text: $localPort)
-                        Toggle("Start daemon on login", isOn: $localStartOnLogin)
-                        Toggle("Enable remote access", isOn: $localRemoteAccess)
-                        
-                        if localRemoteAccess {
-                            TextField("Username", text: $localRemoteUsername)
-                            SecureField("Password", text: $localRemotePassword)
-                            
-                            HStack {
-                                Text("SSH Key Status:")
-                                Spacer()
-                                Text(localSSHKeyGenerated ? "Generated" : "Not Generated")
-                                    .foregroundColor(localSSHKeyGenerated ? .green : .orange)
-                                if !localSSHKeyGenerated {
-                                    Button("Generate") {
-                                        // TODO: Generate SSH key
-                                        localSSHKeyGenerated = true
-                                    }
-                                }
-                            }
+                        // Use the dedicated LocalTransmissionSettingsView
+                        if let server = server {
+                            LocalTransmissionSettingsView(server: server)
                         }
-                        
                     } else {
                         // Regular server settings (macOS)
                         Toggle("RPC Over SSH Tunnel", isOn: $sftpRpc)
@@ -497,8 +445,6 @@ struct ServerEditView: View {
                         TextField("RPC Path", text: $rpc)
                         #endif
                     }
-                    
-                    Toggle("Default Server", isOn: $isDefault)
                     
                     Toggle("Default Server", isOn: $isDefault)
                     

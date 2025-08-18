@@ -105,8 +105,8 @@ struct ContentView: View {
             
             // Always start transmission daemon when app launches if we have local servers
             let localServers = servers.filter { $0.isLocal }
-            if let localServer = localServers.first {
-                LocalTransmissionManager.shared.startDaemon(for: localServer)
+            if !localServers.isEmpty {
+                LocalTransmissionManager.shared.startDaemon()
             }
             #endif
             
@@ -337,8 +337,8 @@ struct ContentView: View {
             store.launching = true
             // Start transmission daemon for local servers and quit (headless)
             let localServers = servers.filter { $0.isLocal }
-            if let localServer = localServers.first {
-                LocalTransmissionManager.shared.startDaemon(for: localServer)
+            if !localServers.isEmpty {
+                LocalTransmissionManager.shared.startDaemon()
             }
             // quit after starting transmission
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {

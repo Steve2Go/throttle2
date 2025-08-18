@@ -80,8 +80,34 @@ class LocalTransmissionManager: ObservableObject {
         checkDaemonStatus()
     }
     
-    /// Start the transmission daemon for a local server
-    func startDaemon(for server: ServerEntity) {
+    /// Find the local server entity
+    private func findLocalServer() -> ServerEntity? {
+        let context = DataManager.shared.viewContext
+        let request: NSFetchRequest<ServerEntity> = ServerEntity.fetchRequest()
+        request.predicate = NSPredicate(format: "isLocal == true")
+        request.fetchLimit = 1
+        
+        do {
+            let servers = try context.fetch(request)
+            return servers.first
+        } catch {
+            print("Failed to fetch local server: \(error)")
+            return nil
+        }
+    }
+    
+    /// Start the transmission daemon for the local server
+    func startDaemon() {
+        guard let server = findLocalServer() else {
+            print("No local server found")
+            return
+        }
+        
+        startDaemon(for: server)
+    }
+    
+    /// Start the transmission daemon for a specific server (internal method)
+    private func startDaemon(for server: ServerEntity) {
         guard !isRunning else {
             print("Transmission daemon is already running")
             return
@@ -164,8 +190,18 @@ class LocalTransmissionManager: ObservableObject {
         }
     }
     
-    /// Stop the transmission daemon
-    func stopDaemon(for server: ServerEntity) {
+    /// Stop the transmission daemon for the local server
+    func stopDaemon() {
+        guard let server = findLocalServer() else {
+            print("No local server found")
+            return
+        }
+        
+        stopDaemon(for: server)
+    }
+    
+    /// Stop the transmission daemon for a specific server (internal method)
+    private func stopDaemon(for server: ServerEntity) {
         guard isRunning, let process = transmissionProcess else {
             print("No transmission daemon is currently running")
             return
@@ -231,12 +267,42 @@ class LocalTransmissionManager: ObservableObject {
 }
 
 extension LocalTransmissionManager {
-    /// Toggle daemon state for a server
-    func toggleDaemon(for server: ServerEntity) {
+    /// Toggle daemon state for the local server
+    func toggleDaemon() {
+        guard let server = findLocalServer() else {
+            print("No local server found")
+            return
+        }
+        
+        toggleDaemon(for: server)
+    }
+    
+    /// Toggle daemon state for a specific server (internal method)
+    private func toggleDaemon(for server: ServerEntity) {
         if isRunning {
             stopDaemon(for: server)
         } else {
             startDaemon(for: server)
+        }
+    }
+    
+    /// Restart daemon for the local server
+    func restartDaemon() {
+        guard let server = findLocalServer() else {
+            print("No local server found")
+            return
+        }
+        
+        restartDaemon(for: server)
+    }
+    
+    /// Restart daemon for a specific server (internal method)
+    private func restartDaemon(for server: ServerEntity) {
+        stopDaemon(for: server)
+        
+        // Give daemon time to fully stop
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.startDaemon(for: server)
         }
     }
     
