@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23788" systemVersion="24E263" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24288" systemVersion="25A5338b" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
     <entity name="ServerEntity" representedClassName=".ServerEntity" syncable="YES" codeGenerationType="class">
         <attribute name="ffmpegPath" optional="YES" attributeType="String"/>
         <attribute name="ffThumb" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
@@ -12,6 +12,14 @@
         <attribute name="httpUser" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="isDefault" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isLocal" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="localDaemonEnabled" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="localPort" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="localRemoteAccess" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="localRemotePassword" optional="YES" attributeType="String"/>
+        <attribute name="localRemoteUsername" optional="YES" attributeType="String"/>
+        <attribute name="localSSHKeyGenerated" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="localStartOnLogin" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="mountedlocation" optional="YES" attributeType="String"/>
         <attribute name="name" optional="YES" attributeType="String"/>
         <attribute name="pathFilesystem" optional="YES" attributeType="String"/>

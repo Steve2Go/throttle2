@@ -10,6 +10,7 @@ import SwiftUI
 struct TransmissionSettingsView: View {
     @ObservedObject var manager: TorrentManager
     @ObservedObject var store: Store
+    @StateObject private var localTransmissionManager = LocalTransmissionManager.shared
     @Environment(\.presentationMode) var presentationMode
     @Environment(\.colorScheme) var colorScheme
     
@@ -69,8 +70,18 @@ struct TransmissionSettingsView: View {
     @State private var showSaveError: Bool = false
     @State private var showSuccess: Bool = false
     
+    // Local server credentials
+    @State private var localRemoteUsername: String = ""
+    @State private var localRemotePassword: String = ""
+    
     // Tab items
-    private let tabs = ["General", "Download", "Network"]
+    private var tabs: [String] {
+        if store.selection?.isLocal == true {
+            return ["General", "Download", "Network", "Local"]
+        } else {
+            return ["General", "Download", "Network"]
+        }
+    }
     private let weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     
     var body: some View {
@@ -127,6 +138,7 @@ struct TransmissionSettingsView: View {
                             case 0: generalSettingsForm
                             case 1: downloadSettingsForm
                             case 2: networkSettingsForm
+                            case 3: localSettingsForm
                             default: EmptyView()
                             }
                         }
@@ -250,6 +262,7 @@ struct TransmissionSettingsView: View {
                         case 0: generalSettingsForm
                         case 1: downloadSettingsForm
                         case 2: networkSettingsForm
+                        case 3: localSettingsForm
                         default: EmptyView()
                         }
                     }
@@ -677,7 +690,137 @@ struct TransmissionSettingsView: View {
     
     var localSettingsForm: some View {
         Group {
-            // This is a stub for future use
+            if let server = store.selection, server.isLocal == true {
+                settingsSection(title: "Local Transmission Daemon") {
+                    HStack {
+                        Text("Daemon Status:")
+                        Spacer()
+                        Text(localTransmissionManager.isRunning ? "Running" : "Stopped")
+                            .foregroundColor(localTransmissionManager.isRunning ? .green : .red)
+                        
+                        Button(localTransmissionManager.isRunning ? "Stop" : "Start") {
+                            localTransmissionManager.toggleDaemon(for: server)
+                        }
+                        .buttonStyle(.bordered)
+                        
+                        if localTransmissionManager.isRunning {
+                            Button("Test Connection") {
+                                Task {
+                                    let connected = await localTransmissionManager.testDaemonConnection(for: server)
+                                    DispatchQueue.main.async {
+                                        if connected {
+                                            print("✅ Daemon connection successful")
+                                        } else {
+                                            print("❌ Daemon connection failed")
+                                        }
+                                    }
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                    
+                    HStack {
+                        Text("Port:")
+                        Spacer()
+                        Text("\(server.localPort)")
+                    }
+                    
+                    Toggle("Start on Login", isOn: .constant(server.localStartOnLogin))
+                        .disabled(true) // Read-only in settings view
+                    
+                    Toggle("Remote Access", isOn: .constant(server.localRemoteAccess))
+                        .disabled(true) // Read-only in settings view
+                }
+                
+                // Always show credentials section for local servers
+                settingsSection(title: "Remote Access Credentials") {
+                    if !server.localRemoteAccess {
+                        Text("These credentials will be used when remote access is enabled")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.bottom, 4)
+                    }
+                    
+                    HStack {
+                        Text("Username:")
+                        Spacer()
+                        TextField("Username", text: $localRemoteUsername)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .frame(maxWidth: 150)
+                            .onSubmit {
+                                saveLocalCredentials()
+                            }
+                    }
+                    
+                    HStack {
+                        Text("Password:")
+                        Spacer()
+                        SecureField("Password", text: $localRemotePassword)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .frame(maxWidth: 150)
+                            .onSubmit {
+                                saveLocalCredentials()
+                            }
+                    }
+                    
+                    Button("Save Credentials") {
+                        saveLocalCredentials()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(localRemoteUsername.isEmpty || localRemotePassword.isEmpty)
+                }
+                
+                if server.localRemoteAccess {
+                    settingsSection(title: "SSH & External Access") {
+                        
+                        HStack {
+                            Text("SSH Key Status:")
+                            Spacer()
+                            Text(server.localSSHKeyGenerated ? "Generated" : "Not Generated")
+                                .foregroundColor(server.localSSHKeyGenerated ? .green : .orange)
+                            
+                            if !server.localSSHKeyGenerated {
+                                Button("Generate Key") {
+                                    // TODO: Implement SSH key generation
+                                    // This will be implemented in LocalSSHKeyManager
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                        
+                        if server.localSSHKeyGenerated {
+                            HStack {
+                                Text("External Access:")
+                                Spacer()
+                                Text("Available via iCloud")
+                                    .foregroundColor(.blue)
+                            }
+                            
+                            Text("Other devices on your iCloud account can connect to this server automatically.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                settingsSection(title: "Advanced") {
+                    Button("View Transmission Logs") {
+                        // TODO: Implement log viewing
+                    }
+                    .buttonStyle(.bordered)
+                    
+                    Button("Reset Local Server") {
+                        // TODO: Implement reset functionality
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundColor(.red)
+                }
+                
+            } else {
+                Text("Local settings are only available for local servers.")
+                    .foregroundColor(.secondary)
+            }
         }
     }
     
@@ -750,6 +893,12 @@ struct TransmissionSettingsView: View {
                     
                     // Setup weekday selections based on bit field
                     updateSelectedDaysFromBitfield()
+                    
+                    // Load local server credentials if this is a local server
+                    if let server = store.selection, server.isLocal == true {
+                        localRemoteUsername = server.localRemoteUsername ?? "throttle"
+                        localRemotePassword = server.localRemotePassword ?? ""
+                    }
                     
                     isLoading = false
                 }
@@ -828,6 +977,27 @@ struct TransmissionSettingsView: View {
                     showSaveError = true
                 }
             }
+        }
+    }
+    
+    private func saveLocalCredentials() {
+        guard let server = store.selection, server.isLocal == true else { return }
+        
+        server.localRemoteUsername = localRemoteUsername
+        server.localRemotePassword = localRemotePassword
+        
+        do {
+            try server.managedObjectContext?.save()
+            // Show success feedback
+            DispatchQueue.main.async {
+                showSuccess = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    showSuccess = false
+                }
+            }
+        } catch {
+            saveError = "Failed to save credentials: \(error.localizedDescription)"
+            showSaveError = true
         }
     }
     

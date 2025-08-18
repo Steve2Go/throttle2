@@ -92,14 +92,30 @@
 			platformFiltersByRelativePath = {
 				QuickLookVideo.app = (macos, );
 				"fuse-t-macos-installer-1.0.44.pkg" = (macos, );
+				"lib/libevent-2.1.7.dylib" = (macos, );
+				lib/libminiupnpc.21.dylib = (macos, );
 				"sshfs-macos-installer-1.0.2.pkg" = (macos, );
-				"transmission/transmission-create" = (macos, );
-				"transmission/transmission-daemon" = (macos, );
-				"transmission/transmission-remote" = (macos, );
+				"transmission-daemon" = (macos, );
+				"transmission-remote" = (macos, );
 			};
 			target = E7150E162D631D08009C4217 /* Throttle 2 */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		E7AD05C92E52B1BB0041B1F1 /* Exceptions for "Resources" folder in "Copy Bundle Resources" phase from "Throttle 2" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = E7150E152D631D08009C4217 /* Resources */;
+			membershipExceptions = (
+				"lib/libevent-2.1.7.dylib",
+				lib/libminiupnpc.21.dylib,
+			);
+			platformFiltersByRelativePath = {
+				"lib/libevent-2.1.7.dylib" = (macos, );
+				lib/libminiupnpc.21.dylib = (macos, );
+			};
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E77CF62C2D704F40002705A5 /* Throttle 2 */ = {
@@ -114,6 +130,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				E7F96B862D8BF87300A19857 /* Exceptions for "Resources" folder in "Throttle 2" target */,
+				E7AD05C92E52B1BB0041B1F1 /* Exceptions for "Resources" folder in "Copy Bundle Resources" phase from "Throttle 2" target */,
 			);
 			path = Resources;
 			sourceTree = "<group>";

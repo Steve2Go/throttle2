@@ -39,9 +39,18 @@ struct ServerRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Image (systemName: "externaldrive")
+                Image(systemName: server.isLocal == true ? "desktopcomputer" : "externaldrive")
                 Text((server.isDefault ? (server.name ?? "Server") + " (Default)" : server.name) ?? "Server")
                     .font(.headline)
+                if server.isLocal == true {
+                    Text("LOCAL")
+                        .font(.caption)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.2))
+                        .foregroundColor(.blue)
+                        .cornerRadius(4)
+                }
             }
         }
         .padding(.vertical, 2)
@@ -62,6 +71,19 @@ struct ServersListView: View {
     @ObservedObject var presenting: Presenting
     @ObservedObject var store: Store
     @AppStorage("useCloudKit") var useCloudKit: Bool = true
+    
+    // Helper computed properties for local server management
+    var localServers: [ServerEntity] {
+        servers.filter { $0.isLocal }
+    }
+    
+    var canCreateLocalServer: Bool {
+        localServers.count < 1
+    }
+    
+    var localButtonTitle: String {
+        return "Local"
+    }
     
     var body: some View {
         VStack {
@@ -98,6 +120,18 @@ struct ServersListView: View {
                     }) {
                         Label("Add Server", systemImage: "plus")
                     }
+                    
+                    // Add Local Server button (Apple Silicon only)
+                    #if os(macOS)
+                    if ProcessInfo.isAppleSilicon && canCreateLocalServer {
+                        Button(action: {
+                            createLocalServer()
+                        }) {
+                            Label(localButtonTitle, systemImage: "desktopcomputer")
+                        }
+                    }
+                    #endif
+                    
                     if selection == nil {
                         Button(action: {
                             presenting.activeSheet = nil
@@ -113,6 +147,58 @@ struct ServersListView: View {
         #endif
     }
     
+    private func createLocalServer() {
+        // Prevent creation if limit is reached
+        guard canCreateLocalServer else {
+            print("Cannot create local server: limit of 1 reached")
+            return
+        }
+        
+        withAnimation {
+            let newServer = ServerEntity(context: viewContext)
+            newServer.id = UUID()
+            // Name based on current count
+            let currentCount = localServers.count
+            newServer.name = currentCount == 0 ? "Local Server" : "Local Server \(currentCount + 1)"
+            newServer.isDefault = servers.isEmpty // Make default if no other servers
+            newServer.isLocal = true
+            
+            // Set dummy values for local server
+            newServer.url = "127.0.0.1"
+            newServer.port = 9091
+            newServer.rpc = "/transmission/rpc"
+            newServer.user = ""
+            newServer.pathServer = "/"
+            newServer.pathFilesystem = "/"
+            newServer.sftpBrowse = false
+            newServer.sftpRpc = false
+            newServer.protoHttps = false
+            
+            // Set local server specific defaults
+            newServer.localPort = 9091
+            newServer.localDaemonEnabled = false
+            newServer.localStartOnLogin = false
+            newServer.localRemoteAccess = false
+            newServer.localRemoteUsername = "throttle"
+            newServer.localRemotePassword = generateRandomPassword()
+            newServer.localSSHKeyGenerated = false
+            
+            do {
+                try viewContext.save()
+                print("Local server created successfully")
+                // Auto-select the new local server
+                selection = newServer
+            } catch {
+                print("Failed to create local server: \(error)")
+            }
+        }
+    }
+    
+    private func generateRandomPassword() -> String {
+        let charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        return String((0..<12).map { _ in charset.randomElement()! })
+    }
+
     private func deleteServer(_ server: ServerEntity) {
         withAnimation {
             let keychain = useCloudKit ? Keychain(service: "srgim.throttle2").synchronizable(true) : Keychain(service: "srgim.throttle2").synchronizable(false)
@@ -191,6 +277,16 @@ struct ServerEditView: View {
     @Environment(\.openURL) private var openURL
     @State var installerView = false
     @AppStorage("useCloudKit") var useCloudKit: Bool = true
+    
+    // Local Server settings
+    @State private var isLocal: Bool
+    @State private var localPort: String
+    @State private var localDaemonEnabled: Bool
+    @State private var localStartOnLogin: Bool
+    @State private var localRemoteAccess: Bool
+    @State private var localRemoteUsername: String
+    @State private var localRemotePassword: String
+    @State private var localSSHKeyGenerated: Bool
 
     
     @State private var showingKeyErrorAlert = false
@@ -238,6 +334,16 @@ struct ServerEditView: View {
         _hasPython = State(initialValue: server?.hasPython ?? true)
         _videoDisabled = State(initialValue: server?.videoDisabled ?? false)
         _sftpPhrase = State(initialValue: keychain["sftpPhrase" + (server?.name ?? "")] ?? "")
+        
+        // Initialize local server states
+        _isLocal = State(initialValue: server?.isLocal ?? false)
+        _localPort = State(initialValue: String(server?.localPort ?? 9091))
+        _localDaemonEnabled = State(initialValue: server?.localDaemonEnabled ?? false)
+        _localStartOnLogin = State(initialValue: server?.localStartOnLogin ?? false)
+        _localRemoteAccess = State(initialValue: server?.localRemoteAccess ?? false)
+        _localRemoteUsername = State(initialValue: server?.localRemoteUsername ?? "throttle")
+        _localRemotePassword = State(initialValue: server?.localRemotePassword ?? "")
+        _localSSHKeyGenerated = State(initialValue: server?.localSSHKeyGenerated ?? false)
 
     }
     
@@ -255,91 +361,179 @@ struct ServerEditView: View {
         #endif
         NavigationStack {
             Form {
-                // **Torrent**
-                Section(header: Text("Transmission Connection")) {
+                // **Server Type Section**
+                Section(header: Text(isLocal ? "Local Transmission Server" : "Transmission Connection")) {
                     #if os(iOS)
                     HStack {
                         Text("Name")
                         Spacer()
-                        TextField("Server name", text: $name)
+                        TextField(isLocal ? "Local server name" : "Server name", text: $name)
                             .multilineTextAlignment(.trailing)
                     }
-                    Toggle("RPC Over SSH Tunnel", isOn: $sftpRpc)
-                        .onChange(of: sftpRpc){
-                            if sftpRpc {
-                                sftpBrowse = true
+                    
+                    if isLocal {
+                        // Local server specific settings
+                        HStack {
+                            Text("Port")
+                            Spacer()
+                            TextField("Port number", text: $localPort)
+                                .multilineTextAlignment(.trailing)
+                                .keyboardType(.numberPad)
+                        }
+                        
+                        Toggle("Start daemon on login", isOn: $localStartOnLogin)
+                        Toggle("Enable remote access", isOn: $localRemoteAccess)
+                        
+                        if localRemoteAccess {
+                            HStack {
+                                Text("Username")
+                                Spacer()
+                                TextField("Username", text: $localRemoteUsername)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(maxWidth: 120)
+                            }
+                            
+                            HStack {
+                                Text("Password")
+                                Spacer()
+                                SecureField("Password", text: $localRemotePassword)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(maxWidth: 120)
+                            }
+                            
+                            HStack {
+                                Text("SSH Key")
+                                Spacer()
+                                Text(localSSHKeyGenerated ? "Generated" : "Not Generated")
+                                    .foregroundColor(localSSHKeyGenerated ? .green : .orange)
                             }
                         }
-                    if !sftpRpc {
-                        Toggle("Server Uses SSL (https)", isOn: $protHttps)
+                        
+                    } else {
+                        // Regular server settings
+                        Toggle("RPC Over SSH Tunnel", isOn: $sftpRpc)
+                            .onChange(of: sftpRpc){
+                                if sftpRpc {
+                                    sftpBrowse = true
+                                }
+                            }
+                        if !sftpRpc {
+                            Toggle("Server Uses SSL (https)", isOn: $protHttps)
+                            HStack {
+                                Text("Server")
+                                Spacer()
+                                TextField("Server address", text: $url)
+                                    .multilineTextAlignment(.trailing)
+                                    .autocapitalization(.none)
+                                    .autocorrectionDisabled()
+                            }
+                        } else {
+                            Text("SSL not available when tunneling, tunnel should be direct to the Transmission server")
+                                .font(.caption)
+                        }
+                    }
+                    #else
+                    TextField(isLocal ? "Local server name" : "Server name", text: $name)
+                    
+                    if isLocal {
+                        // Local server specific settings (macOS)
+                        TextField("Port", text: $localPort)
+                        Toggle("Start daemon on login", isOn: $localStartOnLogin)
+                        Toggle("Enable remote access", isOn: $localRemoteAccess)
+                        
+                        if localRemoteAccess {
+                            TextField("Username", text: $localRemoteUsername)
+                            SecureField("Password", text: $localRemotePassword)
+                            
+                            HStack {
+                                Text("SSH Key Status:")
+                                Spacer()
+                                Text(localSSHKeyGenerated ? "Generated" : "Not Generated")
+                                    .foregroundColor(localSSHKeyGenerated ? .green : .orange)
+                                if !localSSHKeyGenerated {
+                                    Button("Generate") {
+                                        // TODO: Generate SSH key
+                                        localSSHKeyGenerated = true
+                                    }
+                                }
+                            }
+                        }
+                        
+                    } else {
+                        // Regular server settings (macOS)
+                        Toggle("RPC Over SSH Tunnel", isOn: $sftpRpc)
+                            .onChange(of: sftpRpc){
+                                if sftpRpc {
+                                    sftpBrowse = true
+                                }
+                            }
+                        if !sftpRpc {
+                            Toggle("Server Uses SSL (https)", isOn: $protHttps)
+                            TextField("Server", text: $url)
+                        } else {
+                            Text("SSL not available when tunneling, tunnel should be direct to the Transmission server").font(.caption)
+                        }
+                    }
+                    #endif
+                    
+                    // Common settings for both local and remote servers
+                    if !isLocal {
+                        #if os(iOS)
                         HStack {
-                            Text("Server")
+                            Text("RPC Port")
                             Spacer()
-                            TextField("Server address", text: $url)
+                            TextField("Port number", text: $port)
+                                .multilineTextAlignment(.trailing)
+                                .keyboardType(.numberPad)
+                        }
+                        HStack {
+                            Text("RPC Path")
+                            Spacer()
+                            TextField("Path", text: $rpc)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        #else
+                        TextField("RPC Port", text: $port)
+                        TextField("RPC Path", text: $rpc)
+                        #endif
+                    }
+                    
+                    Toggle("Default Server", isOn: $isDefault)
+                    
+                    Toggle("Default Server", isOn: $isDefault)
+                    
+                    // Authentication section - only for remote servers
+                    if !isLocal {
+                        #if os(iOS)
+                        HStack {
+                            Text("Username")
+                            Spacer()
+                            TextField("Username", text: $user)
                                 .multilineTextAlignment(.trailing)
                                 .autocapitalization(.none)
                                 .autocorrectionDisabled()
                         }
-                    } else {
-                        Text("SSL not available when tunneling, tunnel should be direct to the Transmission server")
-                            .font(.caption)
-                    }
-                    HStack {
-                        Text("RPC Port")
-                        Spacer()
-                        TextField("Port number", text: $port)
-                            .multilineTextAlignment(.trailing)
-                            .keyboardType(.numberPad)
-                    }
-                    HStack {
-                        Text("RPC Path")
-                        Spacer()
-                        TextField("Path", text: $rpc)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    Toggle("Default Server", isOn: $isDefault)
-                    HStack {
-                        Text("Username")
-                        Spacer()
-                        TextField("Username", text: $user)
-                            .multilineTextAlignment(.trailing)
-                            .autocapitalization(.none)
-                            .autocorrectionDisabled()
-                    }
-                    HStack {
-                        Text("Password")
-                        Spacer()
-                        SecureField("Password", text: $password)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    #else
-                    TextField("Name", text: $name)
-                    Toggle("RPC Over SSH Tunnel", isOn: $sftpRpc)
-                        .onChange(of: sftpRpc){
-                            if sftpRpc {
-                                sftpBrowse = true
-                            }
+                        HStack {
+                            Text("Password")
+                            Spacer()
+                            SecureField("Password", text: $password)
+                                .multilineTextAlignment(.trailing)
                         }
-                    if !sftpRpc {
-                        Toggle("Server Uses SSL (https)", isOn: $protHttps)
-                        TextField("Server", text: $url)
-                    } else {
-                        Text("SSL not available when tunneling, tunnel should be direct to the Transmission server").font(.caption)
+                        #else
+                        TextField("Username", text: $user)
+                        SecureField("Password", text: $password)
+                        #endif
                     }
-                    TextField("RPC Port", text: $port)
-                    TextField("RPC Path", text: $rpc)
-                    Toggle("Default Server", isOn: $isDefault)
-                    TextField("Username", text: $user)
-                    SecureField("Password", text: $password)
-                    #endif
                 }
                 
-                #if os(macOS)
-                Divider()
-                #endif
-                
-                // **SFTP Authentication & Path Mapping**
-                Section(header: Text("SSH Connection")) {
+                // Only show SSH/SFTP sections for non-local servers
+                if !isLocal {
+                    #if os(macOS)
+                    Divider()
+                    #endif
+                    
+                    // **SFTP Authentication & Path Mapping**
+                    Section(header: Text("SSH Connection")) {
                     #if os(macOS)
                     Toggle("SSH Path Mapping", isOn: $sftpBrowse)
                         .disabled(!fusetIsInstalled || !sshfsIsInstalled)
@@ -460,6 +654,7 @@ struct ServerEditView: View {
                     }
                 }
                 #endif
+                } // End of !isLocal conditional
             }
             .fileImporter(
                 isPresented: $showingSFTPKeyImporter,
@@ -636,6 +831,17 @@ struct ServerEditView: View {
                 existingServer.thumbMax = Int32(Int(thumbMax)! - 1)
                 existingServer.hasPython = hasPython
                 existingServer.videoDisabled = videoDisabled
+                
+                // Update local server properties
+                existingServer.isLocal = isLocal
+                existingServer.localPort = Int32(Int(localPort) ?? 9091)
+                existingServer.localDaemonEnabled = localDaemonEnabled
+                existingServer.localStartOnLogin = localStartOnLogin
+                existingServer.localRemoteAccess = localRemoteAccess
+                existingServer.localRemoteUsername = localRemoteUsername
+                existingServer.localRemotePassword = localRemotePassword
+                existingServer.localSSHKeyGenerated = localSSHKeyGenerated
+                
                 saveToKeychain()
                 store.selection = nil
                 store.selection = existingServer
@@ -667,6 +873,16 @@ struct ServerEditView: View {
                 newServer.thumbMax = Int32(Int(thumbMax)! - 1)
                 newServer.hasPython = hasPython
                 newServer.videoDisabled = videoDisabled
+                
+                // Set local server properties
+                newServer.isLocal = isLocal
+                newServer.localPort = Int32(Int(localPort) ?? 9091)
+                newServer.localDaemonEnabled = localDaemonEnabled
+                newServer.localStartOnLogin = localStartOnLogin
+                newServer.localRemoteAccess = localRemoteAccess
+                newServer.localRemoteUsername = localRemoteUsername
+                newServer.localRemotePassword = localRemotePassword
+                newServer.localSSHKeyGenerated = localSSHKeyGenerated
                 
                 saveToKeychain()
                 //workaround to freshen server settings

@@ -1,0 +1,44 @@
+# Dockerfile for building static transmission-daemon for macOS
+FROM --platform=linux/amd64 alpine:latest
+
+# Install build dependencies
+RUN apk add --no-cache \
+    build-base \
+    cmake \
+    ninja \
+    pkgconfig \
+    curl-dev \
+    libevent-dev \
+    openssl-dev \
+    zlib-dev \
+    git
+
+# Download transmission source
+WORKDIR /build
+RUN curl -L https://github.com/transmission/transmission/releases/download/4.0.6/transmission-4.0.6.tar.xz -o transmission.tar.xz && \
+    tar -xf transmission.tar.xz && \
+    cd transmission-4.0.6
+
+WORKDIR /build/transmission-4.0.6
+
+# Build statically
+RUN mkdir build && cd build && \
+    cmake .. \
+        -GNinja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DENABLE_DAEMON=ON \
+        -DENABLE_GTK=OFF \
+        -DENABLE_QT=OFF \
+        -DENABLE_MAC=OFF \
+        -DENABLE_CLI=OFF \
+        -DENABLE_UTILS=OFF \
+        -DENABLE_TESTS=OFF \
+        -DWITH_SYSTEMD=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_EXE_LINKER_FLAGS="-static" && \
+    ninja transmission-daemon
+
+# Copy the binary
+RUN cp build/daemon/transmission-daemon /transmission-daemon-static
+
+CMD ["cp", "/transmission-daemon-static", "/output/"]
