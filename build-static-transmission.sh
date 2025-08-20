@@ -64,9 +64,15 @@ DEST_DIR="/Users/stephengrigg/Documents/throttle2-15/Resources"
 mkdir -p "$DEST_DIR"
 cp daemon/transmission-daemon "$DEST_DIR/transmission-daemon-static"
 
-echo "Static transmission-daemon built and copied to $DEST_DIR/transmission-daemon-static"
+# Sign with hardened runtime
+echo "Signing transmission-daemon with hardened runtime..."
+codesign --force --sign "Developer ID Application: STEPHEN ROGER GRIGG (93C9M7982M)" --options runtime "$DEST_DIR/transmission-daemon-static"
+
+echo "Static transmission-daemon built, signed, and copied to $DEST_DIR/transmission-daemon-static"
 echo "Dependencies:"
 otool -L "$DEST_DIR/transmission-daemon-static"
+echo "Code signature:"
+codesign -dv "$DEST_DIR/transmission-daemon-static"
 
 # Cleanup
 cd /

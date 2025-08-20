@@ -225,10 +225,10 @@ struct ContentView: View {
             }
         }
         
-        .onOpenURL { url in
-            print("🔗 onOpenURL called with: \(url)")
-            self.handleURL(url)
-        }
+//        .onOpenURL { url in
+//            print("🔗 onOpenURL called with: \(url)")
+//            self.handleURL(url)
+//        }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("HandleExternalURL"))) { notification in
             print("🔔 Received HandleExternalURL notification from AppDelegate")
             if let url = notification.object as? URL {
@@ -318,7 +318,8 @@ struct ContentView: View {
                 }
             }
         }
-        else if url.scheme == "throttle2", url.host == "mountall" {
+        else
+        if url.scheme == "throttle2", url.host == "mountall" {
             print("🏔️ Processing mountall URL scheme - TERMINATING APP")
             #if os(macOS)
             store.launching = true

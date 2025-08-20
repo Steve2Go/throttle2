@@ -98,10 +98,10 @@ struct LocalTransmissionSettingsView: View {
                     saveLocalSettings()
                 }
             
-            Toggle("Enable remote access", isOn: $localRemoteAccess)
-                .onChange(of: localRemoteAccess) { _, _ in
-                    saveLocalSettings()
-                }
+//            Toggle("Enable remote access", isOn: $localRemoteAccess)
+//                .onChange(of: localRemoteAccess) { _, _ in
+//                    saveLocalSettings()
+//                }
             
             if localRemoteAccess {
                 TextField("Username", text: $localRemoteUsername)

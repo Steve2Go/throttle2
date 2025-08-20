@@ -31,14 +31,14 @@ struct AddTorrentView: View {
     
     var body: some View {
         NavigationStack {
-            if store.selection?.sftpRpc == true && TunnelManagerHolder.shared.activeTunnels.count < 1  {
-                ProgressView()
-                    .onChange(of: defaultDownloadDir) {
-                        if store.addPath.isEmpty {
-                            downloadDir = defaultDownloadDir
-                        }
-                    }
-            }else{
+//            if store.selection?.sftpRpc == true && TunnelManagerHolder.shared.activeTunnels.count < 1  {
+//                ProgressView()
+//                    .onChange(of: defaultDownloadDir) {
+//                        if store.addPath.isEmpty {
+//                            downloadDir = defaultDownloadDir
+//                        }
+//                    }
+//            }else{
                 VStack(alignment: .leading, spacing: 15) {
                     Text("Add a Download")
                         .font(.title2)
@@ -83,6 +83,7 @@ struct AddTorrentView: View {
                             TextField("Save to", text: $downloadDir)
                                 .textFieldStyle(.roundedBorder)
                                 .onAppear {
+                                    print("onappear statered")
                                     if !store.addPath.isEmpty {
                                         downloadDir = store.addPath
                                     }
@@ -203,7 +204,7 @@ struct AddTorrentView: View {
                 .padding()
                 .frame(minWidth: 400, maxWidth: 600, minHeight: 300)
             }
-        }
+  //      }
         
         .sheet(isPresented: $fileBrowser) {
             #if os(iOS)
@@ -260,11 +261,11 @@ struct AddTorrentView: View {
             downloadDir = store.addPath
         } else{
             do {
-                try await Task.sleep(for: .milliseconds(500))
+               try await Task.sleep(for: .milliseconds(1000))
                 if let directory = try? await manager.getDownloadDirectory() {
-                    await MainActor.run {
+                   // await MainActor.run {
                         downloadDir = directory
-                    }
+                    //}
                 }
             } catch {
                 // Handle sleep error if needed
@@ -296,9 +297,10 @@ struct AddTorrentView: View {
                              userInfo: [NSLocalizedDescriptionKey: "Failed to add torrent"])
             } else {
                 
-                if deleteOnSuccess && store.magnetLink.isEmpty {
+                if deleteOnSuccess && store.magnetLink.isEmpty && store.magnetLink.isEmpty && file != nil {
                     do {
                         // The file is already accessible from the URL opening, no need to access again
+                        let secureFile = file!.startAccessingSecurityScopedResource()
                         try FileManager.default.removeItem(at: file!)
                         print("Successfully deleted torrent file: \(file!.lastPathComponent)")
                     } catch {
