@@ -10,7 +10,9 @@ import SwiftUI
 struct TransmissionSettingsView: View {
     @ObservedObject var manager: TorrentManager
     @ObservedObject var store: Store
+    #if os(macOS)
     @StateObject private var localTransmissionManager = LocalTransmissionManager.shared
+    #endif
     @Environment(\.presentationMode) var presentationMode
     @Environment(\.colorScheme) var colorScheme
     
@@ -671,6 +673,7 @@ struct TransmissionSettingsView: View {
     
     var localSettingsForm: some View {
         Group {
+#if os(macOS)
             if let server = store.selection, server.isLocal == true {
                 Section(header: Text("Local Transmission Daemon")) {
                     LocalTransmissionSettingsView(server: server)
@@ -679,8 +682,10 @@ struct TransmissionSettingsView: View {
                 Text("Local settings are only available for local servers.")
                     .foregroundColor(.secondary)
             }
+            #endif
         }
     }
+    
     
     // MARK: - Helper Views
     

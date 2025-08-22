@@ -4,7 +4,7 @@
 //
 //  Created for local transmission daemon settings management.
 //
-
+#if os(macOS)
 import SwiftUI
 
 struct LocalTransmissionSettingsView: View {
@@ -228,3 +228,4 @@ struct LocalTransmissionSettingsView: View {
 //    }
 //    .environment(\.managedObjectContext, context)
 //}
+#endif

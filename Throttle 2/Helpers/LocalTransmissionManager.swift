@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import CoreData
 
@@ -406,3 +407,4 @@ extension LocalTransmissionManager {
         return nil
     }
 }
+#endif

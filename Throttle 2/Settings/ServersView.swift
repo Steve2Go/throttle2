@@ -374,7 +374,9 @@ struct ServerEditView: View {
                     if isLocal {
                         // Use the dedicated LocalTransmissionSettingsView
                         if let server = server {
+                            #if os(macOS)
                             LocalTransmissionSettingsView(server: server)
+                            #endif
                         }
                     } else {
                         // Regular server settings

@@ -224,11 +224,12 @@ struct ContentView: View {
 #endif
             }
         }
-        
-//        .onOpenURL { url in
-//            print("🔗 onOpenURL called with: \(url)")
-//            self.handleURL(url)
-//        }
+#if os(iOS) 
+        .onOpenURL { url in
+            print("🔗 onOpenURL called with: \(url)")
+            self.handleURL(url)
+        }
+        #endif
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("HandleExternalURL"))) { notification in
             print("🔔 Received HandleExternalURL notification from AppDelegate")
             if let url = notification.object as? URL {

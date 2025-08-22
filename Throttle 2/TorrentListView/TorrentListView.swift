@@ -173,20 +173,48 @@ struct TorrentListView: View {
                             }
                             if selected != [] {
                                 Button("Start Selected", systemImage: "play") {
-                                    ToastManager.shared.show(message: "Start Request Sent", icon: "play", color: .green)
-                                    selecting.toggle()
+                                    Task {
+                                        do {
+                                            _ = try await manager.startTorrents(ids: selected)
+                                            ToastManager.shared.show(message: "Started \(selected.count) torrents", icon: "play", color: .green)
+                                            selecting.toggle()
+                                        } catch {
+                                            ToastManager.shared.show(message: "Failed to start torrents", icon: "xmark", color: .red)
+                                        }
+                                    }
                                 }
                                 Button("Stop Selected", systemImage: "stop") {
-                                    ToastManager.shared.show(message: "Stop Request Sent", icon: "stop", color: .red)
-                                    selecting.toggle()
+                                    Task {
+                                        do {
+                                            _ = try await manager.stopTorrents(ids: selected)
+                                            ToastManager.shared.show(message: "Stopped \(selected.count) torrents", icon: "stop", color: .orange)
+                                            selecting.toggle()
+                                        } catch {
+                                            ToastManager.shared.show(message: "Failed to stop torrents", icon: "xmark", color: .red)
+                                        }
+                                    }
                                 }
                                 Button("Verify Selected", systemImage: "externaldrive.badge.questionmark") {
-                                    ToastManager.shared.show(message: "Verify Request Sent", icon: "externaldrive.badge.questionmark", color: .orange)
-                                    selecting.toggle()
+                                    Task {
+                                        do {
+                                            _ = try await manager.verifyTorrents(ids: selected)
+                                            ToastManager.shared.show(message: "Verified \(selected.count) torrents", icon: "externaldrive.badge.questionmark", color: .blue)
+                                            selecting.toggle()
+                                        } catch {
+                                            ToastManager.shared.show(message: "Failed to verify torrents", icon: "xmark", color: .red)
+                                        }
+                                    }
                                 }
                                 Button("Announce Selected", systemImage: "megaphone") {
-                                    ToastManager.shared.show(message: "Announce Request Sent", icon: "megaphone", color: .green)
-                                    selecting.toggle()
+                                    Task {
+                                        do {
+                                            _ = try await manager.reannounceTorrents(ids: selected)
+                                            ToastManager.shared.show(message: "Announced \(selected.count) torrents", icon: "megaphone", color: .purple)
+                                            selecting.toggle()
+                                        } catch {
+                                            ToastManager.shared.show(message: "Failed to announce torrents", icon: "xmark", color: .red)
+                                        }
+                                    }
                                 }
                                 Button("Delete Selected", systemImage: "trash") {
                                     deleteSelectedTorrents()

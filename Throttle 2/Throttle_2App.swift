@@ -71,7 +71,9 @@ struct Throttle_2App: App {
     @ObservedObject var filter = TorrentFilters()
     @ObservedObject var store = Store()
     @StateObject var networkMonitor = NetworkMonitor()
+    #if os(macOS)
     @StateObject var localTransmissionManager = LocalTransmissionManager.shared
+    #endif
     @State var tunnelClosed = false
     @AppStorage("isBackground") var isBackground = false
     @AppStorage("mountOnLogin") var mountOnLogin = false
