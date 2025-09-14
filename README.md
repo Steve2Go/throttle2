@@ -28,6 +28,13 @@ Windows server should work fine using the built in openSSH. A manual install of 
 ## To Come
 - Local Daemon (Mac, with easy remote connection from iOS)
 
+## In 1.6 - 1.6.1
+- Local daemon - very experimental. Remote conneciton to come in the next release, there is some pre code done here that is making local daemon unstable
+- Many bug fixes - iOS crashes resolved
+- Internal file browser option for macOS - More reliable thumbs.
+- fixed orentation quirks & missing filter menu on ipad in portrait
+- inclusion of QLVideo on macos for thumbnailing
+
 ## In 1.5.6
 - Recompiled for MacOs & iOS 26
 - Stability fixes

@@ -60,69 +60,108 @@ struct SFTPFileBrowserView: View {
     
     var body: some View {
         VStack {
-#if os(macOS)
-            HStack {
-                MacCloseButton {
-                    dismiss()
-                }.padding([.top, .leading], 9).padding(.bottom, 0)
-                Spacer()
-            }
-#endif
-            NavigationStack {
-                Group {
-                    // If we're about to show a video player for a single video file, show a loading state instead of thumbnails
-                    if viewModel.isInitialPathAFile, 
-                       let initialFile = viewModel.initialFileItem,
-                       FileType.determine(from: initialFile.url) == .video,
-                       viewModel.showingVideoPlayer {
-                        VStack {
-//                            ProgressView("Loading video player...")
-//                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-//                                .foregroundColor(.white)
-//                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            ZStack {
+                NavigationStack {
+                    Group {
+                        // If we're about to show a video player for a single video file, show a loading state instead of thumbnails
+                        if viewModel.isInitialPathAFile,
+                            let initialFile = viewModel.initialFileItem,
+                           FileType.determine(from: initialFile.url) == .video,
+                           viewModel.showingVideoPlayer {
+                            VStack {
+                                //                            ProgressView("Loading video player...")
+                                //                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                //                                .foregroundColor(.white)
+                                //                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                            .background(Color.black)
+                            .ignoresSafeArea()
+                        } else if viewMode == "list" {
+                            listView
+                        } else {
+                            gridView
                         }
-                        .background(Color.black)
-                        .ignoresSafeArea()
-                    } else if viewMode == "list" {
-                        listView
-                    } else {
-                        gridView
                     }
-                }
-                // search bar
-                #if os(iOS)
-                .searchable(text: $searchQuery, prompt: "Search")
-                #endif
-                .onChange(of: searchQuery) {
-                    viewModel.fetchItems()
-                }
-                .onChange(of : currentPath){
-//                    Task {
-//                        await ThumbnailManager.shared.cleanup()
-//                    }
-                    searchQuery = ""
-                }
-                .onAppear {
-                    // Set the dismiss closure for the viewModel
-                    viewModel.onDismiss = {
-                        dismiss()
+                    // search bar
+                    //                #if os(iOS)
+                    .searchable(text: $searchQuery, prompt: "Search")
+                    //                #endif
+                    .onChange(of: searchQuery) {
+                        viewModel.fetchItems()
                     }
-                }
-                .onDisappear {
-                    searchQuery = ""
-                    Task{
-                        await viewModel.cleanup()
+                    .onChange(of : currentPath){
+                        //                    Task {
+                        //                        await ThumbnailManager.shared.cleanup()
+                        //                    }
+                        searchQuery = ""
                     }
-                }
-//                //tools
-                .toolbar {
-                    #if os(macOS)
-                    ToolbarItem(placement: .primaryAction) {
-                        HStack {
-                            TextField("Search", text: $searchQuery)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 180)
-                            
+                    .onAppear {
+                        // Set the dismiss closure for the viewModel
+                        viewModel.onDismiss = {
+                            dismiss()
+                        }
+                    }
+                    .onDisappear {
+                        searchQuery = ""
+                        Task{
+                            await viewModel.cleanup()
+                        }
+                    }
+                    //                //tools
+                    .toolbar {
+#if os(macOS)
+                        ToolbarItem(placement: .primaryAction) {
+                            HStack {
+                                TextField("Search", text: $searchQuery)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 180)
+                                
+                                Menu {
+                                    Button(action: {
+                                        viewMode = viewMode == "list" ? "grid" : "list"
+                                    }) {
+                                        Text(viewMode == "list" ? "Show as Grid" : "Show as List")
+                                        Image(systemName: viewMode == "list" ? "square.grid.2x2" : "list.bullet")
+                                    }
+                                    Button {
+                                        sftpSortOrder = "name"
+                                        viewModel.fetchItems()
+                                    } label:{
+                                        Text("Name")
+                                        if sftpSortOrder == "name" {
+                                            Image(systemName: "chevron.down")
+                                        }
+                                    }
+                                    Button {
+                                        sftpSortOrder = "date"
+                                        viewModel.fetchItems()
+                                    } label:{
+                                        Text("Date")
+                                        if sftpSortOrder == "date" {
+                                            Image(systemName: "chevron.down")
+                                        }
+                                    }
+                                    Divider()
+                                    Button("Folders First",  systemImage: sftpFoldersFirst  ? "checkmark.circle" : "circle"){
+                                        sftpFoldersFirst.toggle()
+                                        viewModel.fetchItems()
+                                    }
+                                    Divider()
+                                    Button(action: { showUploadView = true }) {
+                                        Label("Upload", systemImage: "arrow.up.doc")
+                                    }
+                                    Button("New Folder", systemImage: "folder.badge.plus"){
+                                        showNewFolderPrompt.toggle()
+                                    }
+                                    
+                                } label:{
+                                    Image(systemName: "ellipsis.circle")
+                                }
+                            }
+                        }
+#else
+                        ToolbarItem(placement: .primaryAction) {
                             Menu {
                                 Button(action: {
                                     viewMode = viewMode == "list" ? "grid" : "list"
@@ -155,8 +194,8 @@ struct SFTPFileBrowserView: View {
                                 }
                                 Divider()
                                 Button(action: { showUploadView = true }) {
-                                                        Label("Upload", systemImage: "arrow.up.doc")
-                                                    }
+                                    Label("Upload", systemImage: "arrow.up.doc")
+                                }
                                 Button("New Folder", systemImage: "folder.badge.plus"){
                                     showNewFolderPrompt.toggle()
                                 }
@@ -165,72 +204,65 @@ struct SFTPFileBrowserView: View {
                                 Image(systemName: "ellipsis.circle")
                             }
                         }
-                    }
-                    #else
-                    ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Button(action: {
-                                viewMode = viewMode == "list" ? "grid" : "list"
-                            }) {
-                                Text(viewMode == "list" ? "Show as Grid" : "Show as List")
-                                Image(systemName: viewMode == "list" ? "square.grid.2x2" : "list.bullet")
+                        ToolbarItem() {
+                            Button("Close", systemImage: "xmark") {
+                                dismiss()
                             }
-                            Button {
-                                sftpSortOrder = "name"
-                                viewModel.fetchItems()
-                            } label:{
-                                Text("Name")
-                                if sftpSortOrder == "name" {
-                                    Image(systemName: "chevron.down")
+                        }
+                        
+#endif
+                        
+                        // back button, if not at base path
+                        if viewModel.currentPath != viewModel.basePath && viewModel.currentPath + "/" != viewModel.basePath {
+                            ToolbarItem(placement: .navigation) {
+                                Button(action: {
+                                    viewModel.navigateUp()
+                                }) {
+                                    HStack {
+                                        Image(systemName: "chevron.backward")
+                                        //Text("Back")
+                                        Text(viewModel.upOne == "/" ? "Top Level" : viewModel.upOne.capitalized)
+                                    }
                                 }
                             }
-                            Button {
-                                sftpSortOrder = "date"
-                                viewModel.fetchItems()
-                            } label:{
-                                Text("Date")
-                                if sftpSortOrder == "date" {
-                                    Image(systemName: "chevron.down")
-                                }
-                            }
-                            Divider()
-                            Button("Folders First",  systemImage: sftpFoldersFirst  ? "checkmark.circle" : "circle"){
-                                sftpFoldersFirst.toggle()
-                                viewModel.fetchItems()
-                            }
-                            Divider()
-                            Button(action: { showUploadView = true }) {
-                                                    Label("Upload", systemImage: "arrow.up.doc")
-                                                }
-                            Button("New Folder", systemImage: "folder.badge.plus"){
-                                showNewFolderPrompt.toggle()
-                            }
-                            
-                        } label:{
-                            Image(systemName: "ellipsis.circle")
                         }
                     }
+                    #if os(iOS)
+                    .navigationTitle(NSString( string: viewModel.currentPath ).lastPathComponent.capitalized)
                     #endif
-                    
-                    // back button, if not at base path
+#if os(iOS)
+                    .navigationBarTitleDisplayMode(.inline)
+#endif
+                }
+            }
+            .overlay(alignment: .topLeading) {
+#if os(macOS)
+                HStack{
+                    MacCloseButton {
+                        dismiss()
+                    }
                     if viewModel.currentPath != viewModel.basePath && viewModel.currentPath + "/" != viewModel.basePath {
-                        ToolbarItem(placement: .navigation) {
+                      
                             Button(action: {
                                 viewModel.navigateUp()
                             }) {
-                                HStack {
-                                    Image(systemName: "chevron.backward")
+                               
+                                    Image(systemName: "chevron.backward.circle")
                                     //Text("Back")
-                                    Text(viewModel.upOne == "/" ? "Top Level" : viewModel.upOne.capitalized)
-                                }
+                                    //Text(viewModel.upOne == "/" ? "Top Level" : "Back")
+                                
                             }
-                        }
+                            
+                                    .buttonStyle(.plain)
+                             
+                        
                     }
+                    Text(NSString(string: viewModel.currentPath).lastPathComponent)
+                        .padding(.leading,15)
                 }
-                .navigationTitle(NSString( string: viewModel.currentPath ).lastPathComponent.capitalized)
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
+                .padding([.top], -20)
+                .padding([.leading], 20)
+#endif
             }
 //            .navigationTitle(viewModel.isInitialPathAFile ?
 //                             viewModel.initialFileItem?.name ?? "File" :

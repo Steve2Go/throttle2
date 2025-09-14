@@ -92,9 +92,6 @@
 				libminiupnpc.21.dylib,
 			);
 			platformFiltersByRelativePath = {
-				QuickLookVideo.app = (macos, );
-				"fuse-t-macos-installer-1.0.44.pkg" = (macos, );
-				"sshfs-macos-installer-1.0.2.pkg" = (macos, );
 				"transmission-daemon" = (macos, );
 				"transmission-remote" = (macos, );
 			};

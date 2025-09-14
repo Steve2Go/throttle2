@@ -347,7 +347,7 @@ struct TorrentListView: View {
                 }
             }
             #if os(iOS)
-            .presentationDetents(store.isOpeningVideoDirectly ? [.height(1)] : [.medium, .large])
+            .presentationDetents(store.isOpeningVideoDirectly ? [.height(1)] : [.large])
             #endif
         })
         #if os(iOS)
@@ -717,7 +717,7 @@ struct TorrentListView: View {
                 moveLocation = folderPath
                 showFileBrowser = false
             }
-        ).frame(width: 600, height: 600)
+        ).frame(width: 700, height: 800)
         #endif
     }
 }

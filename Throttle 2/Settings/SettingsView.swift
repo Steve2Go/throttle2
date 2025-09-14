@@ -29,6 +29,7 @@ struct SettingsView: View {
     @State var installerView = false
     @ObservedObject var manager: TorrentManager
     @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
     
     func isVLCInstalled() -> Bool {
             #if os(iOS)
@@ -60,9 +61,16 @@ struct SettingsView: View {
                 content
                     .navigationTitle("Settings")
                     .navigationBarTitleDisplayMode(.large)
-                    .toolbarBackground(.hidden)
+                    //.toolbarBackground(.hidden)
             }
-
+            .toolbar{
+                ToolbarItem(placement: .automatic) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            
 #endif
         }
     }
@@ -156,15 +164,22 @@ struct SettingsView: View {
             //Spacer()
             Section {
                 #if os(macOS)
-                Text("QLVideo is used for thumbnails not normally supported on Mac.").font(.caption)
-                Button("Thumbnail Settings"){
-                    
-                    
-                    let appURL = Bundle.main.url(forResource: "QuickLookVideo", withExtension: "app")
-                    // Open the app using NSWorkspace
-                    NSWorkspace.shared.open(appURL!)
+//                Text("QLVideo is used for thumbnails not normally supported on Mac.").font(.caption)
+//                Button("Thumbnail Settings"){
+//                    let qlvideoURL = URL(fileURLWithPath: "/Applications/QLVideo.app")
+//                    if FileManager.default.fileExists(atPath: qlvideoURL.path) {
+//                        NSWorkspace.shared.open(qlvideoURL)
+//                    } else {
+//                        // If QLVideo is not installed, show the installer
+//                        installerView.toggle()
+//                    }
+//                }
+                Text("Fuse-t and sshfs are installed to mount your files locally in Finder.").font(.caption)
+                Button("Reinstall File Integration Tools"){
+                    installerView.toggle()
                 }
-                Text("Fuse-t and sshfs are bundled to mount your files locally in Finder.").font(.caption)
+                
+               
 //                Button("Install Fuse File System") {
 //                    installerView.toggle()
 //                }
@@ -185,7 +200,7 @@ struct SettingsView: View {
 //                )
                 Text("About").font(.headline)
                 Text("Uses fuse-t with sshfs for file access: https://www.fuse-t.org").font(.caption)
-                Text("Video Thumbnails using: https://github.com/Marginal/QLVideo").font(.caption)
+                Text("We recommend QLVideo for Thumbnails: https://github.com/Marginal/QLVideo").font(.caption)
                 #else
                 
                 Text("About").font(.headline)
@@ -211,13 +226,12 @@ struct SettingsView: View {
         .onDisappear{
             isAbout = false
         }
-//        .sheet(isPresented: $installerView){
-//#if os(macOS)
-//            InstallerView()
-//                .frame(width: 500, height: 500)
-//            
-//#endif
-//        }
+        #if os(macOS)
+        .sheet(isPresented: $installerView){
+            InstallerView()
+                .frame(width: 500, height: 500)
+        }
+        #endif
        
         
     }

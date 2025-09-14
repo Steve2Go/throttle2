@@ -38,7 +38,7 @@ struct iOSContentView: View {
     // Create a shared view builder for the TorrentListView with toolbar
     @ViewBuilder
     func torrentListWithToolbar() -> some View {
-        TorrentListView(manager: manager, store: store, presenting: presenting, filter: filter, isSidebarVisible: $isSidebarVisible)
+        TorrentListView(manager: manager, store: store, presenting: presenting, filter: filter, isSidebarVisible: .constant(showSidebar))
             .withToast()
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -213,11 +213,17 @@ struct iOSContentView: View {
     
     // Check and update orientation
     private func checkOrientation() {
-        let isCurrentlyPortrait = UIDevice.current.orientation.isPortrait ||
-                                  (verticalSizeClass == .regular && horizontalSizeClass == .compact)
-        withAnimation {
-            isPortrait = isCurrentlyPortrait
+        let currentOrientation = UIDevice.current.orientation
+        
+        // Only update if we have a valid orientation (not flat/unknown)
+        if currentOrientation.isPortrait || currentOrientation.isLandscape {
+            let isCurrentlyPortrait = currentOrientation.isPortrait ||
+                                      (verticalSizeClass == .regular && horizontalSizeClass == .compact)
+            withAnimation {
+                isPortrait = isCurrentlyPortrait
+            }
         }
+        // If device is flat (.faceUp, .faceDown) or unknown, maintain the last known orientation
     }
     
     // Helper method to create binding for sheets
