@@ -60,6 +60,14 @@ struct SFTPFileBrowserView: View {
     
     var body: some View {
         VStack {
+#if os(macOS)
+            HStack {
+                MacCloseButton {
+                    dismiss()
+                }.padding([.top, .leading], 9).padding(.bottom, 0)
+                Spacer()
+            }
+#endif
             NavigationStack {
                 Group {
                     // If we're about to show a video player for a single video file, show a loading state instead of thumbnails
@@ -200,29 +208,6 @@ struct SFTPFileBrowserView: View {
                             
                         } label:{
                             Image(systemName: "ellipsis.circle")
-                        }
-                    }
-                    #endif
-                    #if os(macOS)
-                    ToolbarItem(placement: .cancellationAction) {
-                        HStack {
-                            Button(action: {
-//                             clearThumbnailOperations()
-                                dismiss()
-                            }) {
-                                Text("Close")
-                            }
-                        }
-                    }
-                    #else
-                    ToolbarItem(placement: .topBarTrailing) {
-                        HStack {
-                            Button(action: {
-//                             clearThumbnailOperations()
-                                dismiss()
-                            }) {
-                                Text("Close")
-                            }
                         }
                     }
                     #endif
