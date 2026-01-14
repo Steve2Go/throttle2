@@ -147,14 +147,17 @@ class SSHConnection {
                 authMethod = .passwordBased(username: server.sftpUser ?? "", password: password)
             }
             
-            // Set up algorithms to increase compatibility with older servers
+            // Set up algorithms to increase compatibility with modern and legacy servers
             var algorithms = SSHAlgorithms()
             algorithms.transportProtectionSchemes = .add([
                 AES128CTR.self
             ])
             algorithms.keyExchangeAlgorithms = .add([
-                DiffieHellmanGroup14Sha1.self,
-                DiffieHellmanGroup14Sha256.self
+                Curve25519.self,                    // Modern, fast, secure (preferred by IETF RFC 9142)
+                DiffieHellmanGroup18Sha512.self,    // 256-bit security strength
+                DiffieHellmanGroup16Sha512.self,    // 192-bit security strength
+                DiffieHellmanGroup14Sha256.self,    // 112-bit security (backward compatibility)
+                DiffieHellmanGroup14Sha1.self       // Legacy compatibility
             ])
             
             // Connect to SSH server
